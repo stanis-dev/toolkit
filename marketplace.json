@@ -1,0 +1,10 @@
+{
+  "name": "stan-marketplace",
+  "plugins": {
+    "toolkit": {
+      "version": "1.0.0",
+      "description": "Personal development toolkit",
+      "source": "."
+    }
+  }
+}
