@@ -1,10 +1,18 @@
 {
   "name": "stan-marketplace",
-  "plugins": {
-    "toolkit": {
-      "version": "1.0.0",
-      "description": "Personal development toolkit",
-      "source": "."
+  "owner": {
+    "name": "Stan"
+  },
+  "metadata": {
+    "description": "Personal development toolkit",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "toolkit",
+      "source": ".",
+      "description": "Personal development toolkit: Sierra agent workflows, research prompts, homelab SSH, music discovery",
+      "version": "1.0.0"
     }
-  }
+  ]
 }
