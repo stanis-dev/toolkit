@@ -74,11 +74,14 @@ After editing any file in `~/code/toolkit/`:
 ```bash
 cd ~/code/toolkit
 # Bump version in both files (must match):
-#   .claude-plugin/plugin.json    -> "version": "X.Y.Z"
+#   .claude-plugin/plugin.json      -> "version": "X.Y.Z"
 #   .claude-plugin/marketplace.json -> "version": "X.Y.Z"
 git add -A && git commit -m "<describe change>" && git push
+claude plugin marketplace update stan-marketplace
 claude plugin update toolkit@stan-marketplace
 ```
+
+The marketplace update fetches the latest repo state; the plugin update then detects the version change and pulls it into the local cache.
 
 Changes take effect on the next Claude Code session. Mid-session skill reload is not reliable (`/reload-plugins` has a known bug with skills).
 
