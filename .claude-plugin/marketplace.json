@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "toolkit",
-      "source": ".",
+      "source": "./",
       "description": "Personal development toolkit: Sierra agent workflows, research prompts, homelab SSH, music discovery",
       "version": "1.0.0"
     }
