@@ -16,6 +16,9 @@ SIERRA AGENTS:
 - phrasing-eval: Read-only subagent for phrasing evaluation against guardrails
 - replay-analyzer: Read-only subagent for evidence-first replay analysis
 
+PLUGIN DEVELOPMENT:
+- plugin-dev: How to modify, extend, and propagate changes to this plugin
+
 PERSONAL:
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
