@@ -224,41 +224,45 @@ Remove tracks that violate hard constraints.
 
 ### Step 3: Download, Playlist, Verify
 
-After the user confirms the track list from Step 2, materialise the playlist. SoulSync's built-in pipeline handles Soulseek searching, quality selection, concurrent downloading (3 workers), metadata tagging, album art, and Artist/Album/Track file organization. The agent just needs to feed it the track list and wait.
+After the user confirms the track list from Step 2, materialise the playlist. The script uses SoulSync's mirrored playlist pipeline which handles the full lifecycle: metadata discovery (iTunes), library dedup, Soulseek search with quality ranking, concurrent downloading (3 workers), metadata tagging, album art, file organization, and Plex playlist creation.
 
-#### 3a. Download tracks via SoulSync
+#### 3a. Download tracks and create Plex playlist
 
-Build a JSON track list from the Step 2 output and run [sync_playlist.py](scripts/sync_playlist.py). The script adds tracks to SoulSync's wishlist, triggers the download pipeline, and polls until complete.
+Build a JSON track list from the Step 2 output and run [sync_playlist.py](scripts/sync_playlist.py). The script creates a mirrored playlist in SoulSync, runs metadata discovery to resolve each track to real iTunes metadata, then syncs (matches against library, downloads missing tracks via Soulseek, creates the Plex playlist).
 
 ```bash
 TRACKS='[{"artist":"Mac Miller","track":"Surf","album":"Swimming"},{"artist":"Kiasmos","track":"Looped","album":"Kiasmos"}]'
 
 scp ~/.cursor/skills/music-discovery/scripts/sync_playlist.py homelab:/tmp/
-ssh homelab "python3 /tmp/sync_playlist.py --tracks '$TRACKS' --api-key 'sk_C_eRfTvsUFlQzKqLd0sNVaZUpL-YRrAkhOHikb9_UyY'"
+ssh homelab "python3 /tmp/sync_playlist.py --playlist-name 'Evening Vibes' --tracks '$TRACKS'"
 ```
 
 For large track lists, write the JSON to a file to avoid shell quoting issues:
 ```bash
-# Write tracks to file, copy, and use --tracks-file
 cat << 'EOF' > /tmp/tracks.json
 [{"artist":"Erykah Badu","track":"Otherside of the Game","album":"Baduizm"},
  {"artist":"Maxwell","track":"Fortunate","album":""}]
 EOF
 scp /tmp/tracks.json homelab:/tmp/
 scp ~/.cursor/skills/music-discovery/scripts/sync_playlist.py homelab:/tmp/
-ssh homelab "python3 /tmp/sync_playlist.py --tracks-file /tmp/tracks.json --api-key 'sk_C_eRfTvsUFlQzKqLd0sNVaZUpL-YRrAkhOHikb9_UyY' --timeout 1800"
+ssh homelab "python3 /tmp/sync_playlist.py --playlist-name 'Neo Soul Essentials' --tracks-file /tmp/tracks.json --timeout 1800"
 ```
 
-The script outputs JSON to stdout with download results. Progress prints to stderr. SoulSync internally handles:
-- Library dedup (skips tracks already owned)
-- Soulseek search with quality ranking
-- 3 concurrent downloads
-- Metadata tagging and album art
-- File organization into Artist/Album/Track structure
+The script runs 4 stages and outputs JSON to stdout (progress on stderr):
 
-**Note:** The download pipeline processes ALL current wishlist tracks. If there are pre-existing wishlist items, they will be included in the download batch. The script logs the wishlist state before triggering.
+1. **Mirror** -- stores the track list in SoulSync
+2. **Discover** -- resolves each track to real iTunes metadata (IDs, duration, album art, release date). ~10 seconds for 20 tracks.
+3. **Sync** -- matches discovered tracks against Plex library, creates/updates the Plex playlist with matched tracks, adds missing tracks to the wishlist with rich metadata
+4. **Download** -- triggers wishlist download for missing tracks, polls until complete
 
-After downloads complete, trigger a Plex library scan:
+The discovery step is critical: it ensures SoulSync's download engine has real metadata (duration, album name, real IDs) for generating Soulseek search queries. Without it, search queries fail for ~50% of tracks.
+
+Options:
+- `--playlist-name` (required): Name for the Plex playlist
+- `--timeout`: Max seconds to wait (default 1200)
+- `--keep-mirrored`: Don't delete the temporary mirrored playlist after completion
+
+After downloads complete, trigger a Plex library scan so newly downloaded tracks appear:
 ```bash
 TOKEN=$(ssh mini 'defaults read com.plexapp.plexmediaserver PlexOnlineToken')
 ssh mini "curl -s -X POST 'http://localhost:32400/library/sections/3/refresh?X-Plex-Token=$TOKEN'"
@@ -289,21 +293,6 @@ ORDER BY status, file_path;\""
 ```
 
 Report any tracks that fail verification. The user can decide to keep them (override), swap them out, or adjust the preset thresholds.
-
-#### 3c. Create the Plex playlist
-
-Run [create_playlist.py](scripts/create_playlist.py) with the ordered track list from Step 2. The script searches Plex for each track, creates the playlist, and adds tracks in order.
-
-```bash
-TOKEN=$(ssh mini 'defaults read com.plexapp.plexmediaserver PlexOnlineToken')
-
-PLAYLIST_TRACKS='[{"artist":"Mac Miller","track":"Surf"},{"artist":"Kiasmos","track":"Looped"}]'
-
-scp ~/.cursor/skills/music-discovery/scripts/create_playlist.py homelab:/tmp/
-ssh homelab "python3 /tmp/create_playlist.py --plex-token $TOKEN --playlist-name 'Work Flow Friday' --tracks '$PLAYLIST_TRACKS' --retry-missing"
-```
-
-The `--retry-missing` flag waits 30 seconds and retries tracks not found on first pass (for files still being scanned by Plex). The script outputs a JSON summary with playlist ID, tracks added, and any missing tracks.
 
 ## Managing Taste Data
 

@@ -1,63 +1,59 @@
 #!/usr/bin/env python3
 """
-Download tracks via SoulSync's built-in pipeline.
+Download tracks and create a Plex playlist via SoulSync's mirrored playlist pipeline.
 
 Runs on the homelab. Zero external dependencies (stdlib only).
-Adds tracks to the SoulSync wishlist, triggers the download pipeline
-(which handles Soulseek search, quality selection, 3 concurrent downloads,
-metadata tagging, and Artist/Album/Track organization), then polls
-until complete.
+Uses SoulSync's full pipeline: mirror playlist -> discover metadata -> sync
+(library match + download missing + create Plex playlist).
+
+This ensures tracks go through SoulSync's metadata discovery (iTunes/Spotify)
+before any Soulseek search, producing rich metadata that leads to better
+search queries, accurate quality filtering, and proper library dedup.
 
 Usage:
-    python3 sync_playlist.py --tracks '[{"artist":"Erykah Badu","track":"Otherside of the Game","album":"Baduizm"}]' \
-        --api-key 'sk_...'
+    python3 sync_playlist.py --playlist-name "Evening Vibes" \
+        --tracks '[{"artist":"Erykah Badu","track":"Otherside of the Game","album":"Baduizm"}]'
 
-    python3 sync_playlist.py --tracks-file /tmp/tracks.json --api-key 'sk_...' --timeout 1800
+    python3 sync_playlist.py --playlist-name "Evening Vibes" \
+        --tracks-file /tmp/tracks.json --timeout 1800
 """
 
 import argparse
-import hashlib
 import json
 import sys
 import time
 import urllib.request
 import urllib.error
-import urllib.parse
 
 SOULSYNC_URL = "http://localhost:8008"
-SOULSYNC_API = f"{SOULSYNC_URL}/api/v1"
-POLL_INTERVAL = 15
+POLL_INTERVAL = 5
 DEFAULT_TIMEOUT = 1200
 
 _session_cookie = None
 
 
-def api_request(path, method="GET", data=None, api_key=None, base=None, use_session=False):
-    """Make an authenticated request to the SoulSync API."""
-    url = f"{base or SOULSYNC_API}{path}"
+def _request(path, method="GET", data=None, base=None):
+    url = f"{base or SOULSYNC_URL}{path}"
     body = json.dumps(data).encode() if data else None
     req = urllib.request.Request(url, data=body, method=method)
     req.add_header("Content-Type", "application/json")
     req.add_header("Accept", "application/json")
-    if api_key and not use_session:
-        req.add_header("Authorization", f"Bearer {api_key}")
-    if use_session and _session_cookie:
+    if _session_cookie:
         req.add_header("Cookie", f"session={_session_cookie}")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        body = e.read().decode() if e.fp else ""
+        body_text = e.read().decode() if e.fp else ""
         try:
-            return json.loads(body)
+            return json.loads(body_text)
         except (json.JSONDecodeError, ValueError):
-            return {"error": {"code": str(e.code), "message": body}}
+            return {"error": {"code": str(e.code), "message": body_text}}
     except Exception as e:
         return {"error": {"code": "REQUEST_FAILED", "message": str(e)}}
 
 
 def get_session():
-    """Get a Flask session cookie by selecting profile 1."""
     global _session_cookie
     url = f"{SOULSYNC_URL}/api/profiles/select"
     body = json.dumps({"profile_id": 1}).encode()
@@ -76,153 +72,241 @@ def get_session():
     return False
 
 
-def make_track_id(artist, track):
-    """Generate a deterministic synthetic ID from artist + track name."""
-    key = f"{artist}|{track}".lower().strip()
-    return hashlib.md5(key.encode()).hexdigest()
+def log(msg):
+    print(msg, file=sys.stderr, flush=True)
 
 
-def format_for_wishlist(track):
-    """Convert {artist, track, album} to the spotify_track_data format SoulSync expects."""
-    artist = track.get("artist", "").strip()
-    title = track.get("track", "").strip()
-    album = track.get("album", "").strip()
-    synthetic_id = make_track_id(artist, title)
+# ---------------------------------------------------------------------------
+# Step 1: Create mirrored playlist
+# ---------------------------------------------------------------------------
 
-    return {
-        "id": synthetic_id,
-        "name": title,
-        "artists": [artist],
-        "album": {"name": album, "album_type": "single", "total_tracks": 1} if album else {},
-        "duration_ms": 0,
-        "popularity": 0,
-        "preview_url": None,
-        "external_urls": {},
-    }
+def create_mirrored_playlist(name, tracks):
+    playlist_tracks = []
+    for t in tracks:
+        playlist_tracks.append({
+            "track_name": t.get("track", ""),
+            "artist_name": t.get("artist", ""),
+            "album_name": t.get("album", ""),
+            "duration_ms": 0,
+            "image_url": None,
+            "source_track_id": "",
+            "extra_data": None,
+        })
+
+    source_id = f"agent_{int(time.time())}"
+    resp = _request("/api/mirror-playlist", method="POST", data={
+        "source": "file",
+        "source_playlist_id": source_id,
+        "name": name,
+        "tracks": playlist_tracks,
+        "description": f"Agent sync: {len(tracks)} tracks",
+        "owner": "agent",
+        "image_url": "",
+    })
+
+    playlist_id = resp.get("playlist_id")
+    if not playlist_id:
+        return None, resp.get("error", str(resp))
+    return playlist_id, None
 
 
-def add_tracks_to_wishlist(tracks, api_key):
-    """Add tracks to the SoulSync wishlist. Returns (added, skipped, errors)."""
-    added, skipped, errors = [], [], []
-    for i, track in enumerate(tracks, 1):
-        spotify_data = format_for_wishlist(track)
-        label = f"{track.get('artist', '?')} - {track.get('track', '?')}"
-        log(f"  [{i}/{len(tracks)}] {label}")
+# ---------------------------------------------------------------------------
+# Step 2: Discovery -- resolve each track to real iTunes/Spotify metadata
+# ---------------------------------------------------------------------------
 
-        resp = api_request("/wishlist", method="POST", data={
-            "spotify_track_data": spotify_data,
-            "failure_reason": "Added via agent sync_playlist",
-            "source_type": "manual",
-        }, api_key=api_key)
+def run_discovery(playlist_id, timeout):
+    url_hash = f"mirrored_{playlist_id}"
 
-        if resp.get("success"):
-            added.append(label)
-            log(f"    Added")
-        elif resp.get("error", {}).get("code") == "CONFLICT":
-            skipped.append(label)
-            log(f"    Already in wishlist")
+    resp = _request(f"/api/mirrored-playlists/{playlist_id}/prepare-discovery", method="POST")
+    if not resp.get("success"):
+        return None, f"prepare-discovery failed: {resp}"
+
+    resp = _request(f"/api/youtube/discovery/start/{url_hash}", method="POST")
+    if not resp.get("success"):
+        return None, f"discovery/start failed: {resp}"
+
+    start = time.time()
+    while time.time() - start < timeout:
+        status = _request(f"/api/youtube/discovery/status/{url_hash}")
+        phase = status.get("phase", "")
+        progress = status.get("progress", 0)
+        matches = status.get("spotify_matches", 0)
+        results = status.get("results", [])
+        total = len(results) if results else status.get("total_tracks", "?")
+
+        log(f"  [{time.time() - start:.0f}s] phase={phase} progress={progress}% matches={matches}/{total}")
+
+        if phase == "discovered":
+            discovered = []
+            not_resolved = []
+            for r in results:
+                label = f"{r.get('yt_artist', '?')} - {r.get('yt_track', '?')}"
+                if r.get("status_class") == "found":
+                    sp_label = f"{r.get('spotify_artist', '')} - {r.get('spotify_track', '')} [{r.get('spotify_album', '')}]"
+                    discovered.append({"input": label, "resolved": sp_label, "confidence": r.get("confidence", 0)})
+                else:
+                    not_resolved.append(label)
+
+            return {
+                "discovered": len(discovered),
+                "not_resolved": len(not_resolved),
+                "discovered_tracks": discovered,
+                "not_resolved_tracks": not_resolved,
+            }, None
+
+        if phase in ("error", "failed"):
+            return None, f"Discovery failed: {status}"
+
+        time.sleep(POLL_INTERVAL)
+
+    return None, "Discovery timed out"
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Sync -- library match + download missing + create Plex playlist
+# ---------------------------------------------------------------------------
+
+def run_sync(playlist_id, timeout):
+    url_hash = f"mirrored_{playlist_id}"
+
+    resp = _request(f"/api/youtube/sync/start/{url_hash}", method="POST")
+    if not resp.get("success"):
+        return None, f"sync/start failed: {resp}"
+
+    start = time.time()
+    last_log = ""
+    while time.time() - start < timeout:
+        status = _request(f"/api/youtube/sync/status/{url_hash}")
+        phase = status.get("phase", "")
+        sync_status = status.get("sync_status", "")
+        complete = status.get("complete", False)
+        progress = status.get("progress", {})
+
+        if isinstance(progress, dict):
+            matched = progress.get("matched_tracks", "?")
+            failed = progress.get("failed_tracks", "?")
+            downloaded = progress.get("downloaded_tracks", "?")
+            total = progress.get("total_tracks", "?")
+            summary = f"phase={phase} matched={matched} failed={failed} downloaded={downloaded} total={total}"
         else:
-            err = resp.get("error", {}).get("message", str(resp))
-            errors.append({"track": label, "error": err})
-            log(f"    Error: {err}")
+            summary = f"phase={phase} sync_status={sync_status}"
 
-    return added, skipped, errors
+        if summary != last_log:
+            log(f"  [{time.time() - start:.0f}s] {summary}")
+            last_log = summary
+
+        if complete or sync_status == "finished":
+            result = progress if isinstance(progress, dict) else {}
+            return {
+                "status": "completed",
+                "matched": result.get("matched_tracks", 0),
+                "failed": result.get("failed_tracks", 0),
+                "downloaded": result.get("downloaded_tracks", 0),
+                "total": result.get("total_tracks", 0),
+                "playlist_name": result.get("playlist_name", ""),
+            }, None
+
+        time.sleep(POLL_INTERVAL)
+
+    return None, "Sync timed out"
 
 
-def trigger_wishlist_download(api_key):
-    """Trigger SoulSync's wishlist download processing via the internal endpoint."""
-    resp = api_request("/api/wishlist/download_missing", method="POST",
-                       data={"force_download_all": False},
-                       base=SOULSYNC_URL, use_session=True)
+# ---------------------------------------------------------------------------
+# Step 4 (optional): Trigger wishlist download for tracks added during sync
+# ---------------------------------------------------------------------------
+
+def trigger_wishlist_download():
+    resp = _request("/api/wishlist/download_missing", method="POST",
+                     data={"force_download_all": False})
     if resp.get("success"):
-        log(f"  batch_id: {resp.get('batch_id', 'unknown')}")
         return resp.get("batch_id")
-    err = resp.get("error", str(resp))
-    log(f"  Failed to trigger download: {err}")
     return None
 
 
-def poll_downloads(batch_id, timeout):
-    """Poll download batch status until complete or timeout."""
+def poll_wishlist_downloads(batch_id, timeout):
     start = time.time()
-    last_summary = ""
-    settled_count = 0
+    settled = 0
+    last_log = ""
 
     while time.time() - start < timeout:
-        resp = api_request(
-            f"/api/download_status/batch?batch_ids={batch_id}",
-            base=SOULSYNC_URL, use_session=True,
-        )
+        resp = _request(f"/api/download_status/batch?batch_ids={batch_id}")
         batches = resp.get("batches", {})
         batch = batches.get(batch_id, {})
 
         if not batch:
-            settled_count += 1
-            if settled_count >= 3:
+            settled += 1
+            if settled >= 3:
                 log("  Batch cleared (completed)")
                 return {"status": "completed"}
             time.sleep(POLL_INTERVAL)
             continue
 
-        settled_count = 0
+        settled = 0
         phase = batch.get("phase", "unknown")
         tasks = batch.get("tasks", [])
 
         active = sum(1 for t in tasks if t.get("status") in
                      ("searching", "downloading", "queued", "pending", "initializing"))
-        done = sum(1 for t in tasks if t.get("status") in
-                   ("completed", "succeeded", "not_found"))
+        downloaded = sum(1 for t in tasks if t.get("status") in
+                        ("completed", "succeeded"))
+        not_found = sum(1 for t in tasks if t.get("status") == "not_found")
         failed = sum(1 for t in tasks if t.get("status") in
                      ("failed", "errored", "cancelled", "permanently_failed"))
 
-        summary = f"phase={phase} active={active} done={done} failed={failed}"
-        if summary != last_summary:
-            elapsed = time.time() - start
-            log(f"  [{elapsed:.0f}s] {summary}")
-            for t in tasks:
-                status = t.get("status", "")
-                info = t.get("track_info") or {}
-                name = info.get("name") or info.get("track_name", "?")
-                artists = info.get("artists") or info.get("artist", [])
-                artist_str = artists[0] if isinstance(artists, list) and artists else str(artists)
-                if status in ("searching", "downloading", "queued"):
-                    log(f"    {artist_str} - {name} | {status}")
-            last_summary = summary
+        summary = f"phase={phase} active={active} downloaded={downloaded} not_found={not_found} failed={failed}"
+        if summary != last_log:
+            log(f"  [{time.time() - start:.0f}s] {summary}")
+            last_log = summary
 
         if phase == "complete":
+            nf_tracks = [_task_label(t) for t in tasks if t.get("status") == "not_found"]
+            fail_tracks = [_task_label(t) for t in tasks
+                           if t.get("status") in ("failed", "errored", "cancelled", "permanently_failed")]
             return {
-                "status": "completed" if failed == 0 else "completed_with_errors",
-                "completed": done,
+                "status": "completed",
+                "downloaded": downloaded,
+                "not_found": not_found,
+                "not_found_tracks": nf_tracks,
                 "failed": failed,
+                "failed_tracks": fail_tracks,
             }
-
-        if phase == "error":
-            return {"status": "error", "error": batch.get("error", "Unknown error")}
 
         time.sleep(POLL_INTERVAL)
 
-    return {"status": "timeout", "elapsed": time.time() - start}
+    return {"status": "timeout"}
 
 
-def get_wishlist_tracks(api_key):
-    """Get current wishlist track IDs."""
-    resp = api_request("/wishlist", api_key=api_key) or {}
-    data = resp.get("data") or {}
-    return data.get("tracks", [])
+def _task_label(task):
+    info = task.get("track_info") or {}
+    name = info.get("name") or info.get("track_name", "?")
+    artists = info.get("artists") or info.get("artist", [])
+    artist_str = artists[0] if isinstance(artists, list) and artists else str(artists)
+    return f"{artist_str} - {name}"
 
 
-def log(msg):
-    print(msg, file=sys.stderr, flush=True)
+# ---------------------------------------------------------------------------
+# Cleanup: delete the mirrored playlist after use
+# ---------------------------------------------------------------------------
 
+def delete_mirrored_playlist(playlist_id):
+    resp = _request(f"/api/mirrored-playlists/{playlist_id}", method="DELETE")
+    return resp.get("success", False)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Download tracks via SoulSync pipeline")
+    parser = argparse.ArgumentParser(description="Download tracks via SoulSync mirrored playlist pipeline")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--tracks", help="JSON array of {artist, track, album} objects")
     group.add_argument("--tracks-file", help="Path to JSON file with track array")
-    parser.add_argument("--api-key", required=True, help="SoulSync API key")
+    parser.add_argument("--playlist-name", required=True, help="Name for the Plex playlist")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                         help=f"Max seconds to wait for downloads (default {DEFAULT_TIMEOUT})")
+    parser.add_argument("--keep-mirrored", action="store_true",
+                        help="Don't delete the mirrored playlist after completion")
     args = parser.parse_args()
 
     if args.tracks_file:
@@ -231,61 +315,117 @@ def main():
     else:
         tracks = json.loads(args.tracks)
 
-    log(f"SoulSync Pipeline: {len(tracks)} tracks\n")
+    log(f"SoulSync Pipeline: {len(tracks)} tracks -> '{args.playlist_name}'\n")
 
-    # Step 1: Get session for internal endpoints
-    log("Authenticating...")
+    # Authenticate
+    log("Step 0: Authenticating...")
     if not get_session():
         log("Failed to get session from SoulSync.")
         print(json.dumps({"status": "auth_failed"}, indent=2))
         sys.exit(1)
     log("  Session acquired\n")
 
-    # Step 2: Check current wishlist state
-    log("Checking current wishlist...")
-    existing = get_wishlist_tracks(args.api_key)
-    if existing:
-        log(f"  {len(existing)} tracks already in wishlist (will be included in download)\n")
+    # Step 1: Create mirrored playlist
+    log("Step 1: Creating mirrored playlist...")
+    playlist_id, err = create_mirrored_playlist(args.playlist_name, tracks)
+    if err:
+        log(f"  Failed: {err}")
+        print(json.dumps({"status": "mirror_failed", "error": str(err)}, indent=2))
+        sys.exit(1)
+    log(f"  Playlist ID: {playlist_id}\n")
 
-    # Step 3: Add tracks to wishlist
-    log("Adding tracks to wishlist...")
-    added, skipped, add_errors = add_tracks_to_wishlist(tracks, args.api_key)
-    log(f"\n  Added: {len(added)}, Already in wishlist: {len(skipped)}, Errors: {len(add_errors)}\n")
-
-    if not added and not skipped and not existing:
-        log("No tracks to download.")
-        print(json.dumps({"status": "no_tracks", "errors": add_errors}, indent=2))
+    # Step 2: Discovery
+    discovery_timeout = min(args.timeout // 3, 300)
+    log("Step 2: Running metadata discovery (iTunes)...")
+    discovery, err = run_discovery(playlist_id, discovery_timeout)
+    if err:
+        log(f"  Discovery failed: {err}")
+        print(json.dumps({"status": "discovery_failed", "error": str(err), "playlist_id": playlist_id}, indent=2))
         sys.exit(1)
 
-    # Step 4: Trigger download via internal endpoint (session-based)
-    log("Triggering SoulSync download pipeline...")
-    batch_id = trigger_wishlist_download(args.api_key)
-    if not batch_id:
-        log("Failed to trigger downloads.")
-        print(json.dumps({"status": "trigger_failed", "added": len(added)}, indent=2))
+    log(f"\n  Discovered: {discovery['discovered']}/{discovery['discovered'] + discovery['not_resolved']}")
+    if discovery["not_resolved_tracks"]:
+        log(f"  Not resolved ({discovery['not_resolved']}):")
+        for name in discovery["not_resolved_tracks"]:
+            log(f"    - {name}")
+    log("")
+
+    # Step 3: Sync (library match + Plex playlist + wishlist for missing)
+    sync_timeout = min(args.timeout // 3, 120)
+    log("Step 3: Syncing (library match + Plex playlist)...")
+    sync_result, err = run_sync(playlist_id, sync_timeout)
+    if err:
+        log(f"  Sync failed: {err}")
+        print(json.dumps({"status": "sync_failed", "error": str(err), "discovery": discovery}, indent=2))
         sys.exit(1)
-    log("  Download pipeline started (SoulSync handles search, download, organize)\n")
 
-    # Step 5: Poll progress
-    log("Polling download progress...")
-    poll_result = poll_downloads(batch_id, args.timeout)
-    log(f"\nResult: {poll_result['status']}\n")
+    matched = sync_result.get("matched", 0)
+    missing = sync_result.get("failed", 0)
+    log(f"\n  Matched in library: {matched}")
+    log(f"  Missing (added to wishlist): {missing}\n")
 
+    # Step 4: Download missing tracks via wishlist
+    download_result = None
+    if missing > 0:
+        download_timeout = args.timeout - (args.timeout // 3)
+        log("Step 4: Downloading missing tracks...")
+        batch_id = trigger_wishlist_download()
+        if batch_id:
+            log(f"  Batch ID: {batch_id}")
+            download_result = poll_wishlist_downloads(batch_id, download_timeout)
+
+            downloaded = download_result.get("downloaded", 0)
+            not_found = download_result.get("not_found", 0)
+            failed = download_result.get("failed", 0)
+
+            log(f"\n  Downloaded: {downloaded}")
+            if not_found:
+                log(f"  Not found on Soulseek: {not_found}")
+                for name in download_result.get("not_found_tracks", []):
+                    log(f"    - {name}")
+            if failed:
+                log(f"  Failed: {failed}")
+        else:
+            log("  No tracks to download (all matched or wishlist empty)")
+    else:
+        log("Step 4: Skipped (all tracks already in library)\n")
+
+    # Cleanup
+    if not args.keep_mirrored:
+        delete_mirrored_playlist(playlist_id)
+
+    # Final output
     output = {
-        "status": poll_result["status"],
+        "status": "completed",
+        "playlist_name": args.playlist_name,
         "tracks_requested": len(tracks),
-        "tracks_added_to_wishlist": len(added),
-        "tracks_already_in_wishlist": len(skipped),
-        "add_errors": add_errors,
-        "download_result": {
-            "completed": poll_result.get("completed", 0),
-            "failed": poll_result.get("failed", 0),
+        "discovery": {
+            "resolved": discovery["discovered"],
+            "not_resolved": discovery["not_resolved"],
+            "not_resolved_tracks": discovery["not_resolved_tracks"],
+        },
+        "sync": {
+            "matched_in_library": matched,
+            "missing": missing,
         },
     }
+    if download_result:
+        output["downloads"] = {
+            "downloaded": download_result.get("downloaded", 0),
+            "not_found": download_result.get("not_found", 0),
+            "not_found_tracks": download_result.get("not_found_tracks", []),
+            "failed": download_result.get("failed", 0),
+            "failed_tracks": download_result.get("failed_tracks", []),
+        }
+
+    log(f"\nDone.")
     print(json.dumps(output, indent=2))
 
-    if poll_result["status"] == "timeout":
-        sys.exit(2)
+    has_failures = (
+        discovery["not_resolved"] > 0 or
+        (download_result and (download_result.get("not_found", 0) > 0 or download_result.get("failed", 0) > 0))
+    )
+    sys.exit(1 if has_failures else 0)
 
 
 if __name__ == "__main__":
