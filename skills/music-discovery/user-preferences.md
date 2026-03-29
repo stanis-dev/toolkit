@@ -1,6 +1,8 @@
 my preferences:
+
 - monotonous playlists even for chill concentration can become boring
-- really love mixing different genres in surprising ways, like a work concetration playlist mixing future garage, heavy metal, country, blues and synthwave.
+- really love mixing different genres in surprising ways, like a work concetration playlist mixing future garage, heavy
+  metal, country, blues and synthwave.
 - synthwave
 - metal (sleep token, bring me the horizon, system of a down, )
 - rock
@@ -31,7 +33,7 @@ my preferences:
 - future garage often feels good for focus
 - chillhop
 - love chill hip-hop:
-  - mac miller, logic, tobe nwigwe (crib versions)
+    - mac miller, logic, tobe nwigwe (crib versions)
 - NF, Eminem
 - loved Black Panther OST songs and kendrik lamar's inspired album
 - loved Luke Cage OST
@@ -40,3 +42,4 @@ my preferences:
 - Linking Park
 - Snoop Dogg
 - hugh laurrie
+
