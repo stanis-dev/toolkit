@@ -71,7 +71,11 @@ def fetch_rated_tracks(base_url, token):
                 "track": key[2],
                 "user_rating": float(rating),
                 "play_count": int(item.get("viewCount", 0)),
+                "skip_count": int(item.get("skipCount", 0)),
                 "last_played_at": item.get("lastViewedAt"),
+                "last_rated_at": item.get("lastRatedAt"),
+                "view_offset": item.get("viewOffset"),
+                "duration": item.get("duration"),
                 "plex_guid": item.get("guid", ""),
                 "file_path": file_path,
             }
@@ -106,10 +110,12 @@ def fetch_play_history(base_url, token):
                 "album": key[1],
                 "track": key[2],
                 "play_count": 0,
+                "skip_count": 0,
                 "last_played_at": item.get("viewedAt"),
                 "plex_guid": item.get("guid", ""),
             }
         history[key]["play_count"] += 1
+        history[key]["skip_count"] += int(item.get("skipCount", 0))
 
     return history
 
@@ -167,7 +173,7 @@ def escape_sql(value):
 
 
 def generate_sql(tracks):
-    """Generate the upsert SQL for all tracks."""
+    """Generate the upsert SQL for all tracks, including rolling memory decay."""
     lines = [
         "CREATE TABLE IF NOT EXISTS taste ("
         "  id SERIAL PRIMARY KEY,"
@@ -179,16 +185,62 @@ def generate_sql(tracks):
         "  musicbrainz_recording_id TEXT,"
         "  user_rating REAL,"
         "  play_count INTEGER DEFAULT 0,"
+        "  skip_count INTEGER DEFAULT 0,"
         "  last_played_at TIMESTAMPTZ,"
+        "  last_rated_at TIMESTAMPTZ,"
+        "  last_skip_ratio REAL,"
+        "  duration_ms INTEGER,"
         "  context_tags TEXT[] DEFAULT '{}',"
         "  anti_tags TEXT[] DEFAULT '{}',"
         "  disliked BOOLEAN DEFAULT FALSE,"
         "  notes TEXT,"
+        "  play_mem_7 REAL DEFAULT 0,"
+        "  play_mem_30 REAL DEFAULT 0,"
+        "  play_mem_180 REAL DEFAULT 0,"
+        "  skip_mem_30 REAL DEFAULT 0,"
+        "  skip_mem_180 REAL DEFAULT 0,"
+        "  prev_play_count INTEGER DEFAULT 0,"
+        "  prev_skip_count INTEGER DEFAULT 0,"
+        "  prev_synced_at TIMESTAMPTZ,"
         "  first_seen_at TIMESTAMPTZ DEFAULT NOW(),"
         "  updated_at TIMESTAMPTZ DEFAULT NOW(),"
         "  synced_at TIMESTAMPTZ,"
         "  UNIQUE(artist, track, album)"
         ");",
+        "",
+        "-- Add new columns if table already exists (idempotent)",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS skip_count INTEGER DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS last_rated_at TIMESTAMPTZ;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS last_skip_ratio REAL;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS duration_ms INTEGER;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS play_mem_7 REAL DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS play_mem_30 REAL DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS play_mem_180 REAL DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS skip_mem_30 REAL DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS skip_mem_180 REAL DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS prev_play_count INTEGER DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS prev_skip_count INTEGER DEFAULT 0;",
+        "ALTER TABLE taste ADD COLUMN IF NOT EXISTS prev_synced_at TIMESTAMPTZ;",
+        "",
+        "CREATE TABLE IF NOT EXISTS playlist_exposures ("
+        "  id SERIAL PRIMARY KEY,"
+        "  playlist_name TEXT NOT NULL,"
+        "  context TEXT NOT NULL,"
+        "  track_artist TEXT NOT NULL,"
+        "  track_name TEXT NOT NULL,"
+        "  track_album TEXT NOT NULL DEFAULT '',"
+        "  position INTEGER,"
+        "  generated_at TIMESTAMPTZ DEFAULT NOW()"
+        ");",
+        "CREATE INDEX IF NOT EXISTS idx_exposures_context ON playlist_exposures (context, generated_at DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_exposures_track ON playlist_exposures (track_artist, track_name);",
+        "",
+        "-- Bootstrap baseline for existing rows (runs once, idempotent)",
+        "UPDATE taste SET"
+        "  prev_play_count = play_count,"
+        "  prev_skip_count = skip_count,"
+        "  prev_synced_at = synced_at"
+        "  WHERE prev_synced_at IS NULL AND synced_at IS NOT NULL;",
         "",
         "BEGIN;",
     ]
@@ -202,23 +254,66 @@ def generate_sql(tracks):
             ts = int(t["last_played_at"])
             last_played = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
 
+        last_rated = None
+        if t.get("last_rated_at"):
+            ts = int(t["last_rated_at"])
+            last_rated = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+        play_count = t.get("play_count", 0)
+        skip_count = t.get("skip_count", 0)
+        skip_ratio = skip_count / max(play_count + skip_count, 1) if (play_count + skip_count) > 0 else None
+        duration_ms = t.get("duration")
+
+        ts_last_played = f"TIMESTAMPTZ {escape_sql(last_played)}" if last_played else "NULL"
+        ts_last_rated = f"TIMESTAMPTZ {escape_sql(last_rated)}" if last_rated else "NULL"
+        ts_now = f"TIMESTAMPTZ {escape_sql(now)}"
+
         lines.append(
             f"INSERT INTO taste (artist, album, track, file_path, plex_guid, "
-            f"musicbrainz_recording_id, user_rating, play_count, last_played_at, synced_at) "
+            f"musicbrainz_recording_id, user_rating, play_count, skip_count, "
+            f"last_played_at, last_rated_at, last_skip_ratio, duration_ms, "
+            f"play_mem_7, play_mem_30, play_mem_180, skip_mem_30, skip_mem_180, "
+            f"prev_play_count, prev_skip_count, prev_synced_at, synced_at) "
             f"VALUES ({escape_sql(t['artist'])}, {escape_sql(t['album'])}, "
             f"{escape_sql(t['track'])}, {escape_sql(rel_path)}, "
             f"{escape_sql(t.get('plex_guid'))}, "
             f"{escape_sql(t.get('musicbrainz_recording_id'))}, "
-            f"{t.get('user_rating', 'NULL')}, {t.get('play_count', 0)}, "
-            f"{'TIMESTAMPTZ ' + escape_sql(last_played) if last_played else 'NULL'}, "
-            f"TIMESTAMPTZ {escape_sql(now)}) "
+            f"{t.get('user_rating', 'NULL')}, {play_count}, {skip_count}, "
+            f"{ts_last_played}, {ts_last_rated}, "
+            f"{skip_ratio if skip_ratio is not None else 'NULL'}, "
+            f"{duration_ms if duration_ms else 'NULL'}, "
+            f"0, 0, 0, 0, 0, "
+            f"{play_count}, {skip_count}, {ts_now}, {ts_now}) "
             f"ON CONFLICT (artist, track, album) DO UPDATE SET "
             f"file_path = COALESCE(EXCLUDED.file_path, taste.file_path), "
             f"plex_guid = COALESCE(EXCLUDED.plex_guid, taste.plex_guid), "
             f"musicbrainz_recording_id = COALESCE(EXCLUDED.musicbrainz_recording_id, taste.musicbrainz_recording_id), "
             f"user_rating = COALESCE(EXCLUDED.user_rating, taste.user_rating), "
             f"play_count = GREATEST(EXCLUDED.play_count, taste.play_count), "
+            f"skip_count = GREATEST(EXCLUDED.skip_count, taste.skip_count), "
             f"last_played_at = GREATEST(EXCLUDED.last_played_at, taste.last_played_at), "
+            f"last_rated_at = COALESCE(EXCLUDED.last_rated_at, taste.last_rated_at), "
+            f"last_skip_ratio = COALESCE(EXCLUDED.last_skip_ratio, taste.last_skip_ratio), "
+            f"duration_ms = COALESCE(EXCLUDED.duration_ms, taste.duration_ms), "
+            # Rolling memory decay: decay existing value by elapsed time, then add delta
+            f"play_mem_7 = COALESCE(taste.play_mem_7, 0) * POWER(0.5, "
+            f"EXTRACT(EPOCH FROM (EXCLUDED.synced_at - COALESCE(taste.synced_at, EXCLUDED.synced_at))) / 86400.0 / 7.0) "
+            f"+ GREATEST(EXCLUDED.play_count - COALESCE(taste.prev_play_count, taste.play_count), 0), "
+            f"play_mem_30 = COALESCE(taste.play_mem_30, 0) * POWER(0.5, "
+            f"EXTRACT(EPOCH FROM (EXCLUDED.synced_at - COALESCE(taste.synced_at, EXCLUDED.synced_at))) / 86400.0 / 30.0) "
+            f"+ GREATEST(EXCLUDED.play_count - COALESCE(taste.prev_play_count, taste.play_count), 0), "
+            f"play_mem_180 = COALESCE(taste.play_mem_180, 0) * POWER(0.5, "
+            f"EXTRACT(EPOCH FROM (EXCLUDED.synced_at - COALESCE(taste.synced_at, EXCLUDED.synced_at))) / 86400.0 / 180.0) "
+            f"+ GREATEST(EXCLUDED.play_count - COALESCE(taste.prev_play_count, taste.play_count), 0), "
+            f"skip_mem_30 = COALESCE(taste.skip_mem_30, 0) * POWER(0.5, "
+            f"EXTRACT(EPOCH FROM (EXCLUDED.synced_at - COALESCE(taste.synced_at, EXCLUDED.synced_at))) / 86400.0 / 30.0) "
+            f"+ GREATEST(EXCLUDED.skip_count - COALESCE(taste.prev_skip_count, taste.skip_count), 0), "
+            f"skip_mem_180 = COALESCE(taste.skip_mem_180, 0) * POWER(0.5, "
+            f"EXTRACT(EPOCH FROM (EXCLUDED.synced_at - COALESCE(taste.synced_at, EXCLUDED.synced_at))) / 86400.0 / 180.0) "
+            f"+ GREATEST(EXCLUDED.skip_count - COALESCE(taste.prev_skip_count, taste.skip_count), 0), "
+            f"prev_play_count = EXCLUDED.play_count, "
+            f"prev_skip_count = EXCLUDED.skip_count, "
+            f"prev_synced_at = EXCLUDED.synced_at, "
             f"updated_at = NOW(), "
             f"synced_at = EXCLUDED.synced_at;"
         )
@@ -272,6 +367,7 @@ def main():
                 "album": hist["album"],
                 "track": hist["track"],
                 "play_count": hist["play_count"],
+                "skip_count": hist.get("skip_count", 0),
                 "last_played_at": hist.get("last_played_at"),
                 "plex_guid": hist.get("plex_guid", ""),
                 "file_path": "",

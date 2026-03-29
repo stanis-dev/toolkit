@@ -75,7 +75,9 @@ ssh homelab "$PSQL -c \"SELECT COUNT(*), MAX(synced_at) FROM taste;\""
 ```
 
 Add `--dry-run` to preview the SQL without executing. The script fetches all rated tracks and play history from Plex,
-enriches with MusicBrainz IDs from SoulSync, and upserts into the `taste` table.
+enriches with MusicBrainz IDs from SoulSync, and upserts into the `taste` table. On each sync, rolling memory counters
+(`play_mem_7/30/180`, `skip_mem_30/180`) are updated using exponential half-life decay applied to the delta since the
+previous sync. The `playlist_exposures` table is also created if it doesn't exist.
 
 ### Step 2: Recommend
 
@@ -100,10 +102,19 @@ signals.
 3. **Explainability:**
     - For each final recommendation, give a short "why it fits" justification tied to the intent + user preferences.
 
-4. **Interaction:**
-    - Ask at most 3 high-impact clarifying questions ONLY if the request is underspecified.
-    - If you can proceed, proceed with sensible assumptions and state them.
-    - End by asking for feedback in a structured way to update the taste model.
+4. **Interaction -- engagement levels:**
+
+    The user controls how much back-and-forth they want. All modes produce a plan the user reviews
+    before execution. Use structured questions (clickable options, multiple-choice) wherever possible.
+
+    - **Quick** ("just do it"): Create the plan immediately. Include brief notes on anything notable
+      (skip patterns, dropped tracks) but do not ask questions. Default mode.
+    - **Review** ("let me see it first"): Create a draft plan and surface a small set of structured
+      questions about patterns noticed. The user clicks through options quickly.
+    - **Deep dive** ("let's really work on this"): Lead with a structured questionnaire (mood,
+      what's working, what's not, tracks to include/exclude). Build the plan from the answers.
+
+    If the user doesn't specify, assume **quick mode**. Never turn a routine refresh into a survey.
 
 #### Taste Profile
 
@@ -135,6 +146,53 @@ ssh homelab "$PSQL -c \"SELECT t.artist, t.track, t.user_rating, af.energy, af.v
 ```
 
 Take the top 10-20 tracks from the taste table as taste anchors.
+
+**Candidate ranking pool:** Use this query to generate a starting pool of ~100 candidates for a
+given context. Fill in the preset's audio thresholds and context tag. The agent reviews and refines
+this pool -- it is a starting point, not a final decision.
+
+```bash
+PSQL='sudo docker exec postgres psql -U postgres -d music -t -A'
+
+# Candidate pool for a context (fill in preset values for energy/speechiness/instrumentalness)
+ssh homelab "$PSQL -c \"
+  SELECT t.artist, t.track, t.album,
+    COALESCE(t.user_rating, 0) / 10.0 AS affinity,
+    t.play_count, t.skip_count,
+    t.play_mem_7, t.play_mem_30, t.play_mem_180,
+    t.skip_mem_30, t.skip_mem_180,
+    t.last_played_at, t.context_tags,
+    af.energy, af.instrumentalness, af.speechiness,
+    CASE
+      WHEN t.last_played_at IS NULL THEN 1.00
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 1  THEN 0.05
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 3  THEN 0.25
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 7  THEN 0.60
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 14 THEN 0.85
+      ELSE 1.00
+    END AS cooldown
+  FROM taste t
+  JOIN audio_features af ON t.file_path = af.file_path
+  WHERE t.disliked = FALSE
+    AND NOT 'CONTEXT' = ANY(t.anti_tags)
+    AND af.energy BETWEEN 0.35 AND 0.65
+    AND af.speechiness < 0.15
+    AND af.instrumentalness >= 0.60
+  ORDER BY (COALESCE(t.user_rating, 0) / 10.0) *
+    CASE
+      WHEN t.last_played_at IS NULL THEN 1.00
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 1  THEN 0.05
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 3  THEN 0.25
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 7  THEN 0.60
+      WHEN EXTRACT(EPOCH FROM NOW() - t.last_played_at) / 86400 < 14 THEN 0.85
+      ELSE 1.00
+    END DESC
+  LIMIT 100;
+\""
+```
+
+Adjust the audio feature thresholds, cooldown day values, and `CONTEXT` tag per preset.
+Plex stores star ratings as 2/4/6/8/10 internally, so `/10.0` normalizes to 0-1.
 
 **Tag fingerprinting:** For each seed, call Last.fm `track.getTopTags`. Aggregate tag frequencies across all seeds to
 find recurring descriptors (e.g. "user's seeds cluster around: psychedelic soul, synthpop, chill hip-hop, neo-soul").
@@ -347,6 +405,114 @@ ORDER BY status, file_path;\""
 Report any tracks that fail verification. The user can decide to keep them (override), swap them out, or adjust the
 preset thresholds.
 
+## Temporal Taste & Playlist Refresh
+
+The taste table now includes rolling memory counters (`play_mem_7/30/180`, `skip_mem_30/180`) that
+track temporally-decomposed activity at three timescales. These are updated on each sync via
+exponential half-life decay. Use these instead of raw play_count/skip_count when judging recent
+activity patterns.
+
+### Playlist Refresh
+
+The primary use case is refreshing an existing recurring playlist, not generating from scratch.
+
+- **Compare against previous version:** query `playlist_exposures` to see what was in the last
+  version(s). Check which tracks were played (positive signal) vs. skipped (rotation candidate).
+- **Rotation:** "familiar" = tracks with `play_count > 0`, not just tracks on disk. Keep ~40-60%
+  familiar tracks that are performing well, rotate in ~30-40% fresh candidates from the ranking
+  pool, reserve ~10-20% for discovery (tracks with low play counts or new additions).
+- **Record the result:** after materializing, insert rows into `playlist_exposures`.
+
+```bash
+PSQL='sudo docker exec postgres psql -U postgres -d music -t -A'
+
+# What was in the last version of a playlist
+ssh homelab "$PSQL -c \"SELECT track_artist, track_name, position FROM playlist_exposures WHERE context = 'work_concentration' ORDER BY generated_at DESC, position LIMIT 30;\""
+
+# Tracks appearing in the last 3 generations of a context
+ssh homelab "$PSQL -c \"
+  WITH recent AS (
+    SELECT DISTINCT generated_at FROM playlist_exposures
+    WHERE context = 'work_concentration' ORDER BY generated_at DESC LIMIT 3
+  )
+  SELECT pe.track_artist, pe.track_name, COUNT(*) AS appearances
+  FROM playlist_exposures pe JOIN recent r ON pe.generated_at = r.generated_at
+  WHERE pe.context = 'work_concentration'
+  GROUP BY pe.track_artist, pe.track_name
+  ORDER BY appearances DESC;
+\""
+
+# Record a new playlist generation
+ssh homelab "$PSQL -c \"
+  INSERT INTO playlist_exposures (playlist_name, context, track_artist, track_name, track_album, position)
+  VALUES
+    ('Work Focus v12', 'work_concentration', 'Kiasmos', 'Looped', 'Kiasmos', 1),
+    ('Work Focus v12', 'work_concentration', 'Bonobo', 'Kerala', 'Migration', 2);
+\""
+```
+
+### Skip Interpretation
+
+Use rolling skip memories to spot patterns. The agent acts based on engagement level:
+
+- **Quick mode:** if `skip_mem_30 >= 3`, drop the track from the candidate pool. Explicitly
+  mention what was dropped and why in the output so the user can correct.
+- **Review mode:** surface as a note: "Dropped Track X (3 skips in the last month). Flag if wrong."
+- **Deep dive mode:** ask: "Track X has been skipped a few times recently. Wrong context, burned
+  out, or don't like it?" Record: wrong context → add anti_tag, burned out → no action (cooldown
+  handles it), don't like → update rating or set disliked.
+
+```bash
+# Tracks with notable recent skip activity
+ssh homelab "$PSQL -c \"SELECT artist, track, skip_mem_30, skip_mem_180, play_mem_30 FROM taste WHERE skip_mem_30 >= 2 ORDER BY skip_mem_30 DESC;\""
+```
+
+### Periodic Taste Review
+
+Ratings do not decay automatically. A 5-star rating stays 5 stars until the user says otherwise.
+Instead, the agent surfaces stale ratings for human review at the right moment:
+
+- **Never in quick mode.** Don't interrupt routine refreshes.
+- **In review mode:** brief note: "15 tracks in your pool have ratings over a year old. Review?"
+- **In deep dive mode:** surface stale ratings and walk through them.
+
+```bash
+# Tracks with old ratings still in active rotation
+ssh homelab "$PSQL -c \"SELECT artist, track, user_rating, last_rated_at FROM taste WHERE user_rating IS NOT NULL AND last_rated_at < NOW() - INTERVAL '1 year' AND play_count > 0 ORDER BY last_rated_at LIMIT 20;\""
+```
+
+### Reintroduction
+
+Tracks with low ratings or high skip history that haven't been played in 6+ months are candidates
+for reintroduction. The agent proposes these, never forces them:
+
+- **Quick mode:** may include 1 reintroduction in the discovery slot if it fits the context well.
+- **Review mode:** flagged in draft: "Trying Track X again -- rated 2 stars a year ago, your taste
+  shifted toward similar stuff. Remove it?"
+- **Deep dive mode:** full proposal with reasoning.
+- **Never auto-reintroduce** tracks with `disliked = TRUE`.
+- **No hardcoded quotas.** The user decides how many reintroductions to include.
+- **Record outcome:** if played → stays in rotation. If skipped → note "reintroduction failed."
+
+```bash
+# Reintroduction candidates (low-rated, not disliked, dormant 6+ months)
+ssh homelab "$PSQL -c \"SELECT artist, track, user_rating, last_played_at, skip_count FROM taste WHERE disliked = FALSE AND (user_rating IS NOT NULL AND user_rating <= 6) AND (last_played_at IS NULL OR last_played_at < NOW() - INTERVAL '6 months') ORDER BY last_played_at NULLS FIRST LIMIT 15;\""
+```
+
+### Research Reasoning Principles
+
+The agent should understand these patterns conceptually and apply them as judgment, not formulas:
+
+- **Inverted-U exposure curve:** a track peaks in enjoyment around ~10 listens, then declines.
+  Use this to judge when a favorite is getting overplayed.
+- **Asymmetric skip signals:** skips on recently-played tracks (`play_mem_7 > 0` AND new skips)
+  are likely saturation, not dislike. Skips on tracks not played recently are stronger negatives.
+- **Multi-timescale taste:** `play_mem_7` captures weekly fixations, `play_mem_180` captures
+  enduring preferences. A track with high 180-day memory but zero 7-day memory is a stable
+  favorite that hasn't been heard recently (rotation candidate), not a forgotten track.
+- **Context clustering:** similar activities produce similar preferences. When the user asks for
+  a new context type, reason from the nearest existing preset.
+
 ## Managing Taste Data
 
 The `taste` table in PostgreSQL (`music` database on homelab) is the single durable store for all preference signals.
@@ -383,11 +549,19 @@ ssh homelab "$PSQL -c \"SELECT user_rating, COUNT(*) FROM taste WHERE user_ratin
 **Valid context tags** correspond to playlist preset types. Current presets: `work_concentration`, `evening_reading`,
 `upbeat_concentration`. Additional tags can be any string (e.g., `driving`, `gym`, `sensual`, `cooking`, `party`).
 
+```bash
+# Rolling memory snapshot (recent activity patterns)
+ssh homelab "$PSQL -c \"SELECT artist, track, play_mem_7, play_mem_30, play_mem_180, skip_mem_30, skip_mem_180 FROM taste WHERE play_mem_7 > 0 OR skip_mem_30 > 0 ORDER BY play_mem_7 DESC LIMIT 20;\""
+
+# Playlist history for a context
+ssh homelab "$PSQL -c \"SELECT playlist_name, generated_at, COUNT(*) AS tracks FROM playlist_exposures WHERE context = 'work_concentration' GROUP BY playlist_name, generated_at ORDER BY generated_at DESC LIMIT 5;\""
+```
+
 **When to update taste data:**
 
 - After playlist feedback: if the user reports tracks that didn't fit, add anti-tags or mark as disliked
 - During recommendation: if the user says "this track is perfect for driving," add the context tag
-- Proactively: after a sync, ask if the user wants to tag any highly-rated tracks for specific contexts
+- After materializing a playlist: insert rows into `playlist_exposures` to track what was placed where
 
 ## Metadata Sources
 
@@ -404,8 +578,11 @@ The `music` database on homelab PostgreSQL has two tables:
 
 - **`audio_features`**: energy, valence, instrumentalness, speechiness, danceability, acousticness, liveness (all 0-1
   scale) for every track in the library. Keyed by `file_path`.
-- **`taste`**: user ratings (1-10), play counts, context tags, anti-tags, dislikes. Keyed by `(artist, track, album)`.
-  Joins with `audio_features` via `file_path`.
+- **`taste`**: user ratings (Plex 2-10 scale, i.e. 1-5 stars), play/skip counts, rolling memory
+  counters (`play_mem_7/30/180`, `skip_mem_30/180`), context tags, anti-tags, dislikes. Keyed by
+  `(artist, track, album)`. Joins with `audio_features` via `file_path`.
+- **`playlist_exposures`**: tracks which tracks were placed in which playlists. Keyed by
+  `(playlist_name, context, track_artist, track_name, generated_at)`. Used for rotation decisions.
 
 ```bash
 PSQL='sudo docker exec postgres psql -U postgres -d music -t -A'
