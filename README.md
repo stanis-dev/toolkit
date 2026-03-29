@@ -1,6 +1,6 @@
 # toolkit
 
-Personal Claude Code plugin — a collection of skills, agents, and hooks for day-to-day development workflows.
+Personal toolkit — AI agent skills, research, and tools for day-to-day workflows.
 
 ## Structure
 
@@ -8,6 +8,8 @@ Personal Claude Code plugin — a collection of skills, agents, and hooks for da
 skills/          # SKILL.md files loadable by Claude Code / Cursor agents
 agents/          # Subagent definitions (read-only, scoped roles)
 hooks/           # Session lifecycle hooks (e.g. inject context on start)
+context/         # Global context injected into every session via hook
+journal/         # Personal notes, journaling, and long-running deep research
 .claude-plugin/  # Plugin manifest for Claude Code marketplace
 ```
 
@@ -50,4 +52,4 @@ Install as a Claude Code plugin:
 claude plugin add /path/to/toolkit
 ```
 
-On session start, the hook in `hooks/session-start.sh` injects a summary of all available skills into context.
+On session start, the hook in `hooks/session-start.sh` injects `context/global.md` and a summary of all available skills into context.

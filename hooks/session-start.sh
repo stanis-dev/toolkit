@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONTEXT="Stan's personal toolkit plugin is active. Available skills:
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+GLOBAL_CONTEXT_FILE="${PLUGIN_ROOT}/context/global.md"
+
+GLOBAL_CONTEXT=""
+if [[ -f "$GLOBAL_CONTEXT_FILE" ]]; then
+  GLOBAL_CONTEXT=$(cat "$GLOBAL_CONTEXT_FILE")
+fi
+
+SKILLS="Stan's personal toolkit plugin is active. Available skills:
 
 SIERRA WORKFLOWS:
 - sierra-powertool: Full sierras CLI reference (auto-loads when working on Sierra agents)
@@ -26,6 +34,16 @@ PERSONAL:
 - homelab-ssh: Homelab server reference (SSH, Docker, storage)
 - mini-ssh: Mac Mini / Plex server reference (SSH, Plex API)
 - cursor-chat-history: Find and reconstruct Cursor agent chat histories"
+
+if [[ -n "$GLOBAL_CONTEXT" ]]; then
+  CONTEXT="${GLOBAL_CONTEXT}
+
+---
+
+${SKILLS}"
+else
+  CONTEXT="$SKILLS"
+fi
 
 CONTEXT_ESCAPED=$(printf '%s' "$CONTEXT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
 
