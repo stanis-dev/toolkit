@@ -150,31 +150,20 @@ sierras sim diff --left <ws> --right <ws> [--json] [--detailed] # Compare sim re
   message includes a recovery hint (`sierras sim replay <name> --list`).
 - `sierras sim run --async` returns immediately after sending a single batch API request (even with `--count N`); warning:
   sleep-based waiting is unreliable and should be used only when necessary.
-- `sierras sim list`, `sim run-all`, `sim wait-all`, and `sim replay-all` accept `--tag`, `--category`, and `--group`
-  flags for subset filtering. All three are substring matches (case-insensitive). `--tag` matches against
-  `tagExpectations.present`, `--category` against category labels, `--group` against group description. Multiple
-  filters AND together. Filter match counts are reported to stderr.
-- `sierras sim run-all` continues on individual trigger failures and reports errors at the end. Progress is reported
-  to stderr every 50 sims (including in JSON mode). The JSON output includes `errorCount`, `skipped`, and optional
-  `errors` array. Use `--resume` to skip sims that already have results (for crash recovery after a partial `run-all`).
-  Use `--tag`/`--category`/`--group` to run a subset.
-- `sierras sim wait-all` polls `sim status` at the specified interval until matching sims reach a terminal state.
-  Progress reported to stderr. Exits 0 on completion, 1 on timeout. Use after `run-all` to block until platform
-  execution finishes. Without filters, waits for **all** sims. Use `--tag`/`--category`/`--group` to scope to the
-  same subset you triggered with `run-all`.
-- `sierras sim replay-all` fetches replay history for matching sims with configurable parallelism (default 10
-  concurrent fetches). Outputs structured JSON to stdout with progress to stderr. Results are cached locally. Use
-  `--limit N` to cap result sets per sim. Use `--tag`/`--category`/`--group` to export a subset.
+- `sierras sim list`, `sim status`, `sim run-all`, `sim wait-all`, and `sim replay-all` accept `--tag`, `--category`,
+  and `--group` flags for subset filtering (case-insensitive substring match). Multiple filters AND together.
+- `sierras sim run-all` triggers runs and prints exact next-step commands (with matching filters) on completion. Follow
+  those commands -- they chain `wait-all` and `replay-all` with the correct flags.
+- `sierras sim wait-all` blocks until matching sims complete. Prints the `replay-all` command to run next.
+- `sierras sim replay-all` exports detailed results as JSON to stdout. Use `--limit N` to cap results per sim.
 - `sierras sim replay --list --json` outputs replay history sets as JSON for programmatic polling of run completion.
 - `sierras sim diff` compares latest sim results between two workspaces by name or ID. Shows per-sim pass/fail
   deltas, left-only/right-only sims, and regression/improvement lists. Use `--detailed` to also fetch replay
   history and compute per-condition miss rate changes (much slower -- fetches all replay data for both workspaces).
   JSON output includes full comparison data for further analysis.
 - `sierras sim status` shows total run counts across all sims when multiple runs exist (e.g., after `run-all --count 3`).
-- The Sierra platform allows at most 1200 total runs per `run-all` API request. With `--count 1` (default), that
-  means 1200 sims per batch. With `--count 5`, that means 240 sims per batch (240 x 5 = 1200 runs). The CLI handles
-  this chunking automatically. Large workspaces with `--count > 1` will produce many batches -- use `--tag` or
-  `--category` to reduce the scope when running multi-count batches.
+- The Sierra platform limits 1200 runs per API batch. The CLI chunks automatically. With `--count 5`, use `--tag` or
+  `--category` to reduce scope (e.g. 240 sims x 5 = 1200 runs per batch).
 - All GraphQL API requests automatically retry on transient errors (HTTP 429, 5xx, DynamoDB throttling) with
   exponential backoff (up to 5 retries). Retry attempts are logged to stderr.
 - `sierras sim replay` default output is turn-grouped: events organized by conversation turn with numbered dividers
