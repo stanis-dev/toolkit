@@ -1,7 +1,7 @@
 {
   "name": "toolkit",
   "description": "Personal development toolkit: Sierra agent workflows, research prompts, homelab SSH, music discovery",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "author": { "name": "Stan" },
   "repository": "https://github.com/stanis-dev/toolkit",
   "license": "UNLICENSED"

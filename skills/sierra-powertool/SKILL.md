@@ -19,6 +19,12 @@ All commands accept these persistent flags:
 - `--workspace-id <id>` -- Override workspace ID for this run.
 - `--workspace-name <name>` -- Override workspace by name (resolved via API).
 
+Set `NO_COLOR=1` to disable ANSI color codes in text output. Recommended for agent use without `--json`.
+
+**JSON envelope:** All `--json` output is wrapped in `{"workspace":"...","command":"...","data":...,"next":[...]}`.
+Parse the `data` field for the command-specific payload. The `next` array contains suggested follow-up commands
+with `command` and `why` fields.
+
 ## Command Reference
 
 ### Journey Commands
@@ -35,7 +41,8 @@ sierras journey            # Print structured journey export (JSON) to stdout
 ### Issues Commands
 
 ```bash
-sierras issues --print     # Print issues summary to stdout
+sierras issues             # Print issues summary to stdout
+sierras issues --json      # Output issues as JSON
 ```
 
 ### Docs Commands
@@ -166,23 +173,12 @@ sierras sim diff --left <ws> --right <ws> [--json] [--detailed] # Compare sim re
   `--category` to reduce scope (e.g. 240 sims x 5 = 1200 runs per batch).
 - All GraphQL API requests automatically retry on transient errors (HTTP 429, 5xx, DynamoDB throttling) with
   exponential backoff (up to 5 retries). Retry attempts are logged to stderr.
-- `sierras sim replay` default output is turn-grouped: events organized by conversation turn with numbered dividers
-  (`── Turn N ──`). Each turn shows [USER]/[AGENT] messages flush left and indented system data (TOOL, SUPERVISOR,
-  CONDITIONS, TAG). Tool call sequences are merged into single `TOOL: Name(args) → result` lines. Supervisor
-  instructions and condition changes are extracted from compactState. Noise tags (`~usage-*`, `^client-event:*`) are
-  filtered; all other tags pass through.
+- `sierras sim replay` default output is turn-grouped. See **Debugging Simulation Replays > Replay Output Format** below
+  for line-type meanings.
 - `sierras sim replay --verbose` restores the flat event timeline (LOG, MEMORY_UPDATE, TRACE markers, all tags).
-- `sierras sim replay --trace <turn>` shows all decision-relevant LLM API calls for the specified turn number:
-  - `goalsdk_respond`: full system prompt (all `# Heading` sections), complete conversation window with SDK-injected
-    messages annotated (`[SDK-injected]` on `call_SYN*` prefixed IDs), tool schemas (name + parameters + description),
-    and LLM response (tool call or text).
-  - `classify_observations`: numbered statement list and matched IDs.
-  - `personalized_progress_indicator`: full prompt (system + user) and parsed JSON response with reasoning chain.
-  - `param_validation`: validation result (invalidParams, reason).
-  - Each section header shows model, temperature, and token counts.
-  - All data shown in full, never truncated.
-  - Cannot be combined with `--verbose`, `--transcript`, or `--list`.
-  - Error on invalid turn number with valid range shown.
+- `sierras sim replay --trace <turn>` shows all decision-relevant LLM API calls for a turn. Same format as
+  `conv show --trace <turn>` (see `conv show` Behavior above). Cannot be combined with `--verbose`, `--transcript`,
+  or `--list`.
 
 ### Simulation CRUD
 
@@ -250,36 +246,68 @@ sierras diff --left <workspace-name> [--baseline <snapshot>]
 - Cannot delete workspace named "default"
 - Cannot modify workspaces not owned by configured user
 
-## Decision Guide
+## Command Selection
 
-| Task                         | Command                                                              |
-| ---------------------------- | -------------------------------------------------------------------- |
-| Print journey export         | `sierras journey`                                                    |
-| Print issues summary         | `sierras issues --print`                                             |
-| Browse recent conversations  | `sierras conv list`                                                  |
-| Search conversations         | `sierras conv list --search "term"`                                  |
-| View conversation            | `sierras conv show <id-or-url>`                                      |
-| Debug conversation events    | `sierras conv show <id-or-url> --verbose`                            |
-| Drill into conversation turn | `sierras conv show <id-or-url> --trace <turn>`                       |
-| Raw conversation traces      | `sierras conv show <id-or-url> --json`                               |
-| Check simulation health      | `sierras sim status`                                                 |
-| Debug failing simulation     | `sierras sim replay <name>` (see Debugging Simulation Replays below) |
-| Drill into a specific turn   | `sierras sim replay <name> --trace <turn>`                           |
-| View replay history          | `sierras sim replay <name> --list`                                   |
-| Compare recent runs          | `sierras sim replay <name> --limit 3`                                |
-| Extract conversation only    | `sierras sim replay <name> --transcript`                             |
-| Run and get replay output    | `sierras sim run <name>`                                             |
-| Run all simulations          | `sierras sim run-all`                                                |
-| Run a subset of sims         | `sierras sim run-all --tag triage` or `--category "Debt"` or `--group "Payment"` |
-| Wait for all runs            | `sierras sim wait-all`                                               |
-| Wait for a subset            | `sierras sim wait-all --tag triage`                                  |
-| Bulk export all replays      | `sierras sim replay-all`                                             |
-| Export subset replays        | `sierras sim replay-all --tag triage`                                |
-| Compare two workspaces       | `sierras sim diff --left ws-a --right ws-b`                          |
-| Fetch docs from JSON URL     | `sierras fetch-docs --url <json-url>`                                |
-| List workspaces              | `sierras workspace list`                                             |
-| Create dev workspace         | `sierras workspace create --name "dev"`                              |
-| Diff workspace vs baseline   | `sierras diff --left "dev" --baseline 89`                            |
+### sim replay \<name\>
+Use when: You have a sim name and want to see the latest result or debug a failure.
+Don't use when: You want to run the sim first (`sim run`), or export all results (`sim replay-all`).
+Requires: Sim name. Use `sim list` to find names.
+
+### sim run \<name\>
+Use when: You want to run a specific sim and see the replay output immediately.
+Don't use when: You want to run all sims (`sim run-all`), or just view existing results (`sim replay`).
+Requires: `--workspace-name` or `--workspace-id`.
+
+### sim run-all
+Use when: You want to trigger runs for all (or a filtered subset of) simulations.
+Don't use when: You only need to run one sim (`sim run`).
+Requires: `--workspace-name` or `--workspace-id`. Follow the printed next-step commands.
+
+### sim wait-all
+Use when: `sim run-all` has been triggered and you need to block until completion.
+Don't use when: You want to start a new batch (`sim run-all`).
+
+### sim replay-all
+Use when: All runs are complete and you need bulk JSON export of results.
+Don't use when: You want a single sim's result (`sim replay`).
+
+### sim status
+Use when: You need a quick health check of the simulation suite (pass/fail counts).
+Don't use when: You need detailed per-sim results (`sim replay-all --json`).
+
+### sim diff --left \<ws\> --right \<ws\>
+Use when: Comparing sim outcomes between two workspaces (e.g., feature vs default).
+Don't use when: Comparing journey content (`diff --left <ws>`).
+
+### conv show \<id-or-url\>
+Use when: You have a conversation ID or Studio URL and want to see the transcript.
+Don't use when: You're looking for conversations to analyze (`conv list`).
+
+### conv list
+Use when: Browsing or searching recent conversations by time, tags, or content.
+Don't use when: You already have a conversation ID (`conv show`).
+
+### issues
+Use when: You need the current issue summary for the configured bot.
+
+### diff --left \<workspace-name\>
+Use when: Comparing a feature workspace's journey/tools/sims against a baseline snapshot.
+Don't use when: Comparing sim outcomes only (`sim diff`).
+
+## Error Recovery
+
+When a command fails with `--json`, the envelope includes `"status":"error"` and a `recovery` object with a typed
+error code and recovery command. Without `--json`, the recovery command is printed to stderr.
+
+| Error Code | Meaning | Recovery |
+|-----------|---------|----------|
+| `not_found` | Resource doesn't exist (workspace, sim, result) | Command in `recovery.command` (often `sim list` or `workspace list`) |
+| `validation_failed` | Invalid input, missing flags, flag conflicts | Fix input per error message |
+| `permission_denied` | Auth failure or wrong bot | `sierra login` |
+| `timeout` | Operation exceeded time limit | Retry with higher `--timeout` |
+| `rate_limited` | API throttling or concurrency limit | Wait and retry (`retryable: true`) |
+| `partial_failure` | Some operations in a batch failed | Use `--resume` to retry failures |
+| `internal_error` | API or fetch error | Retry (`retryable: true`) |
 
 ## Debugging Simulation Replays
 
