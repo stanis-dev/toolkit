@@ -123,11 +123,11 @@ sierras conv show <id-or-url> --json             # Output raw trace events as JS
 ### Simulation Commands
 
 ```bash
-sierras sim list                          # List all simulations with pass/fail status
+sierras sim list [--tag <t>] [--category <c>] [--group <g>] # List sims with pass/fail status
 sierras sim status                        # Suite summary (total, passed, failed, running, run counts)
 sierras sim run <name> [--count <n>] [--async] [--timeout <duration>] # Run a simulation (waits by default)
-sierras sim run-all [--count <n>] [--resume] # Run all sims (continues on errors, --resume skips done)
-sierras sim wait-all [--timeout 4h] [--poll-interval 30s] [--json] # Block until all runs complete
+sierras sim run-all [--count <n>] [--resume] [--tag <t>] [--category <c>] [--group <g>] # Run sims
+sierras sim wait-all [--timeout 4h] [--poll-interval 30s] [--tag <t>] [--category <c>] [--group <g>] # Wait
 sierras sim replay <name>                 # Show latest result in turn-grouped format
 sierras sim replay <name> --id <id>       # Show specific result details
 sierras sim replay <name> --list          # List all available replay results
@@ -137,7 +137,7 @@ sierras sim replay <name> --transcript    # Show conversation only (no metadata)
 sierras sim replay <name> --verbose       # Show flat event timeline (previous format)
 sierras sim replay <name> --trace <turn>  # Show all LLM API calls for a specific turn
 sierras sim replay <name> --no-cache     # Force fresh API fetch (ignore local cache)
-sierras sim replay-all [--concurrency 10] [--limit N] # Bulk export replay history as JSON (stdout)
+sierras sim replay-all [--concurrency 10] [--limit N] [--tag <t>] [--category <c>] [--group <g>] # Bulk export
 sierras sim diff --left <ws> --right <ws> [--json] [--detailed] # Compare sim results between workspaces
 ```
 
@@ -150,14 +150,21 @@ sierras sim diff --left <ws> --right <ws> [--json] [--detailed] # Compare sim re
   message includes a recovery hint (`sierras sim replay <name> --list`).
 - `sierras sim run --async` returns immediately after sending a single batch API request (even with `--count N`); warning:
   sleep-based waiting is unreliable and should be used only when necessary.
+- `sierras sim list`, `sim run-all`, `sim wait-all`, and `sim replay-all` accept `--tag`, `--category`, and `--group`
+  flags for subset filtering. All three are substring matches (case-insensitive). `--tag` matches against
+  `tagExpectations.present`, `--category` against category labels, `--group` against group description. Multiple
+  filters AND together. Filter match counts are reported to stderr.
 - `sierras sim run-all` continues on individual trigger failures and reports errors at the end. Progress is reported
   to stderr every 50 sims (including in JSON mode). The JSON output includes `errorCount`, `skipped`, and optional
   `errors` array. Use `--resume` to skip sims that already have results (for crash recovery after a partial `run-all`).
-- `sierras sim wait-all` polls `sim status` at the specified interval until all sims reach a terminal state. Progress
-  reported to stderr. Exits 0 on completion, 1 on timeout. Use after `run-all` to block until platform execution finishes.
-- `sierras sim replay-all` fetches replay history for every sim in the workspace with configurable parallelism
-  (default 10 concurrent fetches). Outputs structured JSON to stdout with progress to stderr. Results are cached
-  locally. Use `--limit N` to cap result sets per sim. Useful for bulk data export and comparison analysis.
+  Use `--tag`/`--category`/`--group` to run a subset.
+- `sierras sim wait-all` polls `sim status` at the specified interval until matching sims reach a terminal state.
+  Progress reported to stderr. Exits 0 on completion, 1 on timeout. Use after `run-all` to block until platform
+  execution finishes. Without filters, waits for **all** sims. Use `--tag`/`--category`/`--group` to scope to the
+  same subset you triggered with `run-all`.
+- `sierras sim replay-all` fetches replay history for matching sims with configurable parallelism (default 10
+  concurrent fetches). Outputs structured JSON to stdout with progress to stderr. Results are cached locally. Use
+  `--limit N` to cap result sets per sim. Use `--tag`/`--category`/`--group` to export a subset.
 - `sierras sim replay --list --json` outputs replay history sets as JSON for programmatic polling of run completion.
 - `sierras sim diff` compares latest sim results between two workspaces by name or ID. Shows per-sim pass/fail
   deltas, left-only/right-only sims, and regression/improvement lists. Use `--detailed` to also fetch replay
@@ -272,8 +279,11 @@ sierras diff --left <workspace-name> [--baseline <snapshot>]
 | Extract conversation only    | `sierras sim replay <name> --transcript`                             |
 | Run and get replay output    | `sierras sim run <name>`                                             |
 | Run all simulations          | `sierras sim run-all`                                                |
+| Run a subset of sims         | `sierras sim run-all --tag triage` or `--category "Debt"` or `--group "Payment"` |
 | Wait for all runs            | `sierras sim wait-all`                                               |
+| Wait for a subset            | `sierras sim wait-all --tag triage`                                  |
 | Bulk export all replays      | `sierras sim replay-all`                                             |
+| Export subset replays        | `sierras sim replay-all --tag triage`                                |
 | Compare two workspaces       | `sierras sim diff --left ws-a --right ws-b`                          |
 | Fetch docs from JSON URL     | `sierras fetch-docs --url <json-url>`                                |
 | List workspaces              | `sierras workspace list`                                             |
