@@ -171,8 +171,10 @@ sierras sim diff --left <ws> --right <ws> [--json] [--detailed] # Compare sim re
   history and compute per-condition miss rate changes (much slower -- fetches all replay data for both workspaces).
   JSON output includes full comparison data for further analysis.
 - `sierras sim status` shows total run counts across all sims when multiple runs exist (e.g., after `run-all --count 3`).
-- The Sierra platform batches at most 1200 simulations per `run-all` request. Workspaces with more
-  simulations (e.g. 1500+) require multiple batched runs to cover the full suite.
+- The Sierra platform allows at most 1200 total runs per `run-all` API request. With `--count 1` (default), that
+  means 1200 sims per batch. With `--count 5`, that means 240 sims per batch (240 x 5 = 1200 runs). The CLI handles
+  this chunking automatically. Large workspaces with `--count > 1` will produce many batches -- use `--tag` or
+  `--category` to reduce the scope when running multi-count batches.
 - All GraphQL API requests automatically retry on transient errors (HTTP 429, 5xx, DynamoDB throttling) with
   exponential backoff (up to 5 retries). Retry attempts are logged to stderr.
 - `sierras sim replay` default output is turn-grouped: events organized by conversation turn with numbered dividers
