@@ -128,10 +128,8 @@ and you have confirmed it.
 
 ## Configuration
 
-- **Memory**: All simulations must include `PHONE_NUMBER` memory variable set for the target user, unless specifically
-  testing unauthenticated user scenarios
 - **Device**: Agent is phone-based — all sims must have device configured accordingly
-- **Locale**: Always set simulations to `"locale": "tr-TR"`
+- **Locale**: Always set simulations to the project's configured locale
 - **Naming**: Group and name simulations according to expected customer-facing behavior — never use ticket IDs or
   development-focused references
 - **Granularity**: Reuse groups when possible. Avoid creating granular simulations — if behavior is already part of a

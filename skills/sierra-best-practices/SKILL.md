@@ -35,30 +35,3 @@ For documentation reference and routing, always read [docs-routing.md](reference
 
 For simulation design and evaluation guidelines, read [simulations.md](references/simulations.md).
 
-## Studio Chat Links
-
-When generating links to test the agent in Sierra Studio (e.g. in `TESTING_GUIDE.md`), use the following format:
-
-```
-https://eu.sierra.chat/agent/{AGENT_ID}/chat[/{ENV}]?voice=1&feedback=1&locale=tr-TR[&variable=PHONE_NUMBER:{NUMBER}]
-```
-
-- **Environment path segment** — appended after `/chat`:
-  - Default: omit (just `/chat`)
-  - Dev: `/chat/Dev`
-  - Production: `/chat/Production`
-- **Required query params** (always include):
-  - `voice=1`
-  - `feedback=1`
-  - `locale=tr-TR`
-- **Optional query params**:
-  - `variable=PHONE_NUMBER:{NUMBER}` — include when the scenario targets a specific test customer
-
-### Examples
-
-| Environment | Link                                                                                                            |
-| ----------- | --------------------------------------------------------------------------------------------------------------- |
-| Default     | `https://eu.sierra.chat/agent/{AGENT_ID}/chat?voice=1&feedback=1&locale=tr-TR`                                  |
-| Dev         | `https://eu.sierra.chat/agent/{AGENT_ID}/chat/Dev?voice=1&feedback=1&locale=tr-TR`                              |
-| Production  | `https://eu.sierra.chat/agent/{AGENT_ID}/chat/Production?voice=1&feedback=1&locale=tr-TR`                       |
-| With user   | `https://eu.sierra.chat/agent/{AGENT_ID}/chat?voice=1&feedback=1&locale=tr-TR&variable=PHONE_NUMBER:5559990001` |
