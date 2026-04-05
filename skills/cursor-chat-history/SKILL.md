@@ -1,114 +1,70 @@
 ---
+
 name: cursor-chat-history
 description:
-    Find, filter, and reconstruct Cursor agent chat histories from on-disk storage. Use when the user asks about past
-    agent conversations, wants to export or search chat history, recover lost chats, or analyze what an agent did in a
-    previous session.
+    Search or export Cursor agent chat history across multiple projects, trace which files a conversation modified, or
+parse transcript JSONL format. NOT needed for simple recent-chat lookups in the current project.
+
 ---
 
-# Cursor Chat History Recovery
+# Cursor Chat History
 
-## Storage Locations (macOS)
-
-### 1. Agent Transcripts (best source — structured JSONL)
+Agent transcripts are the single source of truth. Each conversation is a JSONL file at:
 
 ```
 ~/.cursor/projects/<project-slug>/agent-transcripts/<uuid>/<uuid>.jsonl
 ```
 
-- One JSONL file per conversation, one JSON object per line
-- Format: `{"role":"user|assistant","message":{"content":[{"type":"text","text":"..."}]}}`
-- Subagent transcripts in `subagents/` subdirectory
-- Project slug derived from path: `/Users/stan/code/sky` → `Users-stan-code-sky`
-- **Limitation**: only `type: "text"` content is captured; tool_use/tool_result blocks are not stored. If an agent says "reading skill X" and subsequently references skill-specific details, treat that as evidence the skill was read — the Read tool call itself won't appear in the transcript.
+## Transcript Format
 
-### 2. Global State DB (largest store — all workspaces mixed)
+Each line is one JSON object: `{"role":"user|assistant","message":{"content":[...]}}`
 
-```
-~/Library/Application Support/Cursor/User/globalStorage/state.vscdb
-```
+Content blocks have a `type` field:
 
-- SQLite. Tables: `ItemTable`, `cursorDiskKV`
-- `cursorDiskKV` has `agentKv:blob:<hash>` keys with raw message content
-- `ItemTable` has `conversationClassificationScoredConversations` — JSON array of `{conversationId, timestamp}` for
-  indexing
-- `ItemTable` keys like `workbench.panel.composerChatViewPane.<uuid>.hidden` list conversation UUIDs
+- `text` — conversation text. User queries are inside `<user_query>` tags within user-role text blocks.
+- `tool_use` — tool calls with `name` and `input` fields. Stored in transcripts.
+- `tool_result` — NOT stored. You can see what tools were called but not what they returned.
 
-### 3. Per-Chat SQLite DBs (older format)
+Subagent transcripts live in `<uuid>/subagents/<sub-uuid>.jsonl` (same format).
 
-```
-~/.cursor/chats/<workspace-hash>/<conversation-uuid>/store.db
-```
+Slug derivation: replace `/` and `.` with `-`, strip leading `-`. Example: `/Users/stan/code/sky` becomes `Users-stan-code-sky`.
 
-- Tables: `blobs` (id TEXT, data BLOB), `meta` (key TEXT, value TEXT)
-- Blobs contain full messages (system prompts, user queries, assistant responses)
-- Map workspace hash to project by reading first blob's `Workspace Path`
+Transcripts have no timestamps. The only timestamp source is `ai_code_hashes` (see below).
 
-### 4. Per-Workspace State DBs
+## Recipes
 
-```
-~/Library/Application Support/Cursor/User/workspaceStorage/<hash>/state.vscdb
-```
+### Find a conversation in the current project
 
-- Map hash → project via `workspace.json` in same directory
-- Same schema as global state DB but scoped to one workspace
-
-## Auxiliary Artifacts
-
-| Artifact          | Path                                               | Content                                                                            |
-| ----------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Agent tool output | `~/.cursor/projects/<slug>/agent-tools/<uuid>.txt` | Web fetches, long command output, large results                                    |
-| AI code tracking  | `~/.cursor/ai-tracking/ai-code-tracking.db`        | SQLite: `ai_code_hashes` (file→conversation), `scored_commits` (AI vs human lines) |
-| Plans             | `~/.cursor/plans/*.plan.md`                        | Agent-generated execution plans                                                    |
-| Prompt history    | `~/.cursor/prompt_history.json`                    | JSON array of raw user prompt strings (no responses)                               |
-| Snapshots         | `~/.cursor/snapshots/<hash>/`                      | Git bare repos — pre-edit checkpoints                                              |
-| Screenshots       | `~/.cursor/projects/<slug>/assets/*.png`           | Browser screenshots from agent sessions                                            |
-| PR data           | `~/.cursor/projects/<slug>/pull-requests/pr-<N>/`  | Diffs, comments, summaries                                                         |
-| Terminal logs     | `~/.cursor/projects/<slug>/terminals/<pid>.txt`    | Live terminal output from agent commands                                           |
-
-## Common Operations
-
-### List all projects with transcripts
+List transcript directories sorted by recency, then read the JSONL:
 
 ```bash
-for d in ~/.cursor/projects/*/agent-transcripts; do
-  [ -d "$d" ] && echo "$(basename $(dirname $d)): $(ls -d $d/*/ 2>/dev/null | wc -l) conversations"
-done
+ls -lt ~/.cursor/projects/<slug>/agent-transcripts/
 ```
+
+### Search across all projects
+
+Run `scripts/search-chats.sh` from this skill's directory:
+
+```bash
+bash <skill-dir>/scripts/search-chats.sh [--peek] [search-term]
+```
+
+Without arguments: lists all projects and conversation counts. With a search term: returns matching transcript paths. Add `--peek` to include the first user query from each match inline — useful when results are broad.
 
 ### Extract user queries from a transcript
 
-```bash
-python3 -c "
-import json, re, sys
-for line in open(sys.argv[1]):
-    d = json.loads(line)
-    if d.get('role') == 'user':
-        for c in d['message']['content']:
-            if c.get('type') == 'text':
-                m = re.search(r'<user_query>\s*(.*?)\s*</user_query>', c['text'], re.DOTALL)
-                if m: print(m.group(1)[:200])
-" PATH_TO_JSONL
-```
-
-### Map workspace storage hash to project
+Run `scripts/extract-queries.py` from this skill's directory:
 
 ```bash
-for f in ~/Library/Application\ Support/Cursor/User/workspaceStorage/*/workspace.json; do
-  echo "$(basename $(dirname $f)): $(python3 -c "import json; print(json.load(open('$f')).get('folder','') or json.load(open('$f')).get('workspace',''))")"
-done
+python3 <skill-dir>/scripts/extract-queries.py <path-to-jsonl> [max-chars]
 ```
 
-### Query conversation index from global DB
+### Trace which files a conversation modified
+
+Run `scripts/trace-files.sh` from this skill's directory:
 
 ```bash
-sqlite3 ~/Library/Application\ Support/Cursor/User/globalStorage/state.vscdb \
-  "SELECT substr(CAST(value AS TEXT), 1, 500) FROM ItemTable WHERE key = 'conversationClassificationScoredConversations';"
+bash <skill-dir>/scripts/trace-files.sh <conversation-uuid>
 ```
 
-### Trace which files a conversation touched
-
-```bash
-sqlite3 ~/.cursor/ai-tracking/ai-code-tracking.db \
-  "SELECT fileName, model, datetime(timestamp/1000,'unixepoch','localtime') FROM ai_code_hashes WHERE conversationId = 'CONVERSATION_UUID' ORDER BY timestamp;"
-```
+Queries `ai_code_hashes` in `~/.cursor/ai-tracking/ai-code-tracking.db` by `conversationId`. Returns filenames, source (composer/tab/cli), and timestamps. This is the only artifact with a verified structural link to transcript conversation IDs.

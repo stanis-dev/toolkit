@@ -24,6 +24,9 @@ SIERRA AGENTS:
 - phrasing-eval: Read-only subagent for phrasing evaluation against guardrails
 - replay-analyzer: Read-only subagent for evidence-first replay analysis
 
+SKILL & PROMPT ENGINEERING:
+- skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts
+
 PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
