@@ -1,14 +1,16 @@
 ---
+
 name: codex-proxy
 description:
     Direct ChatGPT API proxy using Codex auth tokens. Use for lightweight text-in/text-out
-    LLM calls with near-zero overhead (~24 tokens vs ~31K through Codex CLI).
+LLM calls with near-zero overhead (~24 tokens vs ~31K through Codex CLI).
+
 ---
 
 # codex-proxy
 
-A thin CLI wrapper that calls the ChatGPT Responses API directly using Codex's stored auth tokens,
-bypassing all Codex tool registration and system prompt overhead.
+A thin CLI wrapper that calls the ChatGPT Responses API directly using Codex's stored auth tokens, bypassing all Codex
+tool registration and system prompt overhead.
 
 ## Prerequisites
 
@@ -38,8 +40,8 @@ codex-proxy --json "What is 2+2?"
 codex-proxy --no-stream "Tell me a joke"
 ```
 
-Positional prompt and stdin are mutually exclusive. If a prompt argument is given, stdin is ignored.
-To combine file content with an instruction, construct the prompt in the pipe:
+Positional prompt and stdin are mutually exclusive. If a prompt argument is given, stdin is ignored. To combine file
+content with an instruction, construct the prompt in the pipe:
 
 ```bash
 (echo "Summarize:"; cat doc.txt) | codex-proxy
@@ -47,13 +49,13 @@ To combine file content with an instruction, construct the prompt in the pipe:
 
 ## Options
 
-| Flag | Default | Description |
-|---|---|---|
-| `-m, --model` | `gpt-5.4-mini` | Model to use |
-| `-e, --effort` | `low` | Reasoning effort: `low`, `medium`, `high` |
-| `-i, --instructions` | `You are a helpful assistant.` | System instructions |
-| `--json` | off | Output JSON with text + usage |
-| `--no-stream` | off | Buffer full response locally before printing (API always streams) |
+| Flag                 | Default                        | Description                                                       |
+| -------------------- | ------------------------------ | ----------------------------------------------------------------- |
+| `-m, --model`        | `gpt-5.4-mini`                 | Model to use                                                      |
+| `-e, --effort`       | `low`                          | Reasoning effort: `low`, `medium`, `high`                         |
+| `-i, --instructions` | `You are a helpful assistant.` | System instructions                                               |
+| `--json`             | off                            | Output JSON with text + usage                                     |
+| `--no-stream`        | off                            | Buffer full response locally before printing (API always streams) |
 
 ## How it works
 
@@ -66,10 +68,10 @@ To combine file content with an instruction, construct the prompt in the pipe:
 
 Measured against Codex v0.118.0:
 
-| Approach | Input tokens |
-|---|---|
-| codex-proxy (this tool) | ~24 |
-| `codex exec` (default) | ~31K |
+| Approach                | Input tokens |
+| ----------------------- | ------------ |
+| codex-proxy (this tool) | ~24          |
+| `codex exec` (default)  | ~31K         |
 
 ## Caveats
 
