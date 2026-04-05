@@ -28,6 +28,7 @@ PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
 PERSONAL:
+- codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
 - music-discovery: Music recommendations, Plex history, SoulSync downloads

@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Thin CLI proxy to ChatGPT's Responses API using Codex auth tokens.
+
+Zero tool overhead (~24 input tokens vs ~31K through Codex CLI).
+Requires Python 3.6+ and Codex to be installed and authenticated (`codex login`).
+"""
+
+import argparse
+import base64
+import json
+import signal
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+CODEX_AUTH_FILE = Path.home() / ".codex" / "auth.json"
+API_URL = "https://chatgpt.com/backend-api/codex/responses"
+DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_INSTRUCTIONS = "You are a helpful assistant."
+TOKEN_REFRESH_BUFFER_SECS = 3600
+REQUEST_TIMEOUT_SECS = 120
+
+
+def read_auth():
+    try:
+        with open(CODEX_AUTH_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error reading {CODEX_AUTH_FILE}: {e}", file=sys.stderr)
+        print("Run `codex login` first.", file=sys.stderr)
+        sys.exit(1)
+
+
+def token_expiry(token: str) -> float:
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+        return claims.get("exp", 0)
+    except Exception:
+        return 0
+
+
+def ensure_fresh_token():
+    auth = read_auth()
+    access_token = auth.get("tokens", {}).get("access_token", "")
+    exp = token_expiry(access_token)
+
+    if time.time() + TOKEN_REFRESH_BUFFER_SECS >= exp:
+        print("Refreshing auth token via Codex...", file=sys.stderr)
+        try:
+            result = subprocess.run(
+                ["codex", "features", "list"],
+                capture_output=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                stderr = result.stderr.decode()[:200] if result.stderr else ""
+                print(f"Token refresh failed (exit {result.returncode}): {stderr}", file=sys.stderr)
+                sys.exit(1)
+        except subprocess.TimeoutExpired:
+            print("Token refresh timed out.", file=sys.stderr)
+            sys.exit(1)
+        except FileNotFoundError:
+            print("Codex CLI not found. Install it and run `codex login`.", file=sys.stderr)
+            sys.exit(1)
+        auth = read_auth()
+        access_token = auth.get("tokens", {}).get("access_token", "")
+
+    if not access_token:
+        print("No access token found. Run `codex login`.", file=sys.stderr)
+        sys.exit(1)
+
+    return access_token
+
+
+def call_api(prompt, model, instructions, effort, stream_output, json_output):
+    token = ensure_fresh_token()
+
+    body = json.dumps({
+        "model": model,
+        "instructions": instructions,
+        "input": [{"role": "user", "content": prompt}],
+        "reasoning": {"effort": effort},
+        "store": False,
+        "stream": True,
+    }).encode()
+
+    req = urllib.request.Request(
+        API_URL,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECS) as resp:
+            text_parts = []
+            usage = {}
+
+            for raw_line in resp:
+                line = raw_line.decode().strip()
+                if not line.startswith("data: "):
+                    continue
+                try:
+                    evt = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    continue
+
+                etype = evt.get("type", "")
+
+                if etype == "response.output_text.delta":
+                    delta = evt.get("delta", "")
+                    text_parts.append(delta)
+                    if stream_output and not json_output:
+                        sys.stdout.write(delta)
+                        sys.stdout.flush()
+
+                elif etype == "response.completed":
+                    usage = evt.get("response", {}).get("usage", {})
+
+            text = "".join(text_parts)
+
+            if stream_output and not json_output:
+                sys.stdout.write("\n")
+            elif json_output:
+                json.dump({"text": text, "usage": usage}, sys.stdout, indent=2)
+                sys.stdout.write("\n")
+            else:
+                print(text)
+
+            return usage
+
+    except urllib.error.HTTPError as e:
+        err_body = e.read(500).decode(errors="replace")
+        print(f"API error (HTTP {e.code}): {err_body}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"Connection error: {e.reason}", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Direct ChatGPT API proxy via Codex auth (~24 token overhead)",
+    )
+    parser.add_argument("prompt", nargs="?", help="Prompt text (reads stdin if omitted)")
+    parser.add_argument("-m", "--model", default=DEFAULT_MODEL, help=f"Model (default: {DEFAULT_MODEL})")
+    parser.add_argument("-e", "--effort", default="low", choices=["low", "medium", "high"], help="Reasoning effort (default: low)")
+    parser.add_argument("-i", "--instructions", default=DEFAULT_INSTRUCTIONS, help="System instructions")
+    parser.add_argument("--json", action="store_true", dest="json_output", help="Output JSON with text + usage")
+    parser.add_argument("--no-stream", action="store_true", help="Buffer full response locally before printing (API always streams)")
+
+    args = parser.parse_args()
+
+    prompt = args.prompt
+    if prompt is None:
+        if sys.stdin.isatty():
+            parser.print_help()
+            sys.exit(1)
+        prompt = sys.stdin.read().strip()
+
+    if not prompt:
+        print("Empty prompt.", file=sys.stderr)
+        sys.exit(1)
+
+    call_api(
+        prompt=prompt,
+        model=args.model,
+        instructions=args.instructions,
+        effort=args.effort,
+        stream_output=not args.no_stream,
+        json_output=args.json_output,
+    )
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
