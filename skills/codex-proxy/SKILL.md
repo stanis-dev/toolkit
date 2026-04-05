@@ -69,14 +69,7 @@ Measured against Codex v0.118.0:
 | Approach | Input tokens |
 |---|---|
 | codex-proxy (this tool) | ~24 |
-| `codex exec -p bare` (no MCP) | ~5K |
-| `codex exec -p bare` (with MCP) | ~17K |
 | `codex exec` (default) | ~31K |
-
-## When to use codex-proxy vs Codex bare profile
-
-- **codex-proxy**: text-in/text-out only. No shell commands, no file edits. Minimal overhead.
-- **`codex exec -p bare`**: when you need the model to run commands or edit files, but still want reduced overhead.
 
 ## Caveats
 
