@@ -12,7 +12,7 @@
       "name": "toolkit",
       "source": "./",
       "description": "Personal development toolkit: Sierra agent workflows, research prompts, homelab SSH, music discovery",
-      "version": "1.4.0"
+      "version": "1.4.1"
     }
   ]
 }
