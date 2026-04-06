@@ -1,12 +1,10 @@
 ---
 name: skill-engineer
 description: >-
-  Design, review, and improve AI agent skills (SKILL.md files) and prompts. The primary skill
-  for all skill engineering -- creating, auditing, and improving skills from chat history
-  analysis.
+  Design, review, and improve AI agent skills (SKILL.md files) and prompts.
 when_to_use: >-
-  Use for SKILL.md authoring and prompt engineering. Not for code review, PR review, or
-  general writing improvement.
+  Use for SKILL.md authoring, prompt engineering, and chat history analysis of skill
+  performance. Not for code review, PR review, or general writing.
 ---
 
 # Skill Engineer
@@ -22,7 +20,7 @@ This skill exists for deep, thorough work. Every phase runs to completion with m
   - `references/taxonomy.md` (in this skill's directory)
 - In CREATE: run ALL interview questions that haven't been answered by context. Do not skip
   dimensions because they seem clear — confirm them.
-- In REVIEW Phase 1 (Evaluate): evaluate ALL 10 dimensions with full findings. Do not abbreviate.
+- In REVIEW Phase 1 (Evaluate): evaluate ALL 11 dimensions with full findings. Do not abbreviate.
 - In REVIEW Phase 2 (Analyze): read ALL conversations in scope. Do not sample unless the user
   explicitly asks. Report ALL substantive findings per conversation.
 - In REVIEW Phase 3 (Challenge): always run. Never skip.
@@ -69,10 +67,10 @@ If ambiguous, ask: "Are you looking to **create** a new skill, or **review** an 
 
 Before creating anything, challenge whether a new skill is actually needed.
 
-1. List installed skills by scanning skill directories:
-   - Claude Code: `!ls ~/.claude/plugins/*/skills/*/SKILL.md ~/.claude/skills/*/SKILL.md`
+1. List installed skills. Detect the current platform and use the appropriate method:
    - Cursor: use Glob for `~/.cursor/skills/*/SKILL.md` and plugin cache directories
-   - Codex: `!ls ~/.codex/skills/*/SKILL.md`
+   - Claude Code: run `ls ~/.claude/plugins/*/skills/*/SKILL.md ~/.claude/skills/*/SKILL.md`
+   - Codex: run `ls ~/.codex/skills/*/SKILL.md`
 2. Scan the listed skill names for semantic overlap with the user's request
 3. Challenge each of these questions:
    - Is a new skill actually needed, or would modifying an existing skill work?
@@ -116,7 +114,7 @@ Interview dimensions (skip any already clear from context):
 3. **Trigger phrases** — "What would someone say when they need this?"
    Ask for 3-5 example phrases. These become the `description` and `when_to_use` fields.
 4. **Constraints** — "What must this skill NEVER do?"
-   This is the most important question. Constraints drive 42.7% of output quality.
+   This is the most important question. Constraints are the single largest driver of output quality.
    Propose 3-4 likely constraints inferred from the domain and ask the user to confirm/add.
 5. **Output format** — "What should the deliverable look like?"
    Options: markdown template, free-form prose, structured data, code, mixed
@@ -213,9 +211,28 @@ Comprehensive audit-to-improvement pipeline for existing skills. Runs four phase
 **Evaluate → Analyze → Challenge → Improve.** Every review produces improvement proposals —
 a review that ends with a scorecard and no actionable changes is an incomplete deliverable.
 
+### Scope Detection
+
+Before starting the pipeline, determine the review scope:
+
+- **Single skill** ("review sierra-bootstrap"): proceed directly to Phase 1.
+- **Multiple skills** ("review all sierra skills", "audit the toolkit"): use subagent
+  parallelization. For each skill in scope, spawn a subagent with the full review protocol
+  (all 4 phases). Provide each subagent with:
+  - The path to the target SKILL.md
+  - The skill-engineer SKILL.md (this file) as the review protocol
+  - The `references/principles.md` as the quality rubric
+  - Instructions to return the complete Phase 1 scorecard and Phase 4 fix list
+
+  After all subagents complete, synthesize a portfolio dashboard:
+  - One row per skill with PASS/NW/FAIL counts
+  - Cross-cutting themes (dimensions that fail across many skills)
+  - Priority ranking by health tier
+  - Systemic fixes that would improve multiple skills at once
+
 ### Phase 1 — Evaluate
 
-Read the target SKILL.md in full. Evaluate against 10 quality dimensions.
+Read the target SKILL.md in full. Evaluate against 11 quality dimensions.
 
 | # | Dimension | What to check |
 | --- | --- | --- |
@@ -229,6 +246,7 @@ Read the target SKILL.md in full. Evaluate against 10 quality dimensions.
 | 8 | Interaction design | Specifies when to ask the user vs when to act autonomously? |
 | 9 | Progressive disclosure | Body under 500 lines? Reference material separated? |
 | 10 | Cross-platform compat | Works in Claude Code AND Cursor? Platform-specific assumptions flagged? |
+| 11 | Domain accuracy | Are factual claims (APIs, CLI flags, paths, tool behaviors) verified against current reality? |
 
 **Dimension weighting:** Not all dimensions matter equally for all skills. Before scoring,
 classify the target skill and note the classification in the review header:
@@ -238,6 +256,8 @@ classify the target skill and note the classification in the review header:
 - **Reference** (CLI docs, API guides, infrastructure): weight dimensions 6, 9 highest
 - **Personal** (homelab, music, machine-specific): dimension 10 is informational only — flag
   platform assumptions but do not penalize a personal skill for not being portable
+- **All skill types**: dimension 11 (Domain accuracy) applies universally. Weight higher for
+  Reference and Procedural skills where incorrect commands cause silent failures.
 
 For each dimension, report:
 
@@ -251,11 +271,24 @@ For each dimension, report:
 under-specification (vague, unenforceable). Flag both overclaiming ("this handles everything")
 AND underclaiming ("this might help with...").
 
-**Rubric self-awareness:** The 10 dimensions are a structured starting point, not a
-straitjacket. If a skill's strengths compensate for gaps the rubric flags (e.g., interaction
-rules that effectively serve as constraints even though they aren't phrased as prohibitions),
-note that explicitly. If a dimension genuinely doesn't apply to this skill type, score it N/A
-with reasoning rather than forcing a verdict.
+**Rubric self-awareness:** The dimensions are a structured starting point, not a straitjacket.
+If a skill's strengths compensate for gaps the rubric flags (e.g., interaction rules that
+effectively serve as constraints even though they aren't phrased as prohibitions), note that
+explicitly. If a dimension genuinely doesn't apply to this skill type, score it N/A with
+reasoning rather than forcing a verdict.
+
+**Dimension 11 — Domain accuracy:** Treat every factual claim in the skill as potentially
+outdated or hallucinated. The skill may have been written months ago against a different
+version of the tools it references. For each domain-specific claim (CLI commands, API
+endpoints, file paths, tool behaviors, version-specific syntax):
+
+1. Check today's actual date (not the model's training cutoff) to establish the time baseline
+2. Use web search to verify claims against current documentation where possible
+3. Run commands in a dry-run or read-only mode to confirm they still work
+4. Flag any claim that cannot be verified as "UNVERIFIED — may be outdated"
+
+Do NOT assume your training data reflects current reality. A CLI flag that existed 6 months
+ago may have been renamed, deprecated, or removed.
 
 End Phase 1 with a summary scorecard.
 
@@ -307,6 +340,17 @@ followed all the steps but misunderstood the purpose of one, or a user who stopp
 and just accepted mediocre output. These only become visible when you read closely enough to
 understand what the agent thought it was doing.
 
+**Version awareness:** The skill may have been modified since the conversations you're
+analyzing. Check the skill's git history (`git log --oneline <skill-path>`) to see when it
+was last changed. If conversations predate recent changes, their findings may reflect an
+older version. In the synthesis, distinguish between:
+- **Version-independent findings** — patterns that appear regardless of skill version
+  (e.g., the skill has never had anti-triggers, so activation issues span all versions)
+- **Version-specific findings** — behaviors that map to instructions that have since changed
+  (flag these as "likely addressed by version X change" rather than current failures)
+- **Regression candidates** — things that worked in older conversations but fail in newer
+  ones (these suggest a recent change made something worse)
+
 **Mini-verdict template:**
 
 ```
@@ -322,6 +366,10 @@ understand what the agent thought it was doing.
 **User corrections:** {what the user had to fix — distinguish between skill failures
   (agent misunderstood the skill) vs preference changes (user changed their mind) vs
   context gaps (skill doesn't cover this situation)}
+**Version context:** {Was this conversation likely run against the current skill version?
+  Does the agent's behavior match current instructions or an older pattern? If the skill
+  has been modified since this conversation, note which version it likely reflects and
+  whether findings are attributable to the current version or a previous one.}
 **Verdict:** EFFECTIVE / PARTIALLY_EFFECTIVE / INEFFECTIVE / INCONCLUSIVE
 ```
 
@@ -348,6 +396,10 @@ the findings.}
 | Skill instruction | Followed | Ignored | Notes |
 | --- | --- | --- | --- |
 | {key instruction} | {N} | {N} | {pattern} |
+
+If conversations span multiple skill versions, note which version each finding applies to.
+Findings from obsolete versions should be flagged but not weighted equally with
+current-version findings.
 
 ## User Correction Patterns
 | What users corrected | Conversations | Skill failure or preference? |
@@ -431,11 +483,33 @@ area, note it and ask whether the earlier fix failed or if this is a new issue.
 
 **Phase 4 is complete when:** every finding from Phases 1-3 has a corresponding change proposal or an explicit rationale for why no change is needed.
 
-After the user approves changes, apply them to the SKILL.md file.
+After the user approves changes, apply them to the SKILL.md file, then run the
+post-modification verification gate.
 
-**Post-improvement testing (via skill-creator):** After changes are applied, offer: "Changes
-applied. Want me to run skill-creator's benchmark to compare the old vs new version?" If yes,
-delegate to skill-creator for a before/after comparison.
+### Post-Modification Verification
+
+After applying changes to the SKILL.md:
+
+1. **Targeted dimension re-check.** For each change, re-evaluate ONLY the dimensions it
+   directly affects. A constraint change needs dimension 2 re-checked. An example addition
+   needs dimension 4. Do not re-run the full rubric — just the affected dimensions.
+
+2. **Consistency scan.** Read the modified skill in full looking for contradictions introduced
+   by the changes:
+   - Does a new constraint conflict with an existing instruction?
+   - Does a new example contradict the skill's own rules?
+   - Do references to other sections still point to the right places?
+
+3. **Structural check.** Verify:
+   - Frontmatter is valid YAML with description under 250 chars
+   - Total line count is within the skill's target range
+   - No orphaned references to moved or deleted sections
+
+If any check fails, fix it before proceeding.
+
+**Post-improvement testing (via skill-creator):** After verification passes, offer: "Changes
+applied and verified. Want me to run skill-creator's benchmark to compare the old vs new
+version?" If yes, delegate to skill-creator for a before/after comparison.
 
 Then suggest: "Want to re-run this review after these changes take effect in a few sessions?"
 
@@ -448,43 +522,8 @@ cause → fix mapping.
 
 ## Examples
 
-### GOOD — Crystallization question (CREATE Phase 2)
-
-> "What must this skill NEVER do? Based on the domain, I'd expect constraints like:
-> (a) never modify files outside the target directory, (b) never skip the dry-run step,
-> (c) never assume the user wants destructive operations. Which of these apply? Any others?"
-
-Reasoning: Bounded options with domain-inferred defaults. The user evaluates and selects
-rather than generating constraints from scratch. Follows Rule 2 (recognition over recall).
-
-### BAD — Crystallization question
-
-> "What constraints should the skill have?"
-
-Reasoning: Bare open-ended question. Forces the user to generate constraints from nothing.
-Violates Rule 2. The agent has enough domain context to propose likely constraints — asking
-the user to do the generative work is lazy.
-
-### GOOD — Dimension evaluation (REVIEW Phase 1)
-
-> ### 4. Example Coverage: FAIL
-> **Finding:** The skill requires "structured output" (line 47) but provides no example of
-> what structured output looks like. Lines 50-55 describe the format in prose ("use headers,
-> include a summary") but a single concrete example would eliminate ambiguity.
-> **Fix:** Add a GOOD example showing a complete structured output block after line 55.
-
-Reasoning: Cites specific lines. Names what's missing and why it matters. The fix is
-actionable — it says WHERE to add WHAT.
-
-### BAD — Dimension evaluation
-
-> ### 4. Example Coverage: NEEDS WORK
-> **Finding:** Could use more examples.
-> **Fix:** Add examples.
-
-Reasoning: No line references, no specifics. "Could use more" is not a finding. The fix is
-unactionable — add WHICH examples WHERE? This verdict would pass the template check but
-fail the substance check.
+See `references/examples.md` for GOOD/BAD example pairs covering crystallization questions,
+dimension evaluations, challenge verdicts, and improvement proposals.
 
 ---
 
@@ -502,7 +541,7 @@ These rules govern this skill's own behavior across both modes.
 4. **Bidirectional calibration.** Flag both over-specification AND under-specification. Flag both
    overclaiming AND underclaiming. The goal is accuracy, not defensiveness.
 5. **Constraints first, context second.** When generating skills, write constraints and format
-   sections BEFORE context and steps. Constraints drive 42.7% of output quality.
+   sections BEFORE context and steps. Constraints are the single largest driver of output quality.
 6. **Binary criteria over subjective scales.** Every step in a generated skill must have a
    verifiable yes/no done condition, not a 1-5 rating.
 7. **Thoroughness over efficiency.** Load all references at the start. Read all conversations.

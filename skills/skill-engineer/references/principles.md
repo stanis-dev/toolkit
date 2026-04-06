@@ -7,8 +7,8 @@ and 2025-2026 research.
 
 ## Core Axioms
 
-1. **Constraints drive quality.** The sinc-LLM framework (275 production prompts, 11 agents)
-  found CONSTRAINTS alone drive 42.7% of output quality, FORMAT drives 26.3%. Allocate
+1. **Constraints drive quality.** Research on production prompt frameworks found constraints
+  are the single largest driver of output quality (~40%), with format second (~25%). Allocate
    50% of token budget to constraints + format, 40% to context + data, 10% to persona + task.
 2. **The description is the discovery surface.** Only `name`, `description`, and `when_to_use`
   enter the model's context for skill selection. The body loads only after activation. If the
@@ -26,8 +26,9 @@ and 2025-2026 research.
 7. **Instruction position matters.** Models exhibit primacy and recency effects. Place the most
   critical instructions at the beginning and end of the skill. Avoid burying important
    constraints in the middle.
-8. **The 150-200 instruction ceiling.** Models reliably follow approximately 150-200 instructions.
-  Quality degrades as count increases. Prioritize ruthlessly.
+8. **The instruction ceiling.** Model compliance degrades as instruction count increases. As a
+  practical heuristic, treat ~150 distinct instructions as a soft ceiling. Exact threshold
+   varies by model and instruction complexity. Prioritize ruthlessly.
 9. **Skills can be net-negative.** A 138-repo study found LLM-generated context files reduced
   agent success rates by 20%. More instructions does not equal better outcomes. Every token
    in a skill must justify its existence.

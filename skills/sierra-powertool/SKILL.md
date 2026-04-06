@@ -1,6 +1,6 @@
 ---
 name: Sierra Powertool
-description: This skill must always be used when working on any sierra agent
+description: CLI reference for running, debugging, and evaluating Sierra simulations, fetching and searching Studio conversations, managing workspaces, and investigating agent issues. Use when working on any Sierra agent. Not for general coding unrelated to Sierra.
 ---
 
 # sierras CLI
@@ -20,6 +20,9 @@ Parse the `data` field for the command-specific payload.
 ## Sim Evaluation Workflow
 
 ### Running an evaluation
+
+**Always use `sim bench` for evaluating multiple sims.** Do not write custom bash scripts
+for batch triggering, polling, or collection -- `sim bench` handles all of that.
 
 ```bash
 sierras sim bench start --bot triage --group triage --count 5
@@ -201,6 +204,23 @@ Compares a workspace's journey/tools/sims configuration against a baseline snaps
 
 Note: this compares *configuration*. To compare sim *results* between workspaces, use
 `sierras sim diff --left <ws> --right <ws>`.
+
+---
+
+## Interaction Rules
+
+- **Use `--bot <name>` to auto-resolve context.** The `--bot` flag reads the local `.targets/`
+  directory to resolve org, workspace, and bot-id. Prefer it over manual `--org`/`--bot-id`.
+  Before bulk operations (`sim bench`, `sim run-all`, `sim replay-all`), state which bot
+  and workspace you'll target. Wait for confirmation.
+- **Analysis and implementation are separate scopes.** If the user asks for a report, analysis,
+  or investigation, deliver that. Do NOT start implementing fixes unless the user explicitly
+  asks. When in doubt, ask: "Want me to implement a fix, or just report findings?"
+- **Never re-run sims without permission.** Simulation runs consume platform resources and time.
+  If data is lost or invalidated, report what happened and ask whether to re-run.
+- **Report tool limitations instead of inventing workarounds.** If a sierras command fails or
+  doesn't support what you need, tell the user. Suggest a specific tool improvement. Do not
+  chain shell commands to approximate what a single CLI flag should do.
 
 ---
 
