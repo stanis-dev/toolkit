@@ -60,11 +60,38 @@ sierras sim bench query <run-id> --failed              # Inspect collected resul
 
 `status` and `collect` are recovery tools for interrupted runs.
 
+### Cancelling runs
+
+**Cancel a bench run:**
+
+```bash
+sierras sim bench cancel <run-id> --bot triage
+```
+
+Cancels all running/pending sims for that bench run via the platform API and marks the run
+as "cancelled" in the local DB. Results collected before cancellation are preserved --
+use `sim bench query <run-id>` to inspect them.
+
+**Cancel everything in the workspace:**
+
+```bash
+sierras sim cancel-all --bot triage --workspace-name default
+```
+
+Cancels ALL running sims in the workspace regardless of how they were triggered (bench,
+Studio, other agents). Use this as a clean-slate reset when stale runs from previous
+sessions are consuming the platform's concurrent run capacity.
+
+Both commands report how many results were cancelled. If nothing is running, they print
+"nothing to cancel" and exit cleanly (not an error).
+
 ### Guardrails
 
 - Code uploads via `sierra watch` change the workspace version. `sim bench` handles this
   automatically -- results from the trigger-time version are still collected. If `sim list`
   shows a status reset after an upload, the results are still there; use `sim bench collect`.
+- The platform limits 1200 concurrent runs. `sim bench` chunks automatically. If stale runs
+  from Studio or previous agents are consuming capacity, use `sim cancel-all` to reclaim it.
 - If this tool hits a limitation for your workflow, stop and tell the user. Suggest a
   specific tool or skill improvement. If the workflow seems to need a custom script, the
   tool likely has a gap worth reporting.
@@ -86,10 +113,12 @@ sierras sim replay <name> --transcript                       # Conversation only
 sierras sim replay <name> --verbose                          # Flat event timeline
 sierras sim replay <name> --trace <turn>                     # All LLM API calls for a turn
 sierras sim diff --left <ws> --right <ws> [--detailed]       # Compare results between workspaces
+sierras sim cancel-all                                       # Cancel ALL running sims in workspace (clean slate)
 ```
 
 ```bash
 sierras sim bench start --group <g> --count <n>              # Bench evaluation (see workflow above)
+sierras sim bench cancel <run-id>                            # Cancel all running/pending sims in a bench run
 sierras sim bench query <run-id> [--failed] [--flaky]        # Query bench results
 sierras sim bench list                                       # List all bench runs
 sierras sim bench status <run-id>                            # Check progress of running bench
