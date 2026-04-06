@@ -65,7 +65,6 @@ sierras sim bench query <run-id> --failed              # Inspect collected resul
 - Code uploads via `sierra watch` change the workspace version. `sim bench` handles this
   automatically -- results from the trigger-time version are still collected. If `sim list`
   shows a status reset after an upload, the results are still there; use `sim bench collect`.
-- The platform limits 1200 concurrent runs. `sim bench` chunks automatically.
 - If this tool hits a limitation for your workflow, stop and tell the user. Suggest a
   specific tool or skill improvement. If the workflow seems to need a custom script, the
   tool likely has a gap worth reporting.
