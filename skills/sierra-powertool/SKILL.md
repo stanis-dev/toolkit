@@ -29,7 +29,19 @@ sierras sim bench start --bot triage --group triage --count 5
 ```
 
 Triggers all matching sims, polls for completion, collects results into the database, and
-prints a summary. Runs until all sims complete. Background it to do other work while it runs.
+prints a summary. **This command blocks until all sims complete** -- run it as a background
+process and monitor progress separately:
+
+```bash
+# Launch in background, capture run ID from output
+sierras sim bench start --bot triage --group triage --count 5 &
+
+# Monitor progress (while bench is running)
+sierras sim bench status <run-id> --bot triage
+
+# Or just read the terminal output for progress lines:
+# [wait] 120/400 sims complete (30%)
+```
 
 Flags: `--group` or `--category` (select which sims to run), `--count` (runs per sim, default 3).
 
@@ -90,8 +102,8 @@ Both commands report how many results were cancelled. If nothing is running, the
 - Code uploads via `sierra watch` change the workspace version. `sim bench` handles this
   automatically -- results from the trigger-time version are still collected. If `sim list`
   shows a status reset after an upload, the results are still there; use `sim bench collect`.
-- The platform limits 1200 concurrent runs. `sim bench` chunks automatically. If stale runs
-  from Studio or previous agents are consuming capacity, use `sim cancel-all` to reclaim it.
+- If stale runs from Studio or previous agents are consuming platform capacity, use
+  `sim cancel-all` to reclaim it.
 - If this tool hits a limitation for your workflow, stop and tell the user. Suggest a
   specific tool or skill improvement. If the workflow seems to need a custom script, the
   tool likely has a gap worth reporting.
