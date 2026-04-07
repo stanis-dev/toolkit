@@ -10,6 +10,7 @@ agents/          # Subagent definitions (read-only, scoped roles)
 hooks/           # Session lifecycle hooks (e.g. inject context on start)
 context/         # Global context injected into every session via hook
 journal/         # Personal notes, journaling, and long-running deep research
+knowledge-wiki/  # Review-gated canonical knowledge system for durable personal knowledge
 .claude-plugin/  # Plugin manifest for Claude Code marketplace
 ```
 
@@ -33,6 +34,8 @@ journal/         # Personal notes, journaling, and long-running deep research
 | -------------------------- | -------------------------------------------------- |
 | `deep-research-prompt`     | Generate context-enriched research prompts         |
 | `question-crystallization` | Move from vague intuitions to clear questions      |
+| `communication-copilot`    | Tighten pasted drafts with compact coaching + rewrite |
+| `wiki-editorial`           | Propose, publish, and lint gated knowledge-wiki updates |
 | `music-discovery`          | Recommendations via Plex history + SoulSync        |
 | `homelab-ssh`              | Homelab server reference (SSH, Docker, storage)    |
 | `mini-ssh`                 | Mac Mini / Plex server reference                   |
@@ -53,3 +56,11 @@ claude plugin add /path/to/toolkit
 ```
 
 On session start, the hook in `hooks/session-start.sh` injects `context/global.md` and a summary of all available skills into context.
+
+## Knowledge Wiki
+
+`knowledge-wiki/` is a separate editorial system inside this repo. It is not the same thing as `journal/`.
+
+- `journal/` remains a scratch/research workspace.
+- `knowledge-wiki/` stores only review-approved durable knowledge.
+- Canonical content is retrieved on demand and is never injected wholesale at startup.

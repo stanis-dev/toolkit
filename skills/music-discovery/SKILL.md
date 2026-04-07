@@ -1,8 +1,8 @@
 ---
 name: music-discovery
 description:
-    Use when the user wants music recommendations, wants to discover new artists, or asks to download music - combines
-    Plex listening history, AI music knowledge, and SoulSync for search and download
+    Use for music recommendation, recurring playlist refresh, and SoulSync/Plex curation - combines Plex listening
+    history, taste data, and downloads. Not for general media-server debugging
 ---
 
 # Music Discovery & Download
@@ -14,13 +14,16 @@ machines: Mac Mini (Plex) and homelab (SoulSync + slskd).
 
 **REQUIRED:** `mini-ssh` skill for Plex API access, `homelab-ssh` skill for SoulSync/slskd access.
 
+**Path rule:** Scripts referenced below live next to this `SKILL.md` in the toolkit repo. In this setup, use
+`/Users/stan/code/toolkit/skills/music-discovery/scripts/...`. Do NOT assume `~/.cursor/skills/...` exists.
+
 SoulSync API key: "sk_C_eRfTvsUFlQzKqLd0sNVaZUpL-YRrAkhOHikb9_UyY"
 
 ## Workflow
 
 ```
-1. Gather (Plex)  →  2. Recommend (Claude)  →  3. Act (SoulSync)
-   ssh mini            analysis                  192.168.0.2:8008
+1. Gather (Plex)  →  2. Recommend (Claude)  →  3. Act (Plex / SoulSync)
+   ssh mini            analysis                     direct Plex write or 192.168.0.2:8008
 ```
 
 ### Step 1: Gather Listening Context
@@ -66,7 +69,7 @@ is older than 7 days.
 TOKEN=$(ssh mini 'defaults read com.plexapp.plexmediaserver PlexOnlineToken')
 
 # Copy and run the sync script on homelab
-scp ~/.cursor/skills/music-discovery/scripts/sync_taste.py homelab:/tmp/
+scp /Users/stan/code/toolkit/skills/music-discovery/scripts/sync_taste.py homelab:/tmp/
 ssh homelab "python3 /tmp/sync_taste.py --plex-token $TOKEN"
 
 # Check last sync time
@@ -320,23 +323,115 @@ Remove tracks that violate hard constraints.
     - Worst 3 tracks + why (what specifically failed: vocals, tempo, mood, production style, etc.)
     - Adjust knobs: exploration rate, lyrics policy, energy curve, genre breadth
 
-### Step 3: Download, Playlist, Verify
+### Step 3: Materialize Safely
 
-After the user confirms the track list from Step 2, materialise the playlist. The script uses SoulSync's mirrored
-playlist pipeline which handles the full lifecycle: metadata discovery (iTunes), library dedup, Soulseek search with
-quality ranking, concurrent downloading (3 workers), metadata tagging, album art, file organization, and Plex playlist
-creation.
+After the user confirms the track list from Step 2, choose the materialization path explicitly:
 
-#### 3a. Download tracks and create Plex playlist
+1. **Existing curated Plex playlist refresh** -- default for recurring playlists that already exist in Plex and whose
+   playlist ID, ordering, and full track count must stay stable.
+2. **New playlist or missing-track download flow** -- use SoulSync's mirrored playlist pipeline when you need metadata
+   discovery and downloads.
+3. **Never treat SoulSync sync as the final source of truth for an existing curated Plex playlist.** If exact
+   preservation matters, the final write must be a direct Plex rebuild by ordered `ratingKey`s.
+
+#### 3a. Existing curated Plex playlist refresh (default for recurring playlists)
+
+Use this path for light refreshes of an existing playlist such as `Work Concentration v1`/`v2`.
+
+**Done condition:**
+
+- every replacement track has an exact Plex `ratingKey`
+- backup playlist has been refreshed from the live pre-edit playlist
+- live playlist leaf count exactly matches the intended final list
+- final Plex order exactly matches the intended sequence
+
+**Required workflow:**
+
+1. Resolve exact Plex matches for every candidate track via the music library, not the generic search provider:
+
+```bash
+TOKEN=$(ssh mini 'defaults read com.plexapp.plexmediaserver PlexOnlineToken')
+
+# Resolve a replacement track to an exact Plex ratingKey
+ssh mini "curl -s 'http://localhost:32400/library/sections/3/all?type=10&title=Kerala&artist.title=Bonobo&X-Plex-Token=$TOKEN' -H 'Accept: application/json'"
+
+# Inspect an existing playlist. The items payload includes playlistItemID for deletes.
+ssh mini "curl -s 'http://localhost:32400/playlists/42540/items?X-Plex-Token=$TOKEN' -H 'Accept: application/json'"
+
+# Get Plex machineIdentifier for ordered bulk-add URIs
+ssh mini "curl -s 'http://localhost:32400/?X-Plex-Token=$TOKEN' -H 'Accept: application/json'"
+```
+
+2. Refresh the backup playlist from the live playlist **before** editing the live playlist.
+3. Clear the live playlist by `playlistItemID`, then bulk-add the final intended ordered `ratingKey` list back into the
+   existing playlist ID.
+
+```bash
+python3 - <<'PY'
+import subprocess, json, urllib.parse
+
+TOKEN = subprocess.check_output(
+    ['ssh', 'mini', 'defaults read com.plexapp.plexmediaserver PlexOnlineToken'],
+    text=True,
+).strip()
+MID = json.loads(
+    subprocess.check_output(
+        ['ssh', 'mini', f"curl -s 'http://localhost:32400/?X-Plex-Token={TOKEN}' -H 'Accept: application/json'"],
+        text=True,
+    )
+)['MediaContainer']['machineIdentifier']
+
+PLAYLIST_ID = '42540'
+RATING_KEYS = ['26667', '39008', '26641']  # final intended order
+
+items = json.loads(
+    subprocess.check_output(
+        ['ssh', 'mini', f"curl -s 'http://localhost:32400/playlists/{PLAYLIST_ID}/items?X-Plex-Token={TOKEN}' -H 'Accept: application/json'"],
+        text=True,
+    )
+)['MediaContainer'].get('Metadata', []) or []
+
+for item in items:
+    subprocess.check_output(
+        ['ssh', 'mini', f"curl -s -X DELETE 'http://localhost:32400/playlists/{PLAYLIST_ID}/items/{item['playlistItemID']}?X-Plex-Token={TOKEN}' -H 'Accept: application/json'"],
+        text=True,
+    )
+
+uri = f"server://{MID}/com.plexapp.plugins.library/library/metadata/{','.join(RATING_KEYS)}"
+subprocess.check_output(
+    ['ssh', 'mini', f"curl -s -X PUT 'http://localhost:32400/playlists/{PLAYLIST_ID}/items?uri={urllib.parse.quote(uri, safe='')}&X-Plex-Token={TOKEN}' -H 'Accept: application/json'"],
+    text=True,
+)
+PY
+```
+
+4. Verify the final live playlist directly in Plex. If leaf count or order is wrong, **do not report success**.
+
+```bash
+TOKEN=$(ssh mini 'defaults read com.plexapp.plexmediaserver PlexOnlineToken')
+ssh mini "curl -s 'http://localhost:32400/playlists?playlistType=audio&X-Plex-Token=$TOKEN' -H 'Accept: application/json'"
+ssh mini "curl -s 'http://localhost:32400/playlists/42540/items?X-Plex-Token=$TOKEN' -H 'Accept: application/json'"
+```
+
+#### 3b. New playlist or missing-track download flow
 
 Build a JSON track list from the Step 2 output and run [sync_playlist.py](scripts/sync_playlist.py). The script creates
 a mirrored playlist in SoulSync, runs metadata discovery to resolve each track to real iTunes metadata, then syncs
 (matches against library, downloads missing tracks via Soulseek, creates the Plex playlist).
 
+Use this path when either of these is true:
+
+- you are creating a new playlist from scratch
+- you need SoulSync to download tracks that are not yet in Plex
+
+Do **not** point this flow at an existing curated Plex playlist if exact preservation matters. When you need downloads
+for a recurring playlist refresh, use `sync_playlist.py` to fetch the missing music first, then rebuild the live
+playlist via **3a** after the download, Plex scan, and VibeNet analysis complete.
+
 ```bash
 TRACKS='[{"artist":"Mac Miller","track":"Surf","album":"Swimming"},{"artist":"Kiasmos","track":"Looped","album":"Kiasmos"}]'
 
-scp ~/.cursor/skills/music-discovery/scripts/sync_playlist.py homelab:/tmp/
+scp /Users/stan/code/toolkit/skills/music-discovery/scripts/sync_playlist.py homelab:/tmp/
 ssh homelab "python3 /tmp/sync_playlist.py --playlist-name 'Evening Vibes' --tracks '$TRACKS'"
 ```
 
@@ -348,7 +443,7 @@ cat << 'EOF' > /tmp/tracks.json
  {"artist":"Maxwell","track":"Fortunate","album":""}]
 EOF
 scp /tmp/tracks.json homelab:/tmp/
-scp ~/.cursor/skills/music-discovery/scripts/sync_playlist.py homelab:/tmp/
+scp /Users/stan/code/toolkit/skills/music-discovery/scripts/sync_playlist.py homelab:/tmp/
 ssh homelab "python3 /tmp/sync_playlist.py --playlist-name 'Neo Soul Essentials' --tracks-file /tmp/tracks.json --timeout 1800"
 ```
 
@@ -370,6 +465,10 @@ Options:
 - `--timeout`: Max seconds to wait (default 1200)
 - `--keep-mirrored`: Don't delete the temporary mirrored playlist after completion
 
+**Verification gate:** If `sync_playlist.py` omits unresolved tracks, recreates the Plex playlist, or yields a Plex
+leaf count lower than the intended track list, the job is **not done**. Report partial materialization explicitly or
+finish by rebuilding the final live playlist through **3a**.
+
 After downloads complete, trigger a Plex library scan so newly downloaded tracks appear:
 
 ```bash
@@ -379,7 +478,7 @@ ssh mini "curl -s -X POST 'http://localhost:32400/library/sections/3/refresh?X-P
 
 Wait ~60 seconds for the scan to complete before proceeding.
 
-#### 3b. Analyze new tracks with VibeNet (required)
+#### 3c. Analyze new tracks with VibeNet (required after downloads)
 
 **Always run VibeNet after downloads complete.** This keeps the `audio_features` table current so future recommendation
 runs have energy/valence/instrumentalness/speechiness data for all library tracks.
@@ -405,6 +504,16 @@ ORDER BY status, file_path;\""
 Report any tracks that fail verification. The user can decide to keep them (override), swap them out, or adjust the
 preset thresholds.
 
+#### 3d. Final verification and recording (required every time)
+
+Before reporting success:
+
+1. Verify the final live Plex playlist leaf count equals the intended count.
+2. Verify the final order directly from Plex, especially around replaced positions.
+3. Only after Plex verification passes, insert rows into `playlist_exposures`.
+
+Do not claim the refresh completed if any of those checks are missing.
+
 ## Temporal Taste & Playlist Refresh
 
 The taste table now includes rolling memory counters (`play_mem_7/30/180`, `skip_mem_30/180`) that
@@ -416,11 +525,16 @@ activity patterns.
 
 The primary use case is refreshing an existing recurring playlist, not generating from scratch.
 
+- **Ground truth:** for recurring playlists, the current Plex playlist is authoritative. Start from the live playlist's
+  actual items and order, not from `taste` reconstruction alone.
 - **Compare against previous version:** query `playlist_exposures` to see what was in the last
   version(s). Check which tracks were played (positive signal) vs. skipped (rotation candidate).
 - **Rotation:** "familiar" = tracks with `play_count > 0`, not just tracks on disk. Keep ~40-60%
   familiar tracks that are performing well, rotate in ~30-40% fresh candidates from the ranking
   pool, reserve ~10-20% for discovery (tracks with low play counts or new additions).
+- **Sparse-data fallback:** if `taste` + `audio_features` candidate pools are too sparse or do not cover the playlist's
+  current lanes, use Plex-first curation. Pull the live playlist from Plex, then look for replacements among owned
+  tracks by the same artists, adjacent album tracks, or nearby feature matches in the existing library.
 - **Record the result:** after materializing, insert rows into `playlist_exposures`.
 
 ```bash
@@ -583,6 +697,10 @@ The `music` database on homelab PostgreSQL has two tables:
   `(artist, track, album)`. Joins with `audio_features` via `file_path`.
 - **`playlist_exposures`**: tracks which tracks were placed in which playlists. Keyed by
   `(playlist_name, context, track_artist, track_name, generated_at)`. Used for rotation decisions.
+
+**Important mismatch:** SoulSync's SQLite `tracks.file_path` is absolute filesystem path text, while
+`audio_features.file_path` is library-relative. For ad hoc cross-database joins, do not assume raw `file_path`
+equality. Match on normalized `artist + track` first, then confirm album/path before acting.
 
 ```bash
 PSQL='sudo docker exec postgres psql -U postgres -d music -t -A'

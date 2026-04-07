@@ -102,6 +102,8 @@ Both commands report how many results were cancelled. If nothing is running, the
 - Code uploads via `sierra watch` change the workspace version. `sim bench` handles this
   automatically -- results from the trigger-time version are still collected. If `sim list`
   shows a status reset after an upload, the results are still there; use `sim bench collect`.
+  `sim bench status <run-id>` now prints a one-line diff summary for the workspace change,
+  and `sim bench query <run-id>` includes a stored Journey/Tools/Simulations diff block.
 - If stale runs from Studio or previous agents are consuming platform capacity, use
   `sim cancel-all` to reclaim it.
 - If this tool hits a limitation for your workflow, stop and tell the user. Suggest a

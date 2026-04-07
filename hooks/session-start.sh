@@ -26,11 +26,13 @@ SIERRA AGENTS:
 
 SKILL & PROMPT ENGINEERING:
 - skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts
+- wiki-editorial: Gated knowledge-wiki workflow for proposing, publishing, and linting canonical knowledge
 
 PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
 PERSONAL:
+- communication-copilot: Tighten pasted drafts for authority, clarity, and low-friction communication
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
