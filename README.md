@@ -35,7 +35,9 @@ knowledge-wiki/  # Review-gated canonical knowledge system for durable personal 
 | `deep-research-prompt`     | Generate context-enriched research prompts         |
 | `question-crystallization` | Move from vague intuitions to clear questions      |
 | `communication-copilot`    | Tighten pasted drafts with compact coaching + rewrite |
+| `work-radar`               | Answer targeted "what's up / am I behind / look at this thread" questions |
 | `wiki-editorial`           | Propose, publish, and lint gated knowledge-wiki updates |
+| `wiki-smoke`               | Run the subagent-based smoke battery for `wiki-editorial` |
 | `music-discovery`          | Recommendations via Plex history + SoulSync        |
 | `homelab-ssh`              | Homelab server reference (SSH, Docker, storage)    |
 | `mini-ssh`                 | Mac Mini / Plex server reference                   |
@@ -46,6 +48,7 @@ knowledge-wiki/  # Review-gated canonical knowledge system for durable personal 
 
 - **phrasing-eval** — evaluates Turkish call-center agent transcripts against phrasing guardrails
 - **replay-analyzer** — evidence-based reviewer of Sierra simulation replays
+- **wiki-smoke-worker** — isolated scenario executor for the knowledge-wiki smoke battery
 
 ## Setup
 

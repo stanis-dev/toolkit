@@ -23,16 +23,19 @@ SIERRA WORKFLOWS:
 SIERRA AGENTS:
 - phrasing-eval: Read-only subagent for phrasing evaluation against guardrails
 - replay-analyzer: Read-only subagent for evidence-first replay analysis
+- wiki-smoke-worker: Read-only single-scenario worker for knowledge-wiki smoke scenarios
 
 SKILL & PROMPT ENGINEERING:
 - skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts
 - wiki-editorial: Gated knowledge-wiki workflow for proposing, publishing, and linting canonical knowledge
+- wiki-smoke: Subagent-based smoke battery for wiki-editorial CLI and hook integration
 
 PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
 PERSONAL:
 - communication-copilot: Tighten pasted drafts for authority, clarity, and low-friction communication
+- work-radar: Explicit operational-awareness lookup over Slack, Teams, and meeting notes
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions

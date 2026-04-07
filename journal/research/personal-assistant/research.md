@@ -23,11 +23,13 @@ Designing a personal AI assistant as a high-trust augmentation system across com
 - **Live batch 1:** `context/comms-coaching-live-batch-1.md` reviews a recent non-curated batch of Sierra-facing messages using the default instruction block
 - **Live batch 2:** `context/comms-coaching-live-batch-2.md` is the first recent-message pass using the fully updated authority-growth review format
 - **Skill smoke test:** `context/communication-copilot-smoke-test-1.md` manually tests the new communication-copilot skill on three realistic prompts
+- **Operational awareness integration:** `context/operational-awareness-integration.md` defines a third assistant job for morning brief, commitments tracking, and quick thread-level questions
 - **Best synthesis base:** GPT is the best base for the design document; Claude adds sharper risk and measurement frames; Gemini is more useful for implementation brainstorming than for scoping the research itself.
 - **Core question:** What are the best practices, proven patterns, and common pitfalls for designing a personal AI assistant with deep user adaptation at its core?
 - **Next research question:** What is the minimum viable explicit user profile, evaluation rubric, and dissent policy that measurably lowers edit burden without increasing sycophancy?
 - **First concrete assistant job:** Monitor direct mentions and DMs, research likely context from Slack, Teams, and meetings, and propose reply drafts in your voice for approval
 - **Second concrete assistant job:** Review authored communication against the quiet-confidence target and identify concrete improvement moves without flattery or pseudo-therapy
+- **Third concrete assistant job:** Maintain operational awareness over commitments, blockers, and recent high-signal threads so you can ask "what's up today?" or "am I behind on something?"
 
 ## Local data sources already available
 
@@ -68,6 +70,7 @@ Designing a personal AI assistant as a high-trust augmentation system across com
 - Overlapping evidence across meetings, Slack, and Teams means retrieval needs deduplication and source-aware ranking rather than naive global search
 - Constantly updating sources also imply explicit freshness and provenance in outputs: what was pulled from which thread/meeting and how recent it is
 - The assistant should not "watch everything" equally in v1; attention should be scoped to direct mentions and DMs first
+- Daily-awareness features should use a **derived operational layer** (commitments / waiting / recent threads), not the raw corpus directly
 
 ## Source classification for the next pass
 
@@ -161,6 +164,7 @@ Designing a personal AI assistant as a high-trust augmentation system across com
 4. Evaluate draft replies on edit burden, voice fit, retrieval usefulness, recency correctness, and non-sycophantic judgment.
 5. Build a separate small coaching eval set of authored messages and score them against the quiet-confidence rubric.
 6. Use those results to draft a v1 explicit profile spec, attention policy, and dissent policy for reply drafting, plus a separate v1 instruction block for communication coaching.
+7. Define a commitments-ledger schema and test whether Slack / Teams / meetings can reliably populate it for morning-brief and "am I behind?" queries.
 
 ## Scope
 
