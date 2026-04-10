@@ -24,6 +24,9 @@ Parse the `data` field for the command-specific payload.
 **Always use `sim bench` for evaluating multiple sims.** Do not write custom bash scripts
 for batch triggering, polling, or collection -- `sim bench` handles all of that.
 
+`sim run` is a single-sim command. `--count` repeats that one sim; it does not turn `sim run`
+into a general batch-evaluation primitive.
+
 ```bash
 sierras sim bench start --bot triage --group triage --count 5
 ```
@@ -99,6 +102,8 @@ Both commands report how many results were cancelled. If nothing is running, the
 
 ### Guardrails
 
+- Do not orchestrate multi-sim evaluation by repeating or parallelizing `sim run`. If more than
+  one sim is in scope, use `sim bench start`.
 - Code uploads via `sierra watch` change the workspace version. `sim bench` handles this
   automatically -- results from the trigger-time version are still collected. If `sim list`
   shows a status reset after an upload, the results are still there; use `sim bench collect`.
@@ -106,6 +111,8 @@ Both commands report how many results were cancelled. If nothing is running, the
   and `sim bench query <run-id>` includes a stored Journey/Tools/Simulations diff block.
 - If stale runs from Studio or previous agents are consuming platform capacity, use
   `sim cancel-all` to reclaim it.
+- `sim replay --list` is for inspecting the history of one sim, not for managing the status of a
+  broader evaluation campaign.
 - If this tool hits a limitation for your workflow, stop and tell the user. Suggest a
   specific tool or skill improvement. If the workflow seems to need a custom script, the
   tool likely has a gap worth reporting.

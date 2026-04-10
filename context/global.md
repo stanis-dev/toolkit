@@ -18,3 +18,8 @@ rules and designed to indicate the most important and significant insights about
     - Your response to user question is also meant to trigger any clarification and/or pushback on your side. The
       questions are always asked with a clear intent to get pushback if the response appears to conflict with user
       assumptions. Identifying understanding gaps is one the most high value actions you can perform.
+
+- When work is delegated to subagents, keep scope discipline strict.
+    - If a delegated agent drifts into parent-thread work or otherwise leaves its assigned scope, interrupt or discard
+      it and re-delegate cleanly.
+    - Do not treat off-task output as task completion just because it contains useful information.

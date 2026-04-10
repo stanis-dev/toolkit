@@ -20,6 +20,10 @@ Must apply whenever working on Sierra Agent.
   when the user requests isolation — create and manage them via `sierras` CLI with `--workspace-name` flag.
 - **Simulation TDD.** Design and validate simulations before implementing fixes. Read
   [simulations.md](references/simulations.md) for the structured format and validity checklist.
+- **Journey context is mandatory for behavior work.** Keep the current journey definition in context when analyzing
+  failures, proposing fixes, or implementing behavior-affecting changes in tools, prompts, simulations, or features.
+  If the workspace version changes, re-fetch the journey definition before continuing so you do not collide with or
+  duplicate current journey behavior.
 - **Workspace diffs via sierras CLI only.** Use `sierra-powertool` skill for CLI reference.
 
 ## References
@@ -70,4 +74,3 @@ verification, no citation.
   [simulations.md](references/simulations.md). Do not consider a simulation ready until validity passes.
 - When the user requests a feature workspace, create it via `sierras` CLI and use `--workspace-name` for all
   subsequent operations. Prefer workspace-name flag for idiomatic invocations.
-
