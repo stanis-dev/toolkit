@@ -33,7 +33,7 @@ Designing a personal AI assistant as a high-trust augmentation system across com
 
 ## Local data sources already available
 
-### 1. Brain meeting corpus (`/Users/stan/code/rec/data`)
+### 1. Brain meeting corpus (`/Users/stan/code/toolkit/brain/data`)
 
 - 12 WAV recordings
 - 9 transcript JSON files
@@ -44,14 +44,14 @@ Designing a personal AI assistant as a high-trust augmentation system across com
 - Example meetings include `Pronet--Sierra-Standup`, `Alex-Baas-AI---Client-Validation`, `UK-Agent-Reviews`, and `Maundy-Thursday`
 - Best use: meeting summarization, to-do extraction, follow-up drafting, identifying spoken communication patterns, and comparing raw transcript -> polished summary output
 
-### 2. Slack exports (`/Users/stan/code/rec/data/slack`)
+### 2. Slack exports (`/Users/stan/code/toolkit/brain/data/slack`)
 
 - **Sierra workspace:** 31 channel/DM JSON exports, 31 readable markdown views, 995 downloaded image attachments
 - **Wizeline workspace:** 41 channel/DM JSON exports, 41 readable markdown views
 - Readable views already exist under each workspace's `readable/` directory
 - Best use: channel-specific written voice, collaborator-specific norms, recurring workflows, async prioritization patterns, and drafting benchmarks
 
-### 3. Teams exports (`/Users/stan/code/rec/data/teams/sierra`)
+### 3. Teams exports (`/Users/stan/code/toolkit/brain/data/teams/sierra`)
 
 - 2 channel exports
 - 5 chat/meeting exports

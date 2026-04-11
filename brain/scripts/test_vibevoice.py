@@ -4,7 +4,7 @@
 import sys, os, time, json, gc, wave
 import torch
 
-WAV_FILE = sys.argv[1] if len(sys.argv) > 1 else "/Users/stan/code/rec/data/rec-2026-03-24-152010.wav"
+WAV_FILE = sys.argv[1] if len(sys.argv) > 1 else "/Users/stan/code/toolkit/brain/data/rec-2026-03-24-152010.wav"
 MODEL_ID = "microsoft/VibeVoice-ASR-HF"
 DTYPE = torch.float16 if "--fp32" not in sys.argv else torch.float32
 CHUNK_SIZE = 720000  # 30 seconds at 24kHz (default is 1440000 = 60s)

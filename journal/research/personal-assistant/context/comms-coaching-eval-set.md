@@ -60,7 +60,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Javi asks whether to use English or Spanish.
 - Message under review: `Hola Javier :wink: Las dos opciones son buenas, pero creo que en español será algo más fácil`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Javi_Quirante.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Javi_Quirante.md`
 - Primary authority mechanism: `Trust-preserving warmth`
 - Scores:
   - Uncertainty reduction: `5` — answers the exact question immediately
@@ -87,7 +87,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Javi offers help and suggests a Google Meet.
 - Message under review: `pues si te va bien, mañana te agradecería una call rápido por meets. No te voy a robar mucho tiempo, porque la mayoría de la dudas se pueden responder async`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Javi_Quirante.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Javi_Quirante.md`
 - Primary authority mechanism: `Bounded ask`
 - Scores:
   - Uncertainty reduction: `4` — clear preference, though no specific slot
@@ -115,8 +115,8 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Paola asks for an email from Stan to move a holiday because onboarding was thought to be next week.
 - Message under review: `Good morning. I believe that Sierra communicated they would prefer the onboarding to happen on the week of December 15th, so next week is no longer an option. @Jorge Muñiz is currently working on clarifying the details`
 - Context files:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/mpdm-jorge_muniz--paola_morales--stanislav_samisko-1.md`
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Jorge_Muñiz_Moran.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/mpdm-jorge_muniz--paola_morales--stanislav_samisko-1.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Jorge_Muñiz_Moran.md`
 - Primary authority mechanism: `Clarity anchor`
 - Scores:
   - Uncertainty reduction: `4` — resolves the premise of the ask
@@ -144,7 +144,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: proactive outreach from Stan
 - Message under review: `Hi Esen, let me know if you feel like the following format would be helpful for clearer progress communication. Of course, it's mostly ai translated reporting format I've been posting, but with your team's input i can refine the prompt so that it would allow for an easy sharing among team members. Also, if let me know if there's some context that you would add to what's already there. let me know if there are any permission issues`
 - Context file:
-  - `/Users/stan/code/rec/data/teams/sierra/readable/Chat__66ad9ea2-e8e6-4b7d-a9f8-3bec8dc5659c__4edb6120-4e39-4976-b4ff-6cd97ae32daa.md`
+  - `/Users/stan/code/toolkit/brain/data/teams/sierra/readable/Chat__66ad9ea2-e8e6-4b7d-a9f8-3bec8dc5659c__4edb6120-4e39-4976-b4ff-6cd97ae32daa.md`
 - Primary authority mechanism: `Bounded ask`
 - Scores:
   - Uncertainty reduction: `2` — purpose is visible, but the exact ask is blurry
@@ -174,7 +174,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Asil says he missed part of onboarding because passwords were wrong and asks what is happening now.
 - Message under review: `oh, I believe you weren't able to be present on any of the calls we had`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Asil_Açku.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Asil_Açku.md`
 - Primary authority mechanism: `Clarity anchor`
 - Scores:
   - Uncertainty reduction: `1` — increases confusion by making the wrong assumption
@@ -201,7 +201,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Paola follows up because medical-recognition forms are still missing.
 - Message under review: `buenos días Paola. disculpa que haya tardado en responder. seguro eso lo oyes a menudo, sobre todo de la gente de sierra, pero hemos estado un poco a tope :rolling_on_the_floor_laughing: hoy me aseguraré de tener esto solucionado EOD`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Paola_Morales_Laguna.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Paola_Morales_Laguna.md`
 - Primary authority mechanism: `Ownership signal`
 - Scores:
   - Uncertainty reduction: `4` — commits to an EOD resolution
@@ -230,7 +230,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Antonio says he has not received anything to approve and that he needs to be added to the ticket if needed.
 - Message under review: `Hola Antonio. Sigo sin tener noticias respecto a tener acceso a Expensify. Probablemente no sea algo a gestionar contigo, por lo que si me indicas el protocolo me pondre con ello`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
 - Primary authority mechanism: `Ownership signal`
 - Scores:
   - Uncertainty reduction: `4` — states the current status and what is needed
@@ -258,7 +258,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Antonio asks whether Stan would be interested in moving to London.
 - Message under review: `Buenos días Antonio. La verdad es que es algo me podría interesar`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
 - Primary authority mechanism: `Decision framing`
 - Scores:
   - Uncertainty reduction: `2` — communicates openness, but leaves too much interpretation space
@@ -285,7 +285,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Antonio asks if Stan thought it through.
 - Message under review: `hola Antonio. si, el finde me tome un buen rato para investigar bien el tema. y al final la verdad es que no voy a poder. Hay un par de cosas que no conseguiría solucionar para poder estar 100% en Londres`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
 - Primary authority mechanism: `Decision framing`
 - Scores:
   - Uncertainty reduction: `5` — definite answer
@@ -313,8 +313,8 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Antonio says he is at client offices in London but can talk.
 - Message under review: `no te preocupes, cuando tengas la posibilidad de hacer una call ya me dices. La idea es entender mejor el contexto actual con Sierra, sobre todo para las validaciones`
 - Context files:
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
-  - `/Users/stan/code/rec/data/slack/wizeline/readable/sierra-validations.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/Antonio_Rodriguez_Bosch.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/sierra-validations.md`
 - Primary authority mechanism: `Bounded ask`
 - Scores:
   - Uncertainty reduction: `3` — states the purpose, but not the shape of the ask
@@ -342,7 +342,7 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Esen raises a critical issue and says Bilge already sent customer data in chat.
 - Message under review: `thanks Esen. I was about to mention that it's best for you to get the data from the conversation linked to the issue directly, to avoid passing PII over a chat`
 - Context file:
-  - `/Users/stan/code/rec/data/teams/sierra/readable/Sierra____Pronet_Weekly_Working_Group.md`
+  - `/Users/stan/code/toolkit/brain/data/teams/sierra/readable/Sierra____Pronet_Weekly_Working_Group.md`
 - Primary authority mechanism: `Calibrated pushback`
 - Scores:
   - Uncertainty reduction: `4` — gives a clear correction in process
@@ -370,8 +370,8 @@ Each item is tagged with its **primary authority mechanism**:
 - Context prompt: Fatma says Stan will send an update on the issues fixed yesterday.
 - Message under review: the long issue-by-issue update beginning with `Hi @Esen ... Thank you for testing and providing feedback...`
 - Context files:
-  - `/Users/stan/code/rec/data/teams/sierra/readable/Sierra___Pronet_Collection_Calls.md`
-  - `/Users/stan/code/rec/data/teams/sierra/readable/Sierra____Pronet_Daily_Standup.md`
+  - `/Users/stan/code/toolkit/brain/data/teams/sierra/readable/Sierra___Pronet_Collection_Calls.md`
+  - `/Users/stan/code/toolkit/brain/data/teams/sierra/readable/Sierra____Pronet_Daily_Standup.md`
 - Primary authority mechanism: `Strategic visibility`
 - Scores:
   - Uncertainty reduction: `5` — very high informational value

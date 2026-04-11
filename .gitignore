@@ -1,1 +1,12 @@
 **/.DS_Store
+
+# Brain — recordings, models, build artifacts, runtime
+brain/data/
+brain/models/
+brain/Brain.app/
+brain/brain
+brain/brain-signing.keychain
+brain/.venv/
+brain/.env
+brain/node_modules/
+brain/scripts/__pycache__/

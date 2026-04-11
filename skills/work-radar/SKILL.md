@@ -1,8 +1,11 @@
 ---
-name: work-radar
+
+## name: work-radar
+
 description: >-
-  Answer targeted operational-awareness questions from Slack, Teams, and meeting notes. Use for "find my to-dos for today", "am I behind on something?", or "look at my chat with X". Not for general chat, drafting replies, or communication coaching.
----
+  Answer targeted operational-awareness questions from Slack, Teams, and meeting notes. Use for
+  "find my to-dos for today", "am I behind on something?", or "look at my chat with X" when the
+  user explicitly asks. Not for general chat, drafting replies, or communication coaching.
 
 # Work Radar
 
@@ -53,6 +56,7 @@ Identify which type of question this is:
 - **project-specific** — `what's pending on Pronet?`
 
 Done when:
+
 - the query type is explicit
 
 ### 2. Scope the Search
@@ -61,10 +65,8 @@ Default scope rules:
 
 - For **thread-specific** questions:
   - search only the named thread / DM / channel first
-
 - For **person-specific** questions:
   - search the recent messages involving that person
-
 - For **today / status** and **behind / stale** questions:
   - search recent high-signal sources only first
   - recent Slack DMs / direct mentions
@@ -74,6 +76,7 @@ Default scope rules:
 Only widen scope if the first pass is insufficient.
 
 Done when:
+
 - the minimum viable source set is selected
 
 ### 3. Extract Operational Signals
@@ -101,6 +104,7 @@ Prefer explicit signals like:
 - "blocked on"
 
 Done when:
+
 - candidate operational items are extracted
 
 ### 4. Rank and Filter
@@ -119,8 +123,14 @@ Rank lower if it is:
 - ambient discussion without ownership
 - only weakly inferred from context
 
+If you found task-like items and cannot determine their status from chat/meeting data alone, note them as "unverified — may be resolved in PRs or commits." If the user asks for verification, or if more than half of the items have unclear status, check:
+
+- `gh pr list --repo sierra-agents/sky --state all --search "KEYWORD"`
+- `gh pr list --repo sierra-agents/pronet --state all --search "KEYWORD"`
+
 Done when:
-- only the most relevant items remain
+
+- only the most relevant items remain, each with a clear status or an "unverified" tag
 
 ### 5. Return a Compact Answer
 
@@ -159,6 +169,7 @@ Confidence:
 ```
 
 Done when:
+
 - the user can immediately act on the answer
 
 ## GOOD / BAD
@@ -169,11 +180,13 @@ User:
 `look at my chat with Seb`
 
 Assistant behavior:
+
 - finds the Seb thread
 - reads the recent slice
 - answers what is open, what is waiting, and what the next likely action is
 
 Reasoning:
+
 - targeted
 - low-noise
 - useful immediately
@@ -184,10 +197,12 @@ User:
 `look at my chat with Seb`
 
 Assistant behavior:
+
 - scans all Slack, Teams, and meetings
 - returns a giant mixed summary of everything
 
 Reasoning:
+
 - high-noise
 - unnecessary context pollution
 - fails the actual ask
@@ -197,6 +212,7 @@ Reasoning:
 `I found two likely open follow-ups, but only one is explicit. The second is inferred from the thread and may already be resolved elsewhere.`
 
 Reasoning:
+
 - distinguishes fact from inference
 - keeps trust high
 
@@ -207,19 +223,22 @@ Reasoning:
 when the source evidence is weak.
 
 Reasoning:
+
 - overstates confidence
 - creates false operational pressure
 
 ## Anti-Patterns
 
-| Temptation | Reality |
-| --- | --- |
-| Search everything immediately | Broad corpus search creates noise and slows simple questions down |
-| Treat any mention as a task | Not every message is an actionable commitment |
-| Answer "behind on something?" from one thread | This requires at least a small cross-source check |
-| Blend facts and inferences together | The user needs to know what is explicit vs guessed |
-| Turn this into a reply-drafting skill | Drafting belongs elsewhere |
-| Dump raw chat excerpts | The value is operational synthesis, not transcript spillage |
+
+| Temptation                                    | Reality                                                           |
+| --------------------------------------------- | ----------------------------------------------------------------- |
+| Search everything immediately                 | Broad corpus search creates noise and slows simple questions down |
+| Treat any mention as a task                   | Not every message is an actionable commitment                     |
+| Answer "behind on something?" from one thread | This requires at least a small cross-source check                 |
+| Blend facts and inferences together           | The user needs to know what is explicit vs guessed                |
+| Turn this into a reply-drafting skill         | Drafting belongs elsewhere                                        |
+| Dump raw chat excerpts                        | The value is operational synthesis, not transcript spillage       |
+
 
 ## Interaction Rules
 
@@ -236,10 +255,15 @@ Only use these when needed:
 - `../../journal/research/personal-assistant/context/operational-awareness-integration.md`
 - `../../journal/research/personal-assistant/research.md`
 
-Likely source roots:
+## Sources
 
-- `/Users/stan/code/rec/data/slack`
-- `/Users/stan/code/rec/data/teams`
-- `/Users/stan/code/rec/data/rec-*`
+All paths under `brain/data` (relative to the toolkit repo root).
 
-Do not load all of them unless the question genuinely requires it.
+- **Slack:** `slack/{workspace}/readable/*.md` — DMs start with `# DM: Person Name`, channels with `# #channel-name`. Two workspaces: `sierra-ai`, `wizeline`. To find a person's DM: `grep -rl "DM: Seb" slack/*/readable/`
+- **Teams:** `teams/sierra/readable/*.md` — descriptive filenames like `Pronet___Sierra_Standup.md`
+- **Meetings:** `rec-DATE-TITLE.summary.md` at the data root
+- **Todo:** `assistant-todo.md` at the data root
+
+Always search `readable/` first. Only fall back to raw JSON (`channels/*.json`) if you need reaction metadata or data not in the rendered markdown.
+
+Do not load all sources unless the question genuinely requires it.

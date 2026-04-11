@@ -1,10 +1,9 @@
 ---
-
 name: cursor-chat-history
-description:
-    Search or export Cursor agent chat history across multiple projects, trace which files a conversation modified, or
-parse transcript JSONL format. NOT needed for simple recent-chat lookups in the current project.
-
+description: >-
+  Search or export Cursor agent chat history across multiple projects, trace which files a
+  conversation modified, or parse transcript JSONL format. NOT needed for simple recent-chat
+  lookups in the current project.
 ---
 
 # Cursor Chat History

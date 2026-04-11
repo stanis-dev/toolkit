@@ -24,7 +24,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack DM
 - Timestamp: `2026-01-21 10:29`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 - Message:
   - `hey, i addressed comments from email/sms pr. since changes are not just cosmetic, would appreciate a quick look at it. if all good, we can ship it today`
 - Verdict:
@@ -45,7 +45,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack DM
 - Timestamp: `2026-02-02 11:28`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 - Message:
   - `hey. i added a few changes based on your feedback. if that part looks good - it's ready for merge`
 - Verdict:
@@ -66,7 +66,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack DM
 - Timestamp: `2026-02-02 16:48`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 - Message:
   - `all good, everything seems to be working now, so feel free to skip the call`
 - Verdict:
@@ -88,7 +88,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack DM
 - Timestamp: `2026-03-27 13:45`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Seb_Tranæus.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Seb_Tranæus.md`
 - Message:
   - `to make sure i understand the scope, before release date, in order of priority, we need: 1. fix all requirement sims (must) 2. all sims (must) 3. polish the journey for any obvious rough spots 4. be on the lookout for issues if those come in. does this sound right?`
 - Verdict:
@@ -109,7 +109,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack DM
 - Timestamp: `2026-02-25 16:01`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Seb_Tranæus.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Seb_Tranæus.md`
 - Message excerpt:
   - `Something i believe German told me when I started ... Def don't quote on that - at the time i was drinking information from a firehose, could've easily misinterpreted something. But if that is the intention on the org level - it's important to know that branding != phrasing_instructions`
 - Verdict:
@@ -130,7 +130,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack channel
 - Timestamp: `2026-03-03 10:49`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Message excerpt:
   - `I've been triaging issues and it's clear that we can benefit from explicit alignment ... Noise delays action on genuine critical issues`
 - Verdict:
@@ -153,7 +153,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack channel
 - Timestamp: `2026-03-25 17:20`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Message excerpt:
   - `:pr:to release tomorrow ... Heads-up - at current agent scope, I'm likely to run out of clear work items soon ... I've already flagged availability with Seb, but wanted to surface it here too`
 - Verdict:
@@ -175,7 +175,7 @@ This is enough for a first directional read. It is not yet a frozen benchmark.
 - Source: Sierra Slack channel
 - Timestamp: `2026-03-04 10:43`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Message:
   - `@Daniel Book i wan't present on conversations regarding insert ai call so not sure about the interface. any of these properties look like a good candidate to throw this additional piece of data? Or should I sync with Pronet first?`
 - Verdict:

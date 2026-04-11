@@ -14,9 +14,9 @@ Selection rule:
 
 Sources:
 
-- `/Users/stan/code/rec/data/slack/sierra-ai/readable/Seb_Tranæus.md`
-- `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
-- `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+- `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Seb_Tranæus.md`
+- `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
+- `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 
 ## Distribution
 

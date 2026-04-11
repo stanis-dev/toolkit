@@ -206,9 +206,9 @@ Behavior:
 
 Keep the existing source roots:
 
-- `/Users/stan/code/rec/data/slack`
-- `/Users/stan/code/rec/data/teams`
-- `/Users/stan/code/rec/data/rec-*`
+- `/Users/stan/code/toolkit/brain/data/slack`
+- `/Users/stan/code/toolkit/brain/data/teams`
+- `/Users/stan/code/toolkit/brain/data/rec-*`
 
 But add a new derived artifact, likely under the personal-assistant research or a future app-specific data path:
 

@@ -2,9 +2,9 @@
 import sys, os, glob, json, shutil, subprocess
 import numpy as np
 
-DATA_DIR = "/Users/stan/code/rec/data"
-ENV_FILE = "/Users/stan/code/rec/.env"
-WORKSPACE = "/Users/stan/code/rec"
+DATA_DIR = "/Users/stan/code/toolkit/brain/data"
+ENV_FILE = "/Users/stan/code/toolkit/brain/.env"
+WORKSPACE = "/Users/stan/code/toolkit/brain"
 SPEAKERS_FILE = os.path.join(DATA_DIR, "speakers.json")
 VOCAB_FILE = os.path.join(DATA_DIR, "vocab.txt")
 SIMILARITY_THRESHOLD = 0.75

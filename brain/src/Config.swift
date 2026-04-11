@@ -1,14 +1,14 @@
 import Foundation
 
 let kSampleRate: Double = 48000
-let kOutputDir = "/Users/stan/code/rec/data"
+let kOutputDir = "/Users/stan/code/toolkit/brain/data"
 let kLogFile = "\(kOutputDir)/brain.log"
-let kModelsDir = "/Users/stan/code/rec/models"
-let kTranscribeScript = "/Users/stan/code/rec/scripts/transcribe.py"
-let kPython = "/Users/stan/code/rec/.venv/bin/python3"
-let kDictateScript = "/Users/stan/code/rec/scripts/dictate.py"
-let kSlackExportScript = "/Users/stan/code/rec/scripts/slack_export.py"
-let kTeamsExportScript = "/Users/stan/code/rec/scripts/teams_export.py"
+let kModelsDir = "/Users/stan/code/toolkit/brain/models"
+let kTranscribeScript = "/Users/stan/code/toolkit/brain/scripts/transcribe.py"
+let kPython = "/Users/stan/code/toolkit/brain/.venv/bin/python3"
+let kDictateScript = "/Users/stan/code/toolkit/brain/scripts/dictate.py"
+let kSlackExportScript = "/Users/stan/code/toolkit/brain/scripts/slack_export.py"
+let kTeamsExportScript = "/Users/stan/code/toolkit/brain/scripts/teams_export.py"
 let kSlackLogDir = NSString(string: "~/Library/Application Support/Slack/logs/default").expandingTildeInPath
 let kSlackDataDir = "\(kOutputDir)/slack"
 let kTeamsDataDir = "\(kOutputDir)/teams"

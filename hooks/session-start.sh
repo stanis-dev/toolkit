@@ -3,10 +3,43 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GLOBAL_CONTEXT_FILE="${PLUGIN_ROOT}/context/global.md"
+START_DIR="${PWD:-$(pwd)}"
 
 GLOBAL_CONTEXT=""
 if [[ -f "$GLOBAL_CONTEXT_FILE" ]]; then
   GLOBAL_CONTEXT=$(cat "$GLOBAL_CONTEXT_FILE")
+fi
+
+PROJECT_DOCS=()
+find_project_docs() {
+  local dir="$1"
+  while [[ -n "$dir" && "$dir" != "/" ]]; do
+    for name in "CLAUDE.md" "CLAUDE.local.md"; do
+      local candidate="${dir}/${name}"
+      if [[ -f "$candidate" ]]; then
+        PROJECT_DOCS+=("$candidate")
+      fi
+    done
+    dir="$(dirname "$dir")"
+  done
+}
+
+find_project_docs "$START_DIR"
+
+PROJECT_CONTEXT=""
+if [[ "${#PROJECT_DOCS[@]}" -gt 0 ]]; then
+  for (( idx=${#PROJECT_DOCS[@]}-1; idx>=0; idx-- )); do
+    doc_path="${PROJECT_DOCS[$idx]}"
+    if [[ -n "$PROJECT_CONTEXT" ]]; then
+      PROJECT_CONTEXT="${PROJECT_CONTEXT}
+
+---"
+    fi
+    PROJECT_CONTEXT="${PROJECT_CONTEXT}
+
+[Project Doc: ${doc_path}]
+$(cat "$doc_path")"
+  done
 fi
 
 SKILLS="Stan's personal toolkit plugin is active. Available skills:
@@ -36,6 +69,7 @@ PLUGIN DEVELOPMENT:
 PERSONAL:
 - communication-copilot: Tighten pasted drafts for authority, clarity, and low-friction communication
 - work-radar: Explicit operational-awareness lookup over Slack, Teams, and meeting notes
+- datacamp-automation: Reuse and extend tested Playwright sequences for DataCamp course pages
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
@@ -45,13 +79,29 @@ PERSONAL:
 - cursor-chat-history: Find and reconstruct Cursor agent chat histories"
 
 if [[ -n "$GLOBAL_CONTEXT" ]]; then
-  CONTEXT="${GLOBAL_CONTEXT}
+  CONTEXT="$GLOBAL_CONTEXT"
+else
+  CONTEXT=""
+fi
 
----
+if [[ -n "$PROJECT_CONTEXT" ]]; then
+  if [[ -n "$CONTEXT" ]]; then
+    CONTEXT="${CONTEXT}
+
+---"
+  fi
+  CONTEXT="${CONTEXT}${PROJECT_CONTEXT}"
+fi
+
+if [[ -n "$SKILLS" ]]; then
+  if [[ -n "$CONTEXT" ]]; then
+    CONTEXT="${CONTEXT}
+
+---"
+  fi
+  CONTEXT="${CONTEXT}
 
 ${SKILLS}"
-else
-  CONTEXT="$SKILLS"
 fi
 
 CONTEXT_ESCAPED=$(printf '%s' "$CONTEXT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')

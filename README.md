@@ -11,6 +11,7 @@ hooks/           # Session lifecycle hooks (e.g. inject context on start)
 context/         # Global context injected into every session via hook
 journal/         # Personal notes, journaling, and long-running deep research
 knowledge-wiki/  # Review-gated canonical knowledge system for durable personal knowledge
+brain/           # Meeting recorder, transcriber, and data export pipeline (macOS app)
 .claude-plugin/  # Plugin manifest for Claude Code marketplace
 ```
 
@@ -35,6 +36,8 @@ knowledge-wiki/  # Review-gated canonical knowledge system for durable personal 
 | `deep-research-prompt`     | Generate context-enriched research prompts         |
 | `question-crystallization` | Move from vague intuitions to clear questions      |
 | `communication-copilot`    | Tighten pasted drafts with compact coaching + rewrite |
+| `reply-drafter`            | Draft grounded replies for DMs, mentions, and direct asks |
+| `personal-assistant`       | Route awareness, coaching, and reply-drafting requests |
 | `work-radar`               | Answer targeted "what's up / am I behind / look at this thread" questions |
 | `wiki-editorial`           | Propose, publish, and lint gated knowledge-wiki updates |
 | `wiki-smoke`               | Run the subagent-based smoke battery for `wiki-editorial` |
@@ -59,6 +62,20 @@ claude plugin add /path/to/toolkit
 ```
 
 On session start, the hook in `hooks/session-start.sh` injects `context/global.md` and a summary of all available skills into context.
+
+## Brain
+
+`brain/` is a personal macOS app for recording meetings, transcribing them with speaker attribution (Whisper Large-v3 on Apple Silicon), and exporting Slack/Teams chat history. It produces the data that skills like `work-radar` and `personal-assistant` consume.
+
+```
+brain/src/         # Swift source — recording, playback, meeting detection, assistant UI
+brain/scripts/     # Python — transcription, Slack export, Teams export, polishing
+brain/resources/   # Info.plist, AppIcon.icns, entitlements
+brain/data/        # gitignored — recordings, transcripts, Slack/Teams exports
+brain/models/      # gitignored — Whisper GGML model (~3GB)
+```
+
+Build and install: `cd brain && ./build.sh`
 
 ## Knowledge Wiki
 

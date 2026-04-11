@@ -18,8 +18,8 @@ Selection rule:
 
 Primary sources:
 
-- `/Users/stan/code/rec/data/slack/sierra-ai/channels/D0A576YED50.json`
-- `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+- `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/channels/D0A576YED50.json`
+- `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 
 Note:
 

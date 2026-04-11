@@ -180,8 +180,8 @@ Better:
 
 Primary sources:
 
-- `/Users/stan/code/rec/data/slack/wizeline/readable/*.md`
-- `/Users/stan/code/rec/data/teams/sierra/readable/*.md`
+- `/Users/stan/code/toolkit/brain/data/slack/wizeline/readable/*.md`
+- `/Users/stan/code/toolkit/brain/data/teams/sierra/readable/*.md`
 
 Best use:
 - pre-send and post-hoc coaching for written communication
@@ -190,9 +190,9 @@ Best use:
 
 Primary sources:
 
-- `/Users/stan/code/rec/data/rec-*.json`
-- `/Users/stan/code/rec/data/rec-*.txt`
-- `/Users/stan/code/rec/data/speakers.json`
+- `/Users/stan/code/toolkit/brain/data/rec-*.json`
+- `/Users/stan/code/toolkit/brain/data/rec-*.txt`
+- `/Users/stan/code/toolkit/brain/data/speakers.json`
 
 Best use:
 - review spoken communication against the same criteria, once speaker mapping is stable

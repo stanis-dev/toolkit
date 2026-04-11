@@ -4,7 +4,7 @@
 import subprocess, os, sys, time, json, glob
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-WORKSPACE = "/Users/stan/code/rec"
+WORKSPACE = "/Users/stan/code/toolkit/brain"
 DATA_DIR = os.path.join(WORKSPACE, "data")
 AGENT = "/Users/stan/.local/bin/agent"
 POLISH_MODEL = "claude-4.6-opus-max-thinking"

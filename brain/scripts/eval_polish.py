@@ -4,7 +4,7 @@
 import subprocess, os, sys, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-WORKSPACE = "/Users/stan/code/rec"
+WORKSPACE = "/Users/stan/code/toolkit/brain"
 EVAL_DIR = os.path.join(WORKSPACE, "data/eval")
 PROMPT_FILE = os.path.join(EVAL_DIR, "prompt.txt")
 AGENT = "/Users/stan/.local/bin/agent"

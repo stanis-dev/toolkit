@@ -65,7 +65,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - `hey Daniel :slightly_smiling_face: great to have you on the team. let me know when we can schedule a 1:1 to get to know each other and allow for some feedback on blocking issues. Fatma suggested that some of those need to be prioritised and it'd be helpful to offload German a little`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 - Primary authority mechanism: `Trust-preserving warmth`
 - Scores:
   - Uncertainty reduction: `4`
@@ -94,7 +94,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - `hey. just a few things i'd appreciate a bit of clarification on, from standup context. zero urgency, feel free to follow up async whenever suits you best:`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 - Primary authority mechanism: `Bounded ask`
 - Scores:
   - Uncertainty reduction: `3`
@@ -127,7 +127,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - `huh, i might have been overdoing the whole thing :upside_down_face: no worries, will sync on this on the 1:1`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Daniel_Book.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Daniel_Book.md`
 - Primary authority mechanism: `Authority maintenance`
 - Scores:
   - Uncertainty reduction: `3`
@@ -158,7 +158,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - `Hey Seb. Quick update on capacity — I mentioned I'd wait until Pronet's LTC status before flagging availability. I reviewed my workload a bit closer, since I just got back from vacation and I can see there's room to take on a second project already. Happy to chat whenever suits you.`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Seb_Tranæus.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Seb_Tranæus.md`
 - Primary authority mechanism: `Strategic visibility`
 - Scores:
   - Uncertainty reduction: `5`
@@ -187,7 +187,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - `if LTC comes through I'd expect to have about 40% free. if it doesn't - all of it :disappointed:`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/Seb_Tranæus.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/Seb_Tranæus.md`
 - Primary authority mechanism: `Strategic visibility`
 - Scores:
   - Uncertainty reduction: `5`
@@ -223,7 +223,7 @@ Each item is also tagged with its **primary authority mechanism**:
   - `re:sms flow ...`
   - `Those are all actionable items i can see right now. let me know if there's something else.`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Primary authority mechanism: `Formulation`
 - Scores:
   - Uncertainty reduction: `5`
@@ -254,7 +254,7 @@ Each item is also tagged with its **primary authority mechanism**:
   - `would appreciate some feedback on IBAN readout implementation idea. I realised that you likely had conversations about this already and will already have some insight`
   - `... wanted to hear your thoughts first on the approach itself`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Primary authority mechanism: `Bounded ask`
 - Scores:
   - Uncertainty reduction: `4`
@@ -286,7 +286,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - `absolutely no worries. i'm aware you're all working on several projects in parallel. i generally try to "slightly over communicate" specifically for that reason :wink:`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Primary authority mechanism: `Authority maintenance`
 - Scores:
   - Uncertainty reduction: `2`
@@ -319,7 +319,7 @@ Each item is also tagged with its **primary authority mechanism**:
   - `hey tom. apologies, sky agent got me a bit busy :melting_face:`
   - followed by a substantive update on the segmentation work
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Primary authority mechanism: `Strategic visibility`
 - Scores:
   - Uncertainty reduction: `4` — the follow-up content is useful
@@ -347,7 +347,7 @@ Each item is also tagged with its **primary authority mechanism**:
 - Message under review:
   - the threaded status update beginning `hey team. since i'll be vacationing until Tuesday 24 - posting an update on state of things`
 - Context file:
-  - `/Users/stan/code/rec/data/slack/sierra-ai/readable/pronet-working-group.md`
+  - `/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/pronet-working-group.md`
 - Primary authority mechanism: `Strategic visibility`
 - Scores:
   - Uncertainty reduction: `5`
