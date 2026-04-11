@@ -66,9 +66,14 @@ SKILL & PROMPT ENGINEERING:
 PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
+PERSONAL AGENTS:
+- personal-assistant: Dedicated session agent for operational awareness, reply drafting, and communication coaching
+
 PERSONAL:
 - communication-copilot: Tighten pasted drafts for authority, clarity, and low-friction communication
 - work-radar: Explicit operational-awareness lookup over Slack, Teams, and meeting notes
+- reply-drafter: Evidence-grounded reply drafting from Slack/Teams/meeting context
+- personal-assistant (skill): Router that classifies requests and delegates to work-radar, communication-copilot, or reply-drafter
 - datacamp-automation: Reuse and extend tested Playwright sequences for DataCamp course pages
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts

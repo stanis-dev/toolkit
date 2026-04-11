@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Personal development toolkit",
-    "version": "1.5.7"
+    "version": "1.5.8"
   },
   "plugins": [
     {
       "name": "toolkit",
       "source": "./",
       "description": "Personal development toolkit: Sierra agent workflows, research prompts, homelab SSH, music discovery",
-      "version": "1.5.7"
+      "version": "1.5.8"
     }
   ]
 }
