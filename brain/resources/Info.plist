@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>rec</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.stan.brain</string>
+	<key>CFBundleName</key>
+	<string>Brain</string>
+	<key>CFBundleDisplayName</key>
+	<string>Brain</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>LSUIElement</key>
+	<false/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Brain reads your calendar to detect meeting names for recordings.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Brain needs Automation access to inspect the front browser tab for active Google Meet calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Rec needs microphone access to record your voice during meetings.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Rec needs screen recording access to capture system audio from meetings.</string>
+</dict>
+</plist>

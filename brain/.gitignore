@@ -1,0 +1,10 @@
+data/
+models/
+Brain.app/
+brain
+brain-signing.keychain
+.venv/
+.env
+.DS_Store
+node_modules/
+scripts/__pycache__/

@@ -1,0 +1,1 @@
+- This is a personal app that will only ever be used by me. Prefer hardcoding stuff unless explicitely requested to add configurability
