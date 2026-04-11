@@ -47,34 +47,19 @@ SKILLS="Stan's personal toolkit plugin is active. Available skills:
 SIERRA WORKFLOWS:
 - sierra-powertool: Full sierras CLI reference (auto-loads when working on Sierra agents)
 - sierra-best-practices: Development guidelines, workspace discipline, debug workflows
-- sierra-bootstrap: Start issue work (branch, workspace, issue fetch, sim coverage, Linear ticket)
-- sierra-triage: Classify Agent Studio issues into prioritized buckets
-- sierra-phrasing-eval: Manual phrasing evaluation workflow (10-run minimum)
-- sierra-wrap-up-issue: Generate client report, PR, and documentation for completed issues
 - deep-eval: Thoroughness override protocol for deep evaluation passes
-
-SIERRA AGENTS:
-- phrasing-eval: Read-only subagent for phrasing evaluation against guardrails
-- replay-analyzer: Read-only subagent for evidence-first replay analysis
-- wiki-smoke-worker: Read-only single-scenario worker for knowledge-wiki smoke scenarios
 
 SKILL & PROMPT ENGINEERING:
 - skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts
 - wiki-editorial: Gated knowledge-wiki workflow for proposing, publishing, and linting canonical knowledge
-- wiki-smoke: Subagent-based smoke battery for wiki-editorial CLI and hook integration
 
 PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
-PERSONAL AGENTS:
+AGENTS:
 - personal-assistant: Dedicated session agent for operational awareness, reply drafting, and communication coaching
 
 PERSONAL:
-- communication-copilot: Tighten pasted drafts for authority, clarity, and low-friction communication
-- work-radar: Explicit operational-awareness lookup over Slack, Teams, and meeting notes
-- reply-drafter: Evidence-grounded reply drafting from Slack/Teams/meeting context
-- personal-assistant (skill): Router that classifies requests and delegates to work-radar, communication-copilot, or reply-drafter
-- datacamp-automation: Reuse and extend tested Playwright sequences for DataCamp course pages
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
