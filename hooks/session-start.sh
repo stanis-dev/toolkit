@@ -50,7 +50,7 @@ SIERRA WORKFLOWS:
 - deep-eval: Thoroughness override protocol for deep evaluation passes
 
 SKILL & PROMPT ENGINEERING:
-- skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts
+- skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts (uses cursor-chat-history for analysis, pair with plugin-dev for propagation)
 - wiki-editorial: Gated knowledge-wiki workflow for proposing, publishing, and linting canonical knowledge
 
 PLUGIN DEVELOPMENT:
@@ -64,8 +64,7 @@ PERSONAL:
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
 - music-discovery: Music recommendations, Plex history, SoulSync downloads
-- homelab-ssh: Homelab server reference (SSH, Docker, storage)
-- mini-ssh: Mac Mini / Plex server reference (SSH, Plex API)
+- local-infra: Home network reference (homelab Docker/storage + Mac Mini Plex/API)
 - cursor-chat-history: Find and reconstruct Cursor agent chat histories"
 
 if [[ -n "$GLOBAL_CONTEXT" ]]; then

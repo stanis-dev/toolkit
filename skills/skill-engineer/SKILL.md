@@ -76,6 +76,8 @@ Before creating anything, challenge whether a new skill is actually needed.
    - Is a new skill actually needed, or would modifying an existing skill work?
    - Should this be a standalone skill or a composition of existing ones?
    - Would the agent already behave this way without a skill? (redundancy check)
+     Use `cursor-chat-history` to search for conversations handling similar tasks — evidence
+     of the agent succeeding without a dedicated skill grounds the redundancy verdict.
 4. If overlap or redundancy found, present the match and ask:
    - USE_EXISTING — point the user to it
    - REVIEW_EXISTING — switch to REVIEW mode to audit and improve that skill
@@ -113,6 +115,8 @@ Interview dimensions (skip any already clear from context):
    Options: Cursor, Claude Code CLI, Codex, cross-platform
 3. **Trigger phrases** — "What would someone say when they need this?"
    Ask for 3-5 example phrases. These become the `description` and `when_to_use` fields.
+   Search chat history (via `cursor-chat-history`) for how the user naturally phrases requests
+   in this domain — real phrasing beats recalled phrasing for trigger accuracy.
 4. **Constraints** — "What must this skill NEVER do?"
    This is the most important question. Constraints are the single largest driver of output quality.
    Propose 3-4 likely constraints inferred from the domain and ask the user to confirm/add.
@@ -308,7 +312,8 @@ Read `references/taxonomy.md` (in this skill's directory) for the evaluation rub
 where the target skill was used.
 
 1. Search across all projects for the skill name. The `cursor-chat-history` skill provides
-   `search-chats.sh` for this — grep for the skill name across all transcript files.
+   `search-chats.sh --peek <skill-name>` for this — returns matching transcripts with the
+   first user query inline for quick triage.
 2. For each hit, extract the user's opening request to understand the task context. The
    `cursor-chat-history` skill provides `extract-queries.py` for this.
 3. Present the candidate list to the user with a one-line summary of each conversation's task.
@@ -328,6 +333,9 @@ mini-verdict.
 **Important:** Transcripts only contain `type: "text"` content. Tool calls and their results
 are not stored. If the agent says "reading the file" or "I found X in the code," treat that as
 evidence the action happened — the tool_use block itself won't appear.
+
+To see what files a conversation actually modified, use `trace-files.sh` from
+`cursor-chat-history` — this grounds outcome assessment in file-level evidence.
 
 Evaluate each conversation holistically, not by running through a checklist. The taxonomy
 categories (activation, step compliance, interaction, output, recovery, outcome) are lenses to
@@ -506,6 +514,10 @@ After applying changes to the SKILL.md:
    - No orphaned references to moved or deleted sections
 
 If any check fails, fix it before proceeding.
+
+4. **Propagate changes.** If the modified skill lives in the toolkit plugin, use `plugin-dev`
+   to bump the version, commit, push, and run `claude plugin marketplace update` +
+   `claude plugin update`. Changes don't take effect until propagated.
 
 **Post-improvement testing (via skill-creator):** After verification passes, offer: "Changes
 applied and verified. Want me to run skill-creator's benchmark to compare the old vs new
