@@ -1,10 +1,8 @@
 ---
-
 name: plugin-dev
-description:
-    How to modify, extend, and propagate changes to Stan's personal toolkit plugin. Use when asked to add/edit/remove
-skills, agents, hooks, or any plugin configuration.
-
+description: >-
+  How to modify, extend, and propagate changes to Stan's personal toolkit plugin. Use when
+  asked to add/edit/remove skills, agents, hooks, or any plugin configuration.
 ---
 
 # Toolkit Plugin Development
