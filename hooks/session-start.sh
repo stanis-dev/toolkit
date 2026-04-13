@@ -50,22 +50,20 @@ SIERRA WORKFLOWS:
 - deep-eval: Thoroughness override protocol for deep evaluation passes
 
 SKILL & PROMPT ENGINEERING:
-- skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts (uses cursor-chat-history for analysis, pair with plugin-dev for propagation)
+- skill-engineer: Create, review, analyze, improve and challenge AI agent skills and prompts (uses agent-history for analysis, pair with plugin-dev for propagation)
 - wiki-editorial: Gated knowledge-wiki workflow for proposing, publishing, and linting canonical knowledge
 
 PLUGIN DEVELOPMENT:
 - plugin-dev: How to modify, extend, and propagate changes to this plugin
 
-AGENTS:
-- personal-assistant: Dedicated session agent for operational awareness, reply drafting, and communication coaching
-
 PERSONAL:
+- personal-assistant: Operational awareness, reply drafting, and communication coaching from Slack/Teams/meeting data
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
 - question-crystallization: Move from vague intuitions to clear questions
 - music-discovery: Music recommendations, Plex history, SoulSync downloads
 - local-infra: Home network reference (homelab Docker/storage + Mac Mini Plex/API)
-- cursor-chat-history: Find and reconstruct Cursor agent chat histories"
+- agent-history: Search agent session history across Cursor, Claude Code, Codex, and OpenCode"
 
 if [[ -n "$GLOBAL_CONTEXT" ]]; then
   CONTEXT="$GLOBAL_CONTEXT"

@@ -3,7 +3,7 @@
 Evaluation rubric for ANALYZE mode. Each signal describes what to look for when reading a
 conversation transcript alongside the skill that was supposed to guide the agent.
 
-Data source: Cursor agent transcripts (JSONL). See `cursor-chat-history` skill for format
+Data source: Cursor agent transcripts (JSONL). See `agent-history` skill for format
 details. Key facts for analysis: `tool_use` blocks ARE stored (you can see which tools were
 called). `tool_result` blocks are NOT stored (you cannot see what tools returned). Infer tool
 outcomes from the agent's subsequent text.

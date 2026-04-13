@@ -76,7 +76,7 @@ Before creating anything, challenge whether a new skill is actually needed.
    - Is a new skill actually needed, or would modifying an existing skill work?
    - Should this be a standalone skill or a composition of existing ones?
    - Would the agent already behave this way without a skill? (redundancy check)
-     Use `cursor-chat-history` to search for conversations handling similar tasks — evidence
+     Use `agent-history` to search for conversations handling similar tasks — evidence
      of the agent succeeding without a dedicated skill grounds the redundancy verdict.
 4. If overlap or redundancy found, present the match and ask:
    - USE_EXISTING — point the user to it
@@ -115,7 +115,7 @@ Interview dimensions (skip any already clear from context):
    Options: Cursor, Claude Code CLI, Codex, cross-platform
 3. **Trigger phrases** — "What would someone say when they need this?"
    Ask for 3-5 example phrases. These become the `description` and `when_to_use` fields.
-   Search chat history (via `cursor-chat-history`) for how the user naturally phrases requests
+   Search chat history (via `agent-history`) for how the user naturally phrases requests
    in this domain — real phrasing beats recalled phrasing for trigger accuracy.
 4. **Constraints** — "What must this skill NEVER do?"
    This is the most important question. Constraints are the single largest driver of output quality.
@@ -308,14 +308,14 @@ if the user explicitly requests it or no conversations exist.
 
 Read `references/taxonomy.md` (in this skill's directory) for the evaluation rubric.
 
-**Step 1 — Discover conversations.** Use the `cursor-chat-history` skill to find conversations
+**Step 1 — Discover conversations.** Use the `agent-history` skill to find conversations
 where the target skill was used.
 
-1. Search across all projects for the skill name. The `cursor-chat-history` skill provides
-   `search-chats.sh --peek <skill-name>` for this — returns matching transcripts with the
+1. Search across all projects for the skill name. The `agent-history` skill provides
+   `search-sessions.sh --peek <skill-name>` for this — returns matching transcripts with the
    first user query inline for quick triage.
 2. For each hit, extract the user's opening request to understand the task context. The
-   `cursor-chat-history` skill provides `extract-queries.py` for this.
+   `agent-history` skill provides `extract-queries.py` for this.
 3. Present the candidate list to the user with a one-line summary of each conversation's task.
 4. Default to analyzing ALL discovered conversations. Only sample if the user explicitly
    requests it or the count exceeds what can fit in context.
@@ -335,7 +335,7 @@ are not stored. If the agent says "reading the file" or "I found X in the code,"
 evidence the action happened — the tool_use block itself won't appear.
 
 To see what files a conversation actually modified, use `trace-files.sh` from
-`cursor-chat-history` — this grounds outcome assessment in file-level evidence.
+`agent-history` — this grounds outcome assessment in file-level evidence.
 
 Evaluate each conversation holistically, not by running through a checklist. The taxonomy
 categories (activation, step compliance, interaction, output, recovery, outcome) are lenses to

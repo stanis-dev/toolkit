@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(profiles show:*)",
+      "Bash(sudo profiles:*)",
+      "Bash(defaults read:*)",
+      "Read(//Library/Application Support/JAMF/**)",
+      "Bash(systemextensionsctl list:*)",
+      "Bash(sqlite3 \"/Library/Application Support/com.apple.TCC/TCC.db\" \"SELECT client, service, auth_value FROM access WHERE auth_value=2;\")",
+      "Bash(networksetup -getwebproxy Wi-Fi)",
+      "Bash(networksetup -getsecurewebproxy Wi-Fi)",
+      "Bash(fdesetup status:*)",
+      "Bash(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate)",
+      "Bash(csrutil status:*)",
+      "Read(//Users/stan/Library/Safari/**)",
+      "Bash(security list-keychains:*)",
+      "Read(//Users/stan/Library/Keychains/**)"
+    ]
+  }
+}
