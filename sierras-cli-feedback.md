@@ -116,6 +116,7 @@ Pronet and Sky projects, covering February–April 2026. The review covered simu
 evaluation, conversation analysis, issue investigation, and feature development.
 
 Several items from the original review have already been addressed in the CLI:
+
 - `--bot <name>` auto-resolves org, workspace, and bot-id from `.targets/`
 - `workspace delete` now has interactive confirmation (requires `--force` for agents)
 - `sim run --async` flag now exists

@@ -29,6 +29,8 @@ into a general batch-evaluation primitive.
 
 ```bash
 sierras sim bench start --bot triage --group triage --count 5
+sierras sim bench start --bot triage --rg "abuse|transfer" --count 5 --peek  # preview first
+sierras sim bench start --bot triage --rg "abuse|transfer" --count 5         # then run
 ```
 
 Triggers all matching sims, polls for completion, collects results into the database, and
@@ -103,7 +105,8 @@ Both commands report how many results were cancelled. If nothing is running, the
 ### Guardrails
 
 - Do not orchestrate multi-sim evaluation by repeating or parallelizing `sim run`. If more than
-  one sim is in scope, use `sim bench start`.
+  one sim is in scope, use `sim bench start`. Use `--rg` to target a dynamic subset by regex
+  (e.g., `--rg "abuse|transfer"`). Use `--peek` to confirm the matched set before running.
 - Code uploads via `sierra watch` change the workspace version. `sim bench` handles this
   automatically -- results from the trigger-time version are still collected. If `sim list`
   shows a status reset after an upload, the results are still there; use `sim bench collect`.
@@ -124,7 +127,7 @@ Both commands report how many results were cancelled. If nothing is running, the
 ### Simulation Commands
 
 ```bash
-sierras sim list [--group <g>] [--category <c>]             # List sims with pass/fail status
+sierras sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status
 sierras sim status                                           # Suite summary (pass/fail/running counts)
 sierras sim run <name> [--count <n>] [--timeout <duration>]  # Run a single sim (blocks until done)
 sierras sim replay <name>                                    # Latest result in turn-grouped format
@@ -133,12 +136,15 @@ sierras sim replay <name> --list                             # List all availabl
 sierras sim replay <name> --transcript                       # Conversation only (no metadata)
 sierras sim replay <name> --verbose                          # Flat event timeline
 sierras sim replay <name> --trace <turn>                     # All LLM API calls for a turn
+sierras sim search <term> [--rg <pat>] [--cross-workspace]   # Search replay content by substring
 sierras sim diff --left <ws> --right <ws> [--detailed]       # Compare results between workspaces
 sierras sim cancel-all                                       # Cancel ALL running sims in workspace (clean slate)
 ```
 
 ```bash
-sierras sim bench start --group <g> --count <n>              # Bench evaluation (see workflow above)
+sierras sim bench start --rg <pat> --count <n> [--peek]      # Bench evaluation with regex sim filter
+sierras sim bench start --group <g> --count <n>              # Bench evaluation by group
+sierras sim bench start --rg <pat> --count <n> --peek        # Preview matched sims without running
 sierras sim bench cancel <run-id>                            # Cancel all running/pending sims in a bench run
 sierras sim bench query <run-id> [--failed] [--flaky]        # Query bench results
 sierras sim bench list                                       # List all bench runs
@@ -149,8 +155,15 @@ sierras sim bench collect <run-id>                           # Collect results f
 **Behavior:**
 
 - `sim run` blocks until completion and prints the replay. For bulk evaluation, use `sim bench start`.
-- `sim list` and `sim status` accept `--group` and `--category` for subset filtering
-  (case-insensitive substring match).
+- `sim list`, `sim status`, `sim bench start`, `sim run-all`, `sim replay-all`, and `sim search`
+  all accept `--rg <pattern>` for regex-based sim name filtering (case-insensitive, Go regex),
+  plus `--group` and `--category` for subset filtering (case-insensitive substring match).
+  All filters are ANDed together.
+- `sim bench start --peek` previews which sims match the filters without triggering runs.
+  Always use `--peek` first when targeting a dynamic subset.
+- `sim search <term>` finds replays containing a substring in conversation messages or internal
+  logs. Searches the local Postgres replay cache; auto-backfills from API for any uncached sims.
+  Default scope is current workspace; use `--cross-workspace` for org-wide search.
 - `sim diff` compares latest sim results between two workspaces by name or ID. `--detailed`
   fetches replay history for per-condition miss rate changes (slower).
 - `sim replay` default output is turn-grouped. See Debugging Simulation Replays below.

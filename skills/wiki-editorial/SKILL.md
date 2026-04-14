@@ -50,8 +50,8 @@ python3 <skill-dir>/scripts/wiki_editorial.py propose \
   --target-path canonical/example.md
 ```
 
-3. Read the copied raw files and impacted canonical neighbors in full.
-4. Fill in the generated report and patch files.
+1. Read the copied raw files and impacted canonical neighbors in full.
+2. Fill in the generated report and patch files.
 
 Done when: the candidate report explains the case for canon and the candidate patch contains full publishable file
 contents for every target.
@@ -105,12 +105,14 @@ Reasoning: this creates false canon and makes the wiki less trustworthy than not
 
 ## Anti-Patterns
 
-| Temptation | Reality |
-| --- | --- |
-| “This feels durable enough; I’ll just add it directly.” | Direct canonization is the main failure mode. Use `propose`, then review, then publish. |
-| “The source is obvious from context.” | Canonical pages must cite copied `raw/ingest/` files, not session memory. |
-| “It’s only one little inferred trait, so `fact` is fine.” | Inference without separate confirmation remains `hypothesis`. |
-| “I can clean up neighboring pages later.” | Every publish must re-check impacted neighbors in the same cycle. |
+
+| Temptation                                                | Reality                                                                                 |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| “This feels durable enough; I’ll just add it directly.”   | Direct canonization is the main failure mode. Use `propose`, then review, then publish. |
+| “The source is obvious from context.”                     | Canonical pages must cite copied `raw/ingest/` files, not session memory.               |
+| “It’s only one little inferred trait, so `fact` is fine.” | Inference without separate confirmation remains `hypothesis`.                           |
+| “I can clean up neighboring pages later.”                 | Every publish must re-check impacted neighbors in the same cycle.                       |
+
 
 ## Interaction Rules
 
@@ -124,3 +126,4 @@ Reasoning: this creates false canon and makes the wiki less trustworthy than not
 - `propose`: return the proposal id and the generated report/patch paths.
 - `publish`: return the published canonical paths plus any lint warnings.
 - `lint`: return errors first, then warnings, with concise remediation notes.
+
