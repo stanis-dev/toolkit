@@ -14,7 +14,8 @@
       "Bash(csrutil status:*)",
       "Read(//Users/stan/Library/Safari/**)",
       "Bash(security list-keychains:*)",
-      "Read(//Users/stan/Library/Keychains/**)"
+      "Read(//Users/stan/Library/Keychains/**)",
+      "Skill(codex:setup)"
     ]
   }
 }
