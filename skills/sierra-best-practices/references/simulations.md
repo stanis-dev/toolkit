@@ -126,53 +126,72 @@ cooperative but firm about not paying by card today.
 and you have confirmed it.
 ```
 
-## Configuration
+## Single Simulation Replay - workflow
 
-- **Device**: Agent is phone-based — all sims must have device configured accordingly
-- **Locale**: Always set simulations to the project's configured locale
-- **Naming**: Group and name simulations according to expected customer-facing behavior — never use ticket IDs or
-  development-focused references
-- **Granularity**: Reuse groups when possible. Avoid creating granular simulations — if behavior is already part of a
-  tested scenario, adjust the evaluation rather than creating a new sim
+Validity comes first. Judge condition failures and tag expectation failures are meaningless if the replay itself did not
+reproduce the intended scenario — reasoning from them before validity is confirmed will lead you to fix phantom
+problems. Follow the steps in order:
 
-## Validity
+1. **Establish replay validity** via the "Simulation Quality Evaluation" workflow below. If validity fails, stop and
+   iterate per "When Validity Fails" — do NOT proceed to steps 2-4 until the replay is a valid reproduction of the
+   intended scenario.
+1. Once validity holds, read the judge LLM's failed conditions and the reasons it provided for each.
+1. Examine any tag expectation failures. Understand what agent workflow each tag expectation is meant to verify.
+1. If the simulation is correctly set up and validity holds, diagnose the source of failure:
+    - does the journey address the behaviour that is failing? If it does — are there conflicting instructions?
+    - verify tools logic if relevant.
 
-A simulation's tag assertions and outcome evaluations are meaningless unless the conversation actually reproduces the
-scenario being tested. **Before considering any evaluation results, verify the conversation itself is valid.**
+## Simulation Quality Evaluation - workflow
 
-This checklist is mandatory after every sim create or update. A sim that passes all assertions but fails validity is not
-a passing sim — it's a false positive. Do not consider a simulation ready until validity passes.
-
-### Scenario Fidelity
-
-Verify the user LLM followed the intended instructions:
-
-- [ ] **Information sequencing**: If instructions specify "don't mention X until Y," confirm X was not revealed early
-- [ ] **Conditional triggers fired correctly**: If instructions say "if agent offers X, decline" — verify the user
+1. Understand the exact scenario it intendeds to evaluate. User may point at data sources for that. Use jorney
+   definition and codebase to ground your understanding of agent's exact scope.
+1. Verify whether user LLM performs correctly the role it is meant to perform.
+    - Is it disclosing information at an appropriate rate? Or is it blurting everything too quickly? Or too slowly?
+    - Is user phrasing adecuate for the target scenario?
+    - Are the instructions user if given designed correctly?
+    - **Information sequencing**: If instructions specify "don't mention X until Y," confirm X was not revealed early
+    - **Conditional triggers fired correctly**: If instructions say "if agent offers X, decline" — verify the user
       actually declined (not agreed, ignored, or sidestepped)
-- [ ] **Knowledge boundaries respected**: User did not provide information they weren't supposed to know
-- [ ] **No hallucinated details**: User did not invent order numbers, dates, amounts, or other specifics not in the
+    - **Knowledge boundaries respected**: User did not provide information they weren't supposed to know
+    - **No hallucinated details**: User did not invent order numbers, dates, amounts, or other specifics not in the
       instructions
-
-### Path Coverage
-
-Verify the conversation traversed the path the sim was designed to test:
-
-- [ ] **Critical interaction points occurred**: The specific decision moments that matter for evaluation were reached
-- [ ] **Agent did not skip steps**: The agent went through the intended sequence, not a shortcut that happened to
+1. Verify whether the resulting conversation of agent and user combined represents the target scenario correctly?
+    - **Critical interaction points occurred**: The specific decision moments that matter for evaluation were reached
+    - **Agent did not skip steps**: The agent went through the intended sequence, not a shortcut that happened to
       produce the right tags
-- [ ] **The scenario's core tension was exercised**: The thing that makes this test meaningful actually happened in the
+    - **The scenario's core tension was exercised**: The thing that makes this test meaningful actually happened in the
       conversation
-
-### Conversation Health
-
-- [ ] **No repeated requests**: Agent did not ask for the same information multiple times
-- [ ] **No stuck loops**: Conversation progressed naturally without circular exchanges
-- [ ] **Reasonable turn count**: Not suspiciously short (steps skipped) or long (stuck/confused)
-- [ ] **User and agent stayed on topic**: Conversation didn't drift to unrelated subjects
-- [ ] **No unexpected identity prompts**: If not evaluating identity verification, user was not asked for phone number
-- [ ] **No phone in user message**: User phone number did not appear in the user LLM's messages unless specifically
+    - **No repeated requests**: Agent did not ask for the same information multiple times
+    - **No stuck loops**: Conversation progressed naturally without circular exchanges
+    - **Reasonable turn count**: Not suspiciously short (steps skipped) or long (stuck/confused)
+    - **User and agent stayed on topic**: Conversation didn't drift to unrelated subjects
+    - **No unexpected identity prompts**: If not evaluating identity verification, user was not asked for phone number
+    - **No phone in user message**: User phone number did not appear in the user LLM's messages unless specifically
       testing unidentified user behavior
+1. Are the conditions appropriate for the agent scope and target scenario? Or are they evaluating a conditions not in
+   scope of agent?
+1. Are the conditions phrased correctly in order to evaluate the target behaviour appropriately? Or is poor phrasing
+   confusing judge LLM?
+1. Verify that simulation config is set correctly:
+    - **Device**: Agent is phone-based — all sims must have device configured accordingly
+    - **Locale**: Always set simulations to the project's configured locale
+    - **Naming**: Group and name simulations according to expected customer-facing behavior — never use ticket IDs or
+      development-focused references
+    - **Granularity**: Reuse groups when possible. Avoid creating granular simulations — if behavior is already part of
+      a tested scenario, adjust the evaluation rather than creating a new sim
+
+## Batch run analysis - workflow
+
+Your goal is to create a clear summary of the results. The summary is meant to be used for further exploration. It must
+be a markdown file
+
+1. For each failing condition, look at judge comment. Understand the failure withing agent's definition and assign a
+   bucket to it. Once all replays have their failure comments classified, put the beckets into a table in descending
+   order by num of occurances.
+1. For each simulation with tag expectation failures, gather context to understand potential root causes of failures.
+   Then create a table with failure buscket in descending order by number of occurances.
+1. If simulation suite/group has shared expectations - generate a table with most common condition failures.
+1. For each bucket of identified failures, provide a sample of 2 replay links for easy access for user evaluation.
 
 ### When Validity Fails
 

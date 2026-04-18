@@ -1,8 +1,8 @@
 ---
 name: sierra-best-practices
 description: >-
-  Rules and constraints for Sierra agent development: journey/tool implementation, simulation design,
-  workspace operations, and code review. Not for browsing issues, reading conversations, or triaging.
+    Rules and constraints for Sierra agent development: journey/tool implementation, simulation design, workspace
+    operations, and code review. Not for browsing issues, reading conversations, or triaging.
 ---
 
 # Sierra Agent Development Guidelines
@@ -21,8 +21,8 @@ Must apply whenever working on Sierra Agent.
 - **Simulation TDD.** Design and validate simulations before implementing fixes. Read
   [simulations.md](references/simulations.md) for the structured format and validity checklist.
 - **Journey context is mandatory for behavior work.** Keep the current journey definition in context when analyzing
-  failures, proposing fixes, or implementing behavior-affecting changes in tools, prompts, simulations, or features.
-  If the workspace version changes, re-fetch the journey definition before continuing so you do not collide with or
+  failures, proposing fixes, or implementing behavior-affecting changes in tools, prompts, simulations, or features. If
+  the workspace version changes, re-fetch the journey definition before continuing so you do not collide with or
   duplicate current journey behavior.
 - **Workspace diffs via sierras CLI only.** Use `sierra-powertool` skill for CLI reference.
 
@@ -43,24 +43,26 @@ Must apply whenever working on Sierra Agent.
 
 ## Anti-Patterns
 
-| Temptation | Reality |
-|---|---|
-| Skip docs-routing lookup because you "know" the Sierra API | Sierra is private. Your pre-training has zero Sierra SDK knowledge. Docs are the only source. |
-| Treat a simulation as passing because tags matched | Tag match without conversation validity is a false positive. Run the validity checklist from simulations.md. |
-| Answer Sierra architecture questions from general LLM knowledge | Sierra has unique patterns (supervisor instructions, condition-driven prompts). Always verify from docs. |
+| Temptation                                                      | Reality                                                                                                      |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Skip docs-routing lookup because you "know" the Sierra API      | Sierra is private. Your pre-training has zero Sierra SDK knowledge. Docs are the only source.                |
+| Treat a simulation as passing because tags matched              | Tag match without conversation validity is a false positive. Run the validity checklist from simulations.md. |
+| Answer Sierra architecture questions from general LLM knowledge | Sierra has unique patterns (supervisor instructions, condition-driven prompts). Always verify from docs.     |
 
 ## Examples
 
 ### GOOD — Sierra SDK question
-> User: "How do I add a condition that triggers when the customer mentions a complaint?"
-> Agent: *Reads docs-routing.md, identifies `reference/skills/goal-oriented-skills/` as the relevant path,
-> reads `Condition` component reference, then answers with cited doc snippets.*
+
+> User: "How do I add a condition that triggers when the customer mentions a complaint?" Agent: _Reads docs-routing.md,
+> identifies `reference/skills/goal-oriented-skills/` as the relevant path, reads `Condition` component reference, then
+> answers with cited doc snippets._
 
 Reasoning: Verified the answer from Sierra docs before responding. Cited the source.
 
 ### BAD — Sierra SDK question
-> User: "How do I add a condition that triggers when the customer mentions a complaint?"
-> Agent: "You can use a Condition component with a `when` prop that matches the customer's intent."
+
+> User: "How do I add a condition that triggers when the customer mentions a complaint?" Agent: "You can use a Condition
+> component with a `when` prop that matches the customer's intent."
 
 Reasoning: Answered from pre-training. Sierra's Condition API may differ from what the model assumes. No doc
 verification, no citation.
@@ -72,5 +74,5 @@ verification, no citation.
   `sierras fetch-docs`.
 - After every simulation create or update, apply the full validity checklist from
   [simulations.md](references/simulations.md). Do not consider a simulation ready until validity passes.
-- When the user requests a feature workspace, create it via `sierras` CLI and use `--workspace-name` for all
-  subsequent operations. Prefer workspace-name flag for idiomatic invocations.
+- When the user requests a feature workspace, create it via `sierras` CLI and use `--workspace-name` for all subsequent
+  operations. Prefer workspace-name flag for idiomatic invocations.

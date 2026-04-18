@@ -130,6 +130,15 @@ function stripAnsi(value: string): string {
   return value.replace(ANSI_REGEX, "")
 }
 
+function isMeaningfulValue(value: unknown): boolean {
+  return value !== undefined && !(typeof value === "string" && value.trim().length === 0)
+}
+
+function sanitizeToolCallID(value: string): string {
+  const sanitized = value.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._:-]/g, "_")
+  return sanitized.length > 0 ? sanitized : `tool_${Date.now()}`
+}
+
 function normalizeToken(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
@@ -184,27 +193,8 @@ function extractTextFromContent(content: unknown): string {
     .join("\n")
 }
 
-function extractToolNames(tools: unknown[]): string[] {
-  const names: string[] = []
-  for (const rawTool of tools) {
-    const tool = isRecord(rawTool) ? rawTool : null
-    if (!tool) continue
-    const fn = isRecord(tool.function) ? tool.function : tool
-    if (typeof fn.name === "string" && fn.name.trim().length > 0) {
-      names.push(fn.name.trim())
-    }
-  }
-  return names
-}
-
 function buildPromptFromMessages(messages: unknown[], tools: unknown[]): string {
   const lines: string[] = []
-  const toolNames = extractToolNames(tools)
-  if (toolNames.length > 0) {
-    lines.push(
-      `SYSTEM: Available OpenCode tools in this environment: ${toolNames.join(", ")}. Use the closest matching native Cursor tool when helpful. If prior tool results are present, continue from them instead of redoing the same work.`,
-    )
-  }
 
   let hasToolResults = false
 
@@ -222,6 +212,17 @@ function buildPromptFromMessages(messages: unknown[], tools: unknown[]): string 
       continue
     }
 
+    if (role === "system") {
+      if (tools.length > 0) {
+        continue
+      }
+      const text = extractTextFromContent(message.content)
+      if (text.length > 0) {
+        lines.push(`SYSTEM: ${text}`)
+      }
+      continue
+    }
+
     if (role === "assistant" && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
       const content = extractTextFromContent(message.content)
       const calls = message.tool_calls
@@ -234,8 +235,10 @@ function buildPromptFromMessages(messages: unknown[], tools: unknown[]): string 
           return `tool_call(id: ${id}, name: ${name}, args: ${args})`
         })
         .filter(Boolean)
-      const prefix = content.length > 0 ? `${content}\n` : ""
-      lines.push(`ASSISTANT: ${prefix}${calls.join("\n")}`)
+      if (content.length > 0) {
+        lines.push(`ASSISTANT_TEXT_BEFORE_TOOL_CALLS: ${content}`)
+      }
+      lines.push(`ASSISTANT_TOOL_CALLS:\n${calls.join("\n")}`)
       continue
     }
 
@@ -335,6 +338,34 @@ function normalizeRuntimeModel(rawModel: unknown): string {
   if (raw.length === 0) return "auto"
   const prefix = `${PROVIDER_ID}/`
   return raw.startsWith(prefix) ? raw.slice(prefix.length) : raw
+}
+
+function normalizeTaskSubagentType(value: unknown): string | null {
+  if (typeof value === "string") {
+    const normalized = normalizeToken(value)
+    if (normalized.length === 0 || normalized.includes("unspecified") || normalized.includes("default") || normalized === "general") {
+      return "general"
+    }
+    if (normalized === "explore" || normalized.includes("codeexplorer") || normalized.includes("explore") || normalized.includes("search")) {
+      return "explore"
+    }
+    return null
+  }
+
+  if (!isRecord(value)) {
+    return null
+  }
+
+  if (typeof value.name === "string") {
+    return normalizeTaskSubagentType(value.name)
+  }
+
+  if (isRecord(value.custom) && typeof value.custom.name === "string") {
+    return normalizeTaskSubagentType(value.custom.name)
+  }
+
+  const [firstKey] = Object.keys(value)
+  return firstKey ? normalizeTaskSubagentType(firstKey) : null
 }
 
 function parseCursorModelsOutput(rawOutput: string): CursorModelInfo[] {
@@ -484,7 +515,10 @@ async function ensureProxyServer(workspaceDirectory: string, client: any): Promi
   const server = bunAny.Bun.serve({
     hostname: PROXY_HOST,
     port: 0,
-    fetch: (request: Request) => handleProxyRequest(request, workspaceDirectory, client),
+    fetch: (request: Request, server: any) => {
+      server?.timeout?.(request, 0)
+      return handleProxyRequest(request, workspaceDirectory, client)
+    },
   })
 
   const baseURL = `http://${PROXY_HOST}:${server.port}/v1`
@@ -723,6 +757,29 @@ function normalizeSpecialToolArgs(toolName: string, args: JsonRecord): JsonRecor
     if (normalized.cwd === undefined && typeof normalized.workingDirectory === "string") {
       normalized.cwd = normalized.workingDirectory
     }
+    if ((typeof normalized.workdir !== "string" || normalized.workdir.trim().length === 0) && typeof normalized.cwd === "string" && normalized.cwd.trim().length > 0) {
+      normalized.workdir = normalized.cwd
+    }
+    if ((typeof normalized.cwd !== "string" || normalized.cwd.trim().length === 0) && typeof normalized.workdir === "string" && normalized.workdir.trim().length > 0) {
+      normalized.cwd = normalized.workdir
+    }
+    if (typeof normalized.description !== "string") {
+      const description = coerceToString(normalized.description)
+      if (description) {
+        normalized.description = description
+      }
+    }
+    delete normalized.workingDirectory
+    delete normalized.toolCallId
+    delete normalized.simpleCommands
+    delete normalized.hasInputRedirect
+    delete normalized.hasOutputRedirect
+    delete normalized.parsingResult
+    delete normalized.fileOutputThresholdBytes
+    delete normalized.isBackground
+    delete normalized.skipApproval
+    delete normalized.timeoutBehavior
+    delete normalized.closeStdin
   }
 
   if (lower === "rm" && typeof normalized.force === "string") {
@@ -753,6 +810,34 @@ function normalizeSpecialToolArgs(toolName: string, args: JsonRecord): JsonRecor
     if (typeof normalized.new_string === "string" && normalized.old_string === undefined) {
       normalized.old_string = ""
     }
+  }
+
+  if (lower === "task") {
+    if (typeof normalized.description !== "string") {
+      const description = coerceToString(normalized.description)
+      if (description !== null) normalized.description = description
+    }
+    if (typeof normalized.prompt !== "string") {
+      const prompt = coerceToString(normalized.prompt)
+      if (prompt !== null) normalized.prompt = prompt
+    }
+    const subagentType = normalizeTaskSubagentType(normalized.subagent_type ?? normalized.subagentType ?? normalized.mode)
+    if (subagentType) {
+      normalized.subagent_type = subagentType
+    }
+    if (normalized.task_id === undefined && typeof normalized.agentId === "string" && normalized.agentId.trim().length > 0) {
+      normalized.task_id = normalized.agentId
+    }
+    if (normalized.command !== undefined && typeof normalized.command !== "string") {
+      const command = coerceToString(normalized.command)
+      if (command !== null) normalized.command = command
+    }
+    delete normalized.subagentType
+    delete normalized.model
+    delete normalized.agentId
+    delete normalized.attachments
+    delete normalized.mode
+    delete normalized.respondingToMessageIds
   }
 
   return normalized
@@ -853,14 +938,17 @@ function getSchemaPropertyNames(schema: unknown): string[] {
 }
 
 function getValueForSchemaProperty(propertyName: string, args: JsonRecord): unknown {
-  if (args[propertyName] !== undefined) {
-    return args[propertyName]
+  const directValue = args[propertyName]
+  if (isMeaningfulValue(directValue)) {
+    return directValue
   }
+
+  const emptyDirectValue = directValue
 
   const normalizedProperty = normalizeToken(propertyName)
 
   for (const [key, value] of Object.entries(args)) {
-    if (value !== undefined && normalizeToken(key) === normalizedProperty) {
+    if (isMeaningfulValue(value) && normalizeToken(key) === normalizedProperty) {
       return value
     }
   }
@@ -871,13 +959,13 @@ function getValueForSchemaProperty(propertyName: string, args: JsonRecord): unkn
       continue
     }
     for (const [key, value] of Object.entries(args)) {
-      if (value !== undefined && normalizedGroup.includes(normalizeToken(key))) {
+      if (isMeaningfulValue(value) && normalizedGroup.includes(normalizeToken(key))) {
         return value
       }
     }
   }
 
-  return undefined
+  return emptyDirectValue
 }
 
 function adaptArgsToSchema(toolName: string, args: JsonRecord, schema: unknown): JsonRecord {
@@ -933,7 +1021,7 @@ function extractToolCallFromEvent(
 
   const rawArgs = applyToolContextDefaults(matchedToolName, extractEventArgs(event), workspaceDirectory)
   const finalArgs = adaptArgsToSchema(matchedToolName, rawArgs, toolSchemaMap.get(matchedToolName))
-  const callID = typeof event.call_id === "string" && event.call_id.length > 0 ? event.call_id : `tool_${Date.now()}`
+  const callID = typeof event.call_id === "string" && event.call_id.length > 0 ? sanitizeToolCallID(event.call_id) : `tool_${Date.now()}`
 
   return {
     matchedToolName,
@@ -1012,10 +1100,6 @@ async function collectNonStreamResult(
   client: any,
   workspaceDirectory: string,
 ): Promise<Response> {
-  const stdoutText = await new Response(child.stdout).text()
-  const stderrText = await stderrPromise
-  const exitCode = await child.exited
-
   const allowedTools = buildAllowedToolNameMap(tools)
   const toolSchemaMap = buildToolSchemaMap(tools)
   const streamState: StreamState = {
@@ -1027,17 +1111,20 @@ async function collectNonStreamResult(
 
   let firstToolCall: ToolCall | null = null
   let usage: unknown = undefined
+  const reader = child.stdout.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let interruptedByTool = false
 
-  for (const line of stdoutText.split(/\r?\n/)) {
-    const event = parseJsonLine(line)
-    if (!event) continue
-
+  const handleEvent = (event: JsonRecord) => {
     updateStreamState(streamState, event)
 
     if (firstToolCall === null) {
       const extracted = extractToolCallFromEvent(event, allowedTools, toolSchemaMap, workspaceDirectory)
       if (extracted.toolCall) {
         firstToolCall = extracted.toolCall
+        interruptedByTool = true
+        return
       }
     }
 
@@ -1045,6 +1132,48 @@ async function collectNonStreamResult(
       usage = event.usage
     }
   }
+
+  outer: while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    while (true) {
+      const newlineIndex = buffer.indexOf("\n")
+      if (newlineIndex === -1) break
+      const line = buffer.slice(0, newlineIndex)
+      buffer = buffer.slice(newlineIndex + 1)
+
+      const event = parseJsonLine(line)
+      if (!event) continue
+      handleEvent(event)
+
+      if (interruptedByTool) {
+        try {
+          child.kill()
+        } catch {
+          // Ignore kill failures.
+        }
+        try {
+          await reader.cancel()
+        } catch {
+          // Ignore cancel failures.
+        }
+        break outer
+      }
+    }
+  }
+
+  if (!interruptedByTool) {
+    buffer += decoder.decode()
+    const trailingEvent = parseJsonLine(buffer)
+    if (trailingEvent) {
+      handleEvent(trailingEvent)
+    }
+  }
+
+  const stderrText = await stderrPromise
+  const exitCode = await child.exited
 
   if (firstToolCall) {
     return new Response(
