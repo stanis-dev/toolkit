@@ -509,7 +509,7 @@ After applying changes to the SKILL.md:
    - Do references to other sections still point to the right places?
 
 3. **Structural check.** Verify:
-   - Frontmatter is valid YAML with description under 250 chars
+   - Run `python3 scripts/validate_skills.py <changed skill paths>` and make it pass
    - Total line count is within the skill's target range
    - No orphaned references to moved or deleted sections
 

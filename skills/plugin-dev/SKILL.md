@@ -1,13 +1,33 @@
 ---
-
-## name: plugin-dev
+name: plugin-dev
 description: >-
-  How to modify, extend, and propagate changes to Stan's personal toolkit plugin. Use when
-  asked to add/edit/remove skills, agents, hooks, or any plugin configuration.
+  Modify, extend, and propagate Stan's toolkit plugin. Use when adding, editing, or removing
+  skills, hooks, manifests, or other plugin configuration.
+when_to_use: >-
+  Use for toolkit plugin maintenance and propagation. Not for general file editing, code
+  review, or work outside this repo.
+---
 
 # Toolkit Plugin Development
 
 Source: `~/code/toolkit` (git repo: `stanis-dev/toolkit`) Installed as: `toolkit@stan-marketplace` (user scope)
+
+## Validation Gate
+
+After any edit to `skills/*/SKILL.md` or `agents/*.md`, run:
+
+```bash
+python3 scripts/validate_skills.py
+```
+
+For targeted iteration, pass the changed files explicitly:
+
+```bash
+python3 scripts/validate_skills.py skills/plugin-dev/SKILL.md
+```
+
+Do not propagate, version-bump, or leave the repo with a failing validation run.
+When creating a new skill or agent, copy frontmatter structure from a neighboring valid file.
 
 ## Directory Layout
 
@@ -42,7 +62,9 @@ cd ~/code/toolkit
 #    .claude-plugin/marketplace.json -> "version": "X.Y.Z"
 
 # 2. Commit and push
-git add -A && git commit -m "<describe change>" && git push
+git add -A
+git commit -m "<describe change>"
+git push
 
 # 3. Update marketplace then plugin
 claude plugin marketplace update stan-marketplace
