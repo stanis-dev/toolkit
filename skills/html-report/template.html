@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{REPORT_TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+  body {
+    background: #FAF8F3;
+    color: #1E1B17;
+    font-family: "Source Serif 4", "Source Serif Pro", Georgia, serif;
+    font-size: 18.5px;
+    line-height: 1.62;
+    font-feature-settings: "kern", "liga", "onum";
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: #1F4FD6;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+  }
+  a:hover { text-decoration-thickness: 2px; }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  /* TOC — sticky left rail */
+  .toc {
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid rgba(30,27,23,0.08);
+    padding: 72px 28px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow: auto;
+    font-family: "Inter", system-ui, sans-serif;
+  }
+  .toc-label {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(30,27,23,0.45);
+    margin-bottom: 18px;
+    font-weight: 500;
+  }
+  .toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .toc a {
+    display: flex;
+    gap: 12px;
+    padding: 7px 0;
+    color: rgba(30,27,23,0.72);
+    font-size: 13.5px;
+    line-height: 1.35;
+    font-weight: 400;
+    text-decoration: none;
+  }
+  .toc a:hover { color: #1E1B17; }
+  .toc a.active { color: #1F4FD6; font-weight: 500; }
+  .toc a .num {
+    font-variant-numeric: tabular-nums;
+    color: rgba(30,27,23,0.35);
+    width: 22px;
+    flex-shrink: 0;
+  }
+  .toc a.active .num { color: #1F4FD6; }
+
+  /* Main */
+  .main { flex: 1; padding: 72px 64px 160px; }
+  .content { max-width: 660px; margin: 0 auto; }
+
+  /* Header */
+  .report-header { margin-bottom: 56px; }
+  .report-header h1 {
+    font-size: 44px;
+    line-height: 1.08;
+    font-weight: 500;
+    margin: 0;
+    letter-spacing: -0.02em;
+    text-wrap: pretty;
+  }
+
+  /* BLUF */
+  .bluf { margin-bottom: 56px; }
+  .bluf-label {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: #1F4FD6;
+    margin-bottom: 14px;
+  }
+  .bluf p { margin: 0 0 1em; color: #1E1B17; text-wrap: pretty; }
+  .bluf p.lead { font-size: 22px; line-height: 1.38; }
+  .bluf p:not(.lead) { font-size: 18.5px; line-height: 1.58; }
+
+  /* Sections */
+  .section { margin-bottom: 72px; scroll-margin-top: 24px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .section-num {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(30,27,23,0.4);
+    letter-spacing: 0.05em;
+  }
+  .section h2 {
+    font-size: 28px;
+    line-height: 1.15;
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .section-summary {
+    font-style: italic;
+    font-size: 16.5px;
+    line-height: 1.5;
+    color: rgba(30,27,23,0.62);
+    margin: 0 0 28px;
+    max-width: 56ch;
+    text-wrap: pretty;
+  }
+  .section-summary.long { font-style: normal; }
+
+  .section p {
+    margin: 0 0 1.15em;
+    text-wrap: pretty;
+  }
+  .section h3 {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 2em 0 0.55em;
+    letter-spacing: -0.005em;
+  }
+
+  /* Inline code */
+  .section code, .bluf code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.92em;
+  }
+
+  /* Code blocks */
+  pre.code {
+    font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.58;
+    margin: 20px 0 28px;
+    padding: 18px 20px;
+    border-left: 2px solid rgba(30,27,23,0.18);
+    background: rgba(30,27,23,0.025);
+    overflow: auto;
+    white-space: pre;
+    color: #2B2520;
+  }
+  pre.code .lang {
+    display: block;
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: rgba(30,27,23,0.45);
+    margin-bottom: 8px;
+  }
+
+  /* Callouts */
+  aside.callout {
+    margin: 20px 0 28px;
+    padding: 14px 20px;
+    border-left: 3px solid #1F4FD6;
+    font-size: 17.5px;
+    line-height: 1.57;
+    color: rgba(30,27,23,0.85);
+  }
+  aside.callout .kind {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #1F4FD6;
+    margin-right: 10px;
+    font-weight: 500;
+  }
+
+  /* Tables */
+  .table-wrap { margin: 20px 0 28px; overflow: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  table th {
+    padding: 10px 12px 10px 0;
+    border-bottom: 1px solid rgba(30,27,23,0.25);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(30,27,23,0.6);
+  }
+  table td {
+    padding: 10px 12px 10px 0;
+    border-bottom: 1px solid rgba(30,27,23,0.08);
+    color: #1E1B17;
+  }
+  th.left, td.left   { text-align: left; }
+  th.right, td.right { text-align: right; }
+  th.center, td.center { text-align: center; }
+  td.delta-pos { color: #9A3412; font-weight: 500; }
+  td.delta-neg { color: #116149; font-weight: 500; }
+
+  /* Definition list */
+  dl { margin: 8px 0 0; }
+  dl > div { margin-bottom: 22px; }
+  dt {
+    font-size: 18.5px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: #1E1B17;
+  }
+  dd {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.62;
+    color: rgba(30,27,23,0.78);
+    text-wrap: pretty;
+  }
+
+  /* File list */
+  ul.files { list-style: none; padding: 0; margin: 0; }
+  ul.files li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 24px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(30,27,23,0.08);
+  }
+  ul.files li:first-child { border-top: 1px solid rgba(30,27,23,0.1); }
+  ul.files code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px;
+    color: #1E1B17;
+  }
+  ul.files .why {
+    font-size: 14.5px;
+    color: rgba(30,27,23,0.72);
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!--
+    TOC: keep this <nav> only if the report is ≥3000 words OR ≥6 sections.
+    Otherwise delete the entire <nav class="toc">…</nav> block; the content centers on its own.
+  -->
+  <nav class="toc" aria-label="Contents">
+    <div class="toc-label">Contents</div>
+    <ol>
+      <li><a href="#sec-01" data-sec="sec-01"><span class="num">01</span><span>{{SECTION_1_TITLE}}</span></a></li>
+      <li><a href="#sec-02" data-sec="sec-02"><span class="num">02</span><span>{{SECTION_2_TITLE}}</span></a></li>
+      <!-- …one <li> per section… -->
+    </ol>
+  </nav>
+
+  <main class="main">
+    <div class="content">
+
+      <header class="report-header">
+        <h1>{{REPORT_TITLE}}</h1>
+      </header>
+
+      <section class="bluf" aria-labelledby="bluf-label">
+        <div class="bluf-label" id="bluf-label">Bottom line</div>
+        <p class="lead">{{BLUF_LEAD_PARAGRAPH}}</p>
+        <p>{{BLUF_SUPPORTING_PARAGRAPH_1}}</p>
+        <p>{{BLUF_SUPPORTING_PARAGRAPH_2}}</p>
+      </section>
+
+      <section class="section" id="sec-01">
+        <div class="section-head">
+          <span class="section-num">01</span>
+          <h2>{{SECTION_TITLE}}</h2>
+        </div>
+        <p class="section-summary">{{ONE_TO_TWO_LINE_ITALIC_SUMMARY}}</p>
+
+        <p>{{PARAGRAPH}}</p>
+
+        <h3>{{OPTIONAL_SUBHEADING}}</h3>
+        <p>{{PARAGRAPH}}</p>
+
+        <pre class="code"><span class="lang">sql</span>{{CODE_CONTENT}}</pre>
+
+        <aside class="callout">
+          <span class="kind">caveat</span>{{ONE_PARAGRAPH_CALLOUT_BODY}}
+        </aside>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="left">Query</th>
+                <th class="right">14.11 (ms)</th>
+                <th class="right">16.2 (ms)</th>
+                <th class="right">Δ</th>
+                <th class="left">Fix</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="left">posting.insert_entry</td>
+                <td class="right">3.2</td>
+                <td class="right">3.9</td>
+                <td class="right delta-pos">↑ +22%</td>
+                <td class="left">ALTER COLUMN SET STATISTICS 1000</td>
+              </tr>
+              <tr>
+                <td class="left">admin.audit_search</td>
+                <td class="right">64.0</td>
+                <td class="right">51.2</td>
+                <td class="right delta-neg">↓ −20%</td>
+                <td class="left">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <dl>
+          <div>
+            <dt>{{TERM}}</dt>
+            <dd>{{DEFINITION_OR_EXPLANATION}}</dd>
+          </div>
+        </dl>
+
+        <ul class="files">
+          <li>
+            <code>path/to/file.ext</code>
+            <span class="why">what this file changed and why</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- …more sections… -->
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var toc = document.querySelector('.toc');
+  if (!toc) return;
+  var links = Array.prototype.slice.call(toc.querySelectorAll('a[data-sec]'));
+  var sections = links.map(function (a) {
+    var id = a.getAttribute('data-sec');
+    return { id: id, el: document.getElementById(id), link: a };
+  }).filter(function (s) { return s.el; });
+  if (!sections.length) return;
+
+  function setActive(id) {
+    links.forEach(function (a) {
+      if (a.getAttribute('data-sec') === id) a.classList.add('active');
+      else a.classList.remove('active');
+    });
+  }
+
+  function onScroll() {
+    var trigger = 120;
+    var cur = sections[0].id;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.getBoundingClientRect().top - trigger <= 0) cur = sections[i].id;
+    }
+    setActive(cur);
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

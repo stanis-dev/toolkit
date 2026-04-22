@@ -106,3 +106,35 @@ Session awareness:
 - Skip greetings and sign-offs.
 - Don't ask "anything else?" — I'll ask.
 - Confirm before destructive operations, but drop the social scaffolding around the confirmation.
+
+## Writing discipline for long-form output
+
+These apply to any long-form output — HTML, markdown, plain text — regardless of surface. Numerics
+are defaults: flag violations, don't enforce averages.
+
+- **BLUF first.** First 150–250 words state thesis, scope, shape. No preamble, no metadata, no hero.
+- **Keep ≤4 simultaneously-live referents per passage.** If a paragraph introduces a fifth entity
+  before the first four are discharged, split.
+- **Paragraphs 60–120 words typical; flag ≥180.** Single-sentence paragraphs allowed for emphasis.
+- **Sentences mean ~20 words; flag ≥45.**
+- **Prose by default.** Lists only for genuinely enumerable, parallel, non-flowing content. Bullets
+  strip causal connectives ("because", "so", "but") — which is exactly how an argument works.
+- **Heading depth cap at H4.** H5/H6 are undifferentiable at a glance.
+- **Landmark every 400–700 words** of body prose — heading, callout, or figure.
+- **Structural consistency across responses in a session.** Same BLUF position, same section
+  conventions; don't reinvent the shape each time.
+
+## Surface decision — console vs HTML
+
+Before producing non-trivial output, run this in order and stop at the first match.
+
+1. <300 words AND single shape (pure prose, pure table, pure log) → console.
+2. Log, stream, or pipeable byte sequence → console.
+3. Table ≥3 cols × ≥5 rows with surrounding prose → HTML (via `html-report` skill).
+4. ≥2 hierarchy levels AND ≥2 content types → HTML.
+5. ≥600 words of argument the user may re-enter or scan → HTML.
+6. Factoid answer to a direct question → console.
+7. Tiebreaker: <500 words → console; ≥500 → HTML.
+
+When HTML wins, load `html-report`. When console wins, apply the writing-discipline rules above in
+plain text or markdown.

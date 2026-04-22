@@ -60,6 +60,7 @@ PERSONAL:
 - personal-assistant: Operational awareness, reply drafting, and communication coaching from Slack/Teams/meeting data
 - codex-proxy: Direct ChatGPT API proxy (~24 token overhead vs ~31K through Codex CLI)
 - deep-research-prompt: Generate context-enriched research prompts
+- html-report: Emit a research-backed single-page HTML deep-dive report (auto-loads on long-form multi-section output with mixed content; skips short/factoid/pipeable outputs)
 - question-crystallization: Move from vague intuitions to clear questions
 - music-discovery: Music recommendations, Plex history, SoulSync downloads
 - local-infra: Home network reference (homelab Docker/storage + Mac Mini Plex/API)
