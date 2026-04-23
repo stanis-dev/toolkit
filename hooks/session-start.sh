@@ -5,6 +5,13 @@ PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GLOBAL_CONTEXT_FILE="${PLUGIN_ROOT}/context/global.md"
 START_DIR="${PWD:-$(pwd)}"
 
+# Self-heal Codex skill symlinks. Output must not reach stdout (would corrupt
+# the hook's JSON), so route everything to a log and never block.
+SYNC_SCRIPT="${PLUGIN_ROOT}/scripts/sync-codex-skills.sh"
+if [[ -x "$SYNC_SCRIPT" ]]; then
+  "$SYNC_SCRIPT" >"$HOME/.codex/sync-codex-skills.log" 2>&1 || true
+fi
+
 GLOBAL_CONTEXT=""
 if [[ -f "$GLOBAL_CONTEXT_FILE" ]]; then
   GLOBAL_CONTEXT=$(cat "$GLOBAL_CONTEXT_FILE")

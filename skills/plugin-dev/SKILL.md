@@ -40,10 +40,18 @@ When creating a new skill or agent, copy frontmatter structure from a neighborin
 │   ├── SKILL.md               # Instructions + frontmatter
 │   └── (supporting files)     # Templates, scripts, references
 ├── agents/<agent-name>.md     # Subagent definitions with frontmatter
+├── scripts/
+│   ├── validate_skills.py     # Frontmatter validation gate
+│   └── sync-codex-skills.sh   # Mirrors skills/ to ~/.codex/skills/
 └── hooks/
     ├── hooks.json             # Hook event configuration
-    └── session-start.sh       # Session orientation (lists all skills/agents)
+    └── session-start.sh       # Session orientation + Codex sync
 ```
+
+Codex has no plugin/marketplace system. Its view of the toolkit is the symlink
+set under `~/.codex/skills/`, kept in sync by `scripts/sync-codex-skills.sh`.
+The session-start hook runs that script on every Claude session, so structural
+changes (add/rename/remove) heal automatically on the next Claude launch.
 
 ## Critical: Keep session-start.sh in Sync
 
@@ -66,15 +74,27 @@ git add -A
 git commit -m "<describe change>"
 git push
 
-# 3. Update marketplace then plugin
+# 3. Update marketplace then plugin (Claude)
 claude plugin marketplace update stan-marketplace
 claude plugin update toolkit@stan-marketplace
+
+# 4. Sync Codex skill symlinks (also runs automatically on Claude session start)
+scripts/sync-codex-skills.sh
 ```
 
 Version bump is required — Claude Code uses the version to detect updates. Without it, `claude plugin update` won't pull
-changes.
+changes. Codex ignores version fields; it reads `~/.codex/skills/*/SKILL.md` directly.
 
 Changes take effect on next session. Mid-session reload is unreliable (`/reload-plugins` has known bugs with skills).
+
+### Codex propagation notes
+
+- The sync script is idempotent: adds missing symlinks, purges dangling ones,
+  leaves unrelated entries alone (e.g. `codex-primary-runtime`, `supacode-cli`).
+- Skill *content* edits need no sync — symlinks already point into the repo.
+  Only structural changes (add/rename/remove a skill directory) require it.
+- If you edit skills from a session that never starts Claude (pure Codex work),
+  run the script manually; Codex has no equivalent session-start hook.
 
 ## Rapid Iteration (No Commit)
 
