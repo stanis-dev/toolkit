@@ -11,6 +11,7 @@ User will interact most frequently with:
 
 - Studio Journey definition
 - Studio Configuration
+- Knowledge Base
 - Simulations
 - Codebase context - interacts with Studio. Changes require `pnpm sierra upload/watch` to take effect.
 
@@ -22,6 +23,61 @@ unavailable, stop immediately and notify user.
 - **Sierra SDK is private.** You must ground your understanding with:
     - use `sierra` mcp tool: `ask_sierra_assistant`
     - sdk source files in `node_modules`
+
+## Sierra SDK
+
+## Sierras CLI (Powertool) `sierras ...`
+
+All commands require --bot <name> to identify the agent (e.g., `--bot triage/base`). Use --target <name> to select a
+workspace, e.g. --target default/baseline-pre-dedup. `--json` wrapper
+`{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
+
+```bash
+sierras sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status
+
+sierras sim status                                           # Suite summary (pass/fail/running counts)
+
+sierras sim run <name> [--count <n>] [--timeout <duration>]  # Run a single sim (blocks until done)
+
+sierras sim replay <name>                                    # Latest result in turn-grouped format
+sierras sim replay <name> --id <id>                          # Specific result by ID
+sierras sim replay <name> --list                             # List all available results
+sierras sim replay <name> --transcript                       # Conversation only (no metadata)
+sierras sim replay <name> --verbose                          # Flat event timeline
+sierras sim replay <name> --trace <turn>                     # All LLM API calls for a turn
+
+sierras sim search <term> [--rg <pat>] [--cross-workspace]   # Search replay content by substring
+
+sierras sim diff --left <ws> --right <ws> [--detailed]       # Compare results between workspaces
+
+sierras sim cancel-all                                       # Cancel ALL running sims in workspace (clean slate)
+
+sierras sim bench start --rg <pat> --count <n> [--peek]      # Bench evaluation with regex sim filter
+sierras sim bench start --group <g> --count <n>              # Bench evaluation by group
+sierras sim bench start --rg <pat> --count <n> --peek        # Preview matched sims without running
+sierras sim bench cancel <run-id>                            # Cancel all running/pending sims in a bench run
+sierras sim bench query <run-id> [--failed] [--flaky]        # Query bench results
+sierras sim bench list                                       # List all bench runs
+sierras sim bench status <run-id>                            # Check progress of running bench
+sierras sim bench collect <run-id>                           # Collect results for interrupted bench
+```
+
+### Replay Output Format
+
+The default `sierras sim replay` output groups events by conversation turn:
+
+- `[USER]` / `[AGENT]` -- spoken messages. The only lines the customer hears.
+- `TOOL: Name(args) -> result` -- SDK-executed tool call. `[forced]` = SDK-injected.
+- `SUPERVISOR:` -- journey instruction to the LLM. Primary signal for what the journey wanted.
+- `CONDITIONS:` -- condition evaluation results. Shown when conditions change.
+- `TAG:` -- platform signals. Key patterns: `~requires-tool-call`, `~requires-no-tool-call`,
+  `~goal:param-validation:valid`, `transfer`, `collections:*`.
+- `FILLER[tool-wait]:` -- progress indicator from a separate LLM call. Has its own prompt.
+- `-- Turn N --` -- turn boundary. Use turn numbers with `--trace <turn>`.
+
+## Simulations
+
+Simulations evaluate a scenario based on expected/forbidden tags and judge LLM conditions.
 
 ## Development Flow
 
