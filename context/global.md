@@ -109,20 +109,20 @@ Session awareness:
 
 ## Writing discipline for long-form output
 
-These apply to any long-form output — HTML, markdown, plain text — regardless of surface. Numerics
-are defaults: flag violations, don't enforce averages.
+These apply to any long-form output — HTML, markdown, plain text — regardless of surface. Numerics are defaults: flag
+violations, don't enforce averages.
 
 - **BLUF first.** First 150–250 words state thesis, scope, shape. No preamble, no metadata, no hero.
-- **Keep ≤4 simultaneously-live referents per passage.** If a paragraph introduces a fifth entity
-  before the first four are discharged, split.
+- **Keep ≤4 simultaneously-live referents per passage.** If a paragraph introduces a fifth entity before the first four
+  are discharged, split.
 - **Paragraphs 60–120 words typical; flag ≥180.** Single-sentence paragraphs allowed for emphasis.
 - **Sentences mean ~20 words; flag ≥45.**
-- **Prose by default.** Lists only for genuinely enumerable, parallel, non-flowing content. Bullets
-  strip causal connectives ("because", "so", "but") — which is exactly how an argument works.
+- **Prose by default.** Lists only for genuinely enumerable, parallel, non-flowing content. Bullets strip causal
+  connectives ("because", "so", "but") — which is exactly how an argument works.
 - **Heading depth cap at H4.** H5/H6 are undifferentiable at a glance.
 - **Landmark every 400–700 words** of body prose — heading, callout, or figure.
-- **Structural consistency across responses in a session.** Same BLUF position, same section
-  conventions; don't reinvent the shape each time.
+- **Structural consistency across responses in a session.** Same BLUF position, same section conventions; don't reinvent
+  the shape each time.
 
 ## Surface decision — console vs HTML
 
@@ -136,5 +136,5 @@ Before producing non-trivial output, run this in order and stop at the first mat
 6. Factoid answer to a direct question → console.
 7. Tiebreaker: <500 words → console; ≥500 → HTML.
 
-When HTML wins, load `html-report`. When console wins, apply the writing-discipline rules above in
-plain text or markdown.
+When HTML wins, load `html-report`. When console wins, apply the writing-discipline rules above in plain text or
+markdown.
