@@ -20,7 +20,18 @@
       "mcp__Claude_in_Chrome__navigate",
       "mcp__Claude_in_Chrome__get_page_text",
       "mcp__Claude_in_Chrome__read_page",
-      "mcp__Claude_in_Chrome__javascript_tool"
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "Bash(date -v-14d +%Y-%m-%d)",
+      "Bash(gh api *)",
+      "Bash(gh search *)",
+      "Bash(gh auth *)",
+      "Bash(gh pr *)",
+      "Bash(bash *)",
+      "Bash(open *)",
+      "Bash(sort -nrk 3)",
+      "Bash(sort -nrk 4)",
+      "Bash(vm_stat)",
+      "Bash(ps -eo pid,ppid,user,pcpu,pmem,etime,command)"
     ]
   }
 }
