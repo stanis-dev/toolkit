@@ -16,18 +16,15 @@
 
 set -euo pipefail
 
-# Resolve canonical source: defaults to the plugin's global.md, two dirs up
-# from this script (plugin/scripts/install-symlinks.sh -> plugin/global.md).
+# Canonical source is always ../global.md
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CANONICAL="${1:-${SCRIPT_DIR}/../global.md}"
-CANONICAL="$(cd "$(dirname "$CANONICAL")" && pwd)/$(basename "$CANONICAL")"
+CANONICAL="$(cd "$SCRIPT_DIR/.." && pwd)/global.md"
 
 if [[ ! -f "$CANONICAL" ]]; then
   echo "ERROR: canonical file not found: $CANONICAL" >&2
   exit 1
 fi
 
-# target_path : human label
 TARGETS=(
   "$HOME/AGENTS.md"
   "$HOME/CLAUDE.md"
@@ -39,33 +36,25 @@ linked=0
 skipped=0
 backed_up=0
 
-echo "Canonical source: $CANONICAL"
-echo
-
-for entry in "${TARGETS[@]}"; do
-  path="${entry%%|*}"
-  label="${entry#*|}"
-  parent="$(dirname "$path")"
-
-  # Ensure parent dir exists.
-  mkdir -p "$parent"
+for path in "${TARGETS[@]}"; do
+  mkdir -p "$(dirname "$path")"
 
   if [[ -L "$path" ]]; then
     current="$(readlink "$path")"
     if [[ "$current" == "$CANONICAL" ]]; then
-      echo "  ✓ $path  (already linked) — $label"
+      echo "  ✓ $path  (skipped)"
       ((skipped++))
       continue
     fi
-    echo "  ↻ $path  (was symlink to $current; repointing) — $label"
+    echo "  ↻ $path  (was symlink to $current; repointing)"
     rm "$path"
   elif [[ -e "$path" ]]; then
     backup="${path}.bak.${TS}"
     mv "$path" "$backup"
-    echo "  ⚠ $path  (regular file backed up to $backup) — $label"
+    echo "  ⚠ $path  (regular file backed up to $backup)"
     ((backed_up++))
   else
-    echo "  + $path  (creating) — $label"
+    echo "  + $path  (creating)"
   fi
 
   ln -s "$CANONICAL" "$path"
