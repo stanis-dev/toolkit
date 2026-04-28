@@ -15,16 +15,17 @@ User will interact most frequently with:
 - Simulations
 - Codebase context - interacts with Studio. Changes require `pnpm sierra upload/watch` to take effect.
 
-At the beginning of each session check that `Sierra` MCP is available and functional, comprehend its tools. If
-unavailable, stop immediately and notify user.
+## At the beginning of each session:
+
+1. Check that `Sierra` MCP is available and functional, comprehend its tools. If unavailable, stop immediately and
+   notify user.
+1. Grab latest journey from `sierras journey ...`. Refresh if journey is edited
 
 ## Constraints
 
 - **Sierra SDK is private.** You must ground your understanding with:
     - use `sierra` mcp tool: `ask_sierra_assistant`
     - sdk source files in `node_modules`
-
-## Sierra SDK
 
 ## Sierras CLI (Powertool) `sierras ...`
 
@@ -60,30 +61,25 @@ sierras sim bench query <run-id> [--failed] [--flaky]        # Query bench resul
 sierras sim bench list                                       # List all bench runs
 sierras sim bench status <run-id>                            # Check progress of running bench
 sierras sim bench collect <run-id>                           # Collect results for interrupted bench
+
+sierras knowledge search "query"                             # workspace-scoped
+sierras knowledge search "query" --live                      # live published view
+sierras knowledge search "query" --source <id>,<id>
+
 ```
-
-### Replay Output Format
-
-The default `sierras sim replay` output groups events by conversation turn:
-
-- `[USER]` / `[AGENT]` -- spoken messages. The only lines the customer hears.
-- `TOOL: Name(args) -> result` -- SDK-executed tool call. `[forced]` = SDK-injected.
-- `SUPERVISOR:` -- journey instruction to the LLM. Primary signal for what the journey wanted.
-- `CONDITIONS:` -- condition evaluation results. Shown when conditions change.
-- `TAG:` -- platform signals. Key patterns: `~requires-tool-call`, `~requires-no-tool-call`,
-  `~goal:param-validation:valid`, `transfer`, `collections:*`.
-- `FILLER[tool-wait]:` -- progress indicator from a separate LLM call. Has its own prompt.
-- `-- Turn N --` -- turn boundary. Use turn numbers with `--trace <turn>`.
 
 ## Simulations
 
 Simulations evaluate a scenario based on expected/forbidden tags and judge LLM conditions.
 
+Simulations must be evaluated:
+
+- LLM user must play its role in a way that will allow the target scenario to happen.
+- Declared conditions must be worded correctly. The wording is correct when Judge LLM comments reveal that it is
+  evaluating what matters.
+- Only then the pass or fail becomes relevant.
+
 ## Development Flow
-
-### In all cases
-
-- Always keep Studio context synced.
 
 ### New Feature
 
@@ -94,3 +90,9 @@ Simulations evaluate a scenario based on expected/forbidden tags and judge LLM c
 1. Check whether there's an existing simulation that covers the failing behaviour.
     - if exists: check sim quality
     - if not: create one
+
+### Issue
+
+1. Fetch the issues
+1. Fetch the related conversation/s
+1. Produce short report on the source of the problem

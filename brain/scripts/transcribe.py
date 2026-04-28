@@ -8,7 +8,7 @@ WORKSPACE = "/Users/stan/code/toolkit/brain"
 SPEAKERS_FILE = os.path.join(DATA_DIR, "speakers.json")
 VOCAB_FILE = os.path.join(DATA_DIR, "vocab.txt")
 SIMILARITY_THRESHOLD = 0.75
-POLISH_MODEL = "claude-4.6-opus-max-thinking"
+POLISH_MODEL = "claude-4.7-opus-max-thinking"
 POLISH_TIMEOUT = 1800
 PROJECT_CONTEXT_FILES = [
     os.path.expanduser("~/code/pronet/CLAUDE.local.md"),
@@ -123,7 +123,7 @@ def polish_and_summarize(txt_file):
 
     prompt = (
         f"Read the file {rel_txt}. This is a raw Whisper transcription of a meeting.\n"
-        f"You have TWO tasks. Complete both.\n\n"
+        f"You have TWO tasks.\n\n"
         f"━━━ TASK 1: Correct the transcript ━━━\n\n"
         f"Output a corrected version of the ENTIRE transcript. Fix ONLY obvious transcription errors:\n"
         f"- Words that are clearly misheard (wrong homophones, nonsense words, garbled domain terms)\n"
@@ -133,19 +133,21 @@ def polish_and_summarize(txt_file):
         f"(abbreviations: AA→AI, homophones: takes→tags, near-misses: depth→debt),\n"
         f"go ahead and make the fix. These are low-risk, high-clarity improvements.\n"
         f"Only hesitate on corrections that could change the speaker's intended meaning.\n\n"
-        f"For expressions that appear to be non-native idioms, culturally-specific phrases,\n"
-        f"or unclear but possibly intentional wording, keep the original text but add a\n"
-        f"brief bracketed note for the reader's context. For example:\n"
-        f'  "killing my heavens [Turkish idiom for \'beating myself up\']"\n'
-        f'  "million knows [misheard name]"\n'
-        f"Keep notes concise -- a few words, not a sentence.\n\n"
+        # f"For expressions that appear to be non-native idioms, culturally-specific phrases,\n"
+        # f"or unclear but possibly intentional wording, keep the original text but add a\n"
+        # f"brief bracketed note for the reader's context. For example:\n"
+        # f'  "killing my heavens [Turkish idiom for \'beating myself up\']"\n'
+        # f'  "million knows [misheard name]"\n'
+        # f"Keep notes concise -- a few words, not a sentence.\n\n"
         f"For passages that remain unintelligible even after considering context,\n"
         f"add an [unclear] or [inaudible] marker so readers know the text is unreliable.\n\n"
         f"Do NOT:\n"
         f"- Rephrase or improve anyone's speech\n"
         f"- Fix grammar (non-native speakers' grammar IS their speech)\n"
         f"- Remove filler words (um, uh, like)\n"
-        f"- Add commentary or explanations outside of the bracketed notes described above\n\n"
+        f"- Add commentary or explanations\n\n"
+        f"- Never translate Spanish to English\n\n"
+        # f"- Add commentary or explanations outside of the bracketed notes described above\n\n"
         f"Keep timestamps and the original structure exactly as-is.\n"
         f"NEVER change speaker labels. Speaker names were assigned by voice matching and must not be altered.\n"
         f"The filename may contain a calendar event name — this does NOT reliably indicate who is in the call.\n"
