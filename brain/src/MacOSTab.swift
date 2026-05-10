@@ -5,20 +5,29 @@ class AudioDeviceEnforcer: ObservableObject {
     @Published var enabled: Bool {
         didSet {
             UserDefaults.standard.set(enabled, forKey: "brain.enforceAudioDevice")
+            log("Audio.enforce: toggle \(oldValue ? "ON" : "OFF") → \(enabled ? "ON" : "OFF")")
             if enabled { startPolling() } else { stopPolling() }
         }
     }
     @Published var currentDevice: String = ""
     private var timer: Timer?
+    private var lastTargetAvailable: Bool?
+    private var lastHeartbeat: Date = .distantPast
+    private let heartbeatInterval: TimeInterval = 300
 
     init() {
         self.enabled = UserDefaults.standard.bool(forKey: "brain.enforceAudioDevice")
         refreshCurrentDevice()
+        let available = findInputDevice(named: kTargetAudioDevice) != nil
+        lastTargetAvailable = available
+        log("Audio.enforce: init enabled=\(enabled) current='\(currentDevice)' target='\(kTargetAudioDevice)' available=\(available)")
         if enabled { startPolling() }
     }
 
     private func startPolling() {
         stopPolling()
+        log("Audio.enforce: polling started (every 3s, heartbeat every \(Int(heartbeatInterval))s)")
+        lastHeartbeat = Date()
         enforce()
         timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             self?.enforce()
@@ -26,18 +35,36 @@ class AudioDeviceEnforcer: ObservableObject {
     }
 
     private func stopPolling() {
+        guard timer != nil else { return }
         timer?.invalidate()
         timer = nil
+        log("Audio.enforce: polling stopped")
     }
 
     private func enforce() {
+        let previousDevice = currentDevice
         refreshCurrentDevice()
-        if currentDevice != kTargetAudioDevice {
-            if let deviceId = findInputDevice(named: kTargetAudioDevice) {
-                setDefaultInputDevice(deviceId)
-                refreshCurrentDevice()
-                log("Audio: set default input to \(kTargetAudioDevice)")
-            }
+        let targetID = findInputDevice(named: kTargetAudioDevice)
+        let available = targetID != nil
+
+        if available != lastTargetAvailable {
+            log("Audio.enforce: target '\(kTargetAudioDevice)' \(available ? "connected" : "disconnected")")
+            lastTargetAvailable = available
+        }
+
+        if previousDevice != currentDevice && !previousDevice.isEmpty {
+            log("Audio.enforce: current input changed externally '\(previousDevice)' → '\(currentDevice)'")
+        }
+
+        if currentDevice != kTargetAudioDevice, let deviceId = targetID {
+            setDefaultInputDevice(deviceId)
+            refreshCurrentDevice()
+            log("Audio.enforce: switched default input → '\(kTargetAudioDevice)'")
+        }
+
+        if Date().timeIntervalSince(lastHeartbeat) >= heartbeatInterval {
+            log("Audio.enforce: heartbeat current='\(currentDevice)' target='\(kTargetAudioDevice)' available=\(available)")
+            lastHeartbeat = Date()
         }
     }
 
@@ -45,70 +72,6 @@ class AudioDeviceEnforcer: ObservableObject {
         let id = getDefaultInputDevice()
         currentDevice = getDeviceName(id) ?? "Unknown"
     }
-}
-
-private func getDefaultInputDevice() -> AudioDeviceID {
-    var deviceID = AudioDeviceID(0)
-    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-    var address = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwarePropertyDefaultInputDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain
-    )
-    AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceID)
-    return deviceID
-}
-
-private func getDeviceName(_ deviceID: AudioDeviceID) -> String? {
-    var address = AudioObjectPropertyAddress(
-        mSelector: kAudioObjectPropertyName,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain
-    )
-    var name: Unmanaged<CFString>?
-    var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
-    let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &name)
-    guard status == noErr, let cfName = name?.takeRetainedValue() else { return nil }
-    return cfName as String
-}
-
-private func findInputDevice(named target: String) -> AudioDeviceID? {
-    var address = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwarePropertyDevices,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain
-    )
-    var size: UInt32 = 0
-    AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size)
-    let count = Int(size) / MemoryLayout<AudioDeviceID>.size
-    var devices = [AudioDeviceID](repeating: 0, count: count)
-    AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &devices)
-
-    for device in devices {
-        guard getDeviceName(device) == target else { continue }
-        var inputAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyStreamConfiguration,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var bufSize: UInt32 = 0
-        AudioObjectGetPropertyDataSize(device, &inputAddress, 0, nil, &bufSize)
-        if bufSize > 0 { return device }
-    }
-    return nil
-}
-
-private func setDefaultInputDevice(_ deviceID: AudioDeviceID) {
-    var id = deviceID
-    var address = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwarePropertyDefaultInputDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain
-    )
-    AudioObjectSetPropertyData(
-        AudioObjectID(kAudioObjectSystemObject), &address, 0, nil,
-        UInt32(MemoryLayout<AudioDeviceID>.size), &id
-    )
 }
 
 struct MacOSTabView: View {

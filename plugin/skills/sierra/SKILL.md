@@ -1,25 +1,25 @@
 ---
 name: sierra
-description: Guidance for Sierra agent development
+description: Critical guidance for Sierra agent development. Must always be loaded when working with Sierra agents.
 ---
 
 # Sierra Agent Development Guidance
 
-Sierra Agents are developed with a custom SDK based on React, with components rendering agent context instead of UI.
+Sierra Agents are developed with a custom SDK based on React, with components rendering agent context instead of UI. The
+final context is compiled from the combination of the following items and all of them must be tracked to avoid having
+only partial understanding of agent context:
 
-User will interact most frequently with:
-
-- Studio Journey definition
+- Studio Journey definition: `sierras journey ...`
 - Studio Configuration
 - Knowledge Base
-- Simulations
-- Codebase context - interacts with Studio. Changes require `pnpm sierra upload/watch` to take effect.
+- Codebase context. Changes require `pnpm sierra upload/watch` to take effect.
 
-## At the beginning of each session:
+You will use these tools for development process. All must be available and accessible. If any of these are not fully
+functional - stop immediately and inform the user:
 
-1. Check that `Sierra` MCP is available and functional, comprehend its tools. If unavailable, stop immediately and
-   notify user.
-1. Grab latest journey from `sierras journey ...`. Refresh if journey is edited
+- sierra mcp
+- sierra cli
+- sierras cli powertool
 
 ## Constraints
 
@@ -29,9 +29,9 @@ User will interact most frequently with:
 
 ## Sierras CLI (Powertool) `sierras ...`
 
-All commands require --bot <name> to identify the agent (e.g., `--bot triage/base`). Use --target <name> to select a
-workspace, e.g. --target default/baseline-pre-dedup. `--json` wrapper
-`{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
+All commands require --target <name> to select a workspace, e.g. --target default/baseline-pre-dedup.
+
+`--json` wrapper `{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
 
 ```bash
 sierras sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status

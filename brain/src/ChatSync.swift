@@ -63,7 +63,7 @@ final class ChatSyncRunner: ObservableObject {
         process.arguments = ["-u", script] + arguments
         process.currentDirectoryURL = URL(fileURLWithPath: kOutputDir)
         var env = ProcessInfo.processInfo.environment
-        env["PATH"] = "/Users/stan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        env["PATH"] = "/Users/stan/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
         process.environment = env
 
         log("\(platform.rawValue) sync: starting (\(reason)) args=\(arguments)")

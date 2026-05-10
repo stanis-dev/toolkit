@@ -24,8 +24,19 @@ struct TranscriptView: View {
         withAnimation(.easeInOut(duration: 0.2)) { appState.viewingTranscriptId = nil }
     }
 
+    private var displayedTranscriptPath: String {
+        FileManager.default.fileExists(atPath: polishedPath) ? polishedPath : txtPath
+    }
+
+    private func copyTranscriptPath() {
+        let path = displayedTranscriptPath
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+        log("Transcript: copied path to clipboard → \(path)")
+    }
+
     private func loadContent() {
-        let path = FileManager.default.fileExists(atPath: polishedPath) ? polishedPath : txtPath
+        let path = displayedTranscriptPath
         content = (try? String(contentsOfFile: path, encoding: .utf8)) ?? "Transcript not found."
         summaryContent = (try? String(contentsOfFile: summaryPath, encoding: .utf8)) ?? ""
         var seen = Set<String>()
@@ -150,6 +161,8 @@ struct TranscriptView: View {
                     }
                     .buttonStyle(NoFocusButtonStyle())
                 } else {
+                    HoverIconButton("doc.on.doc") { copyTranscriptPath() }
+                        .help("Copy transcript path: \(displayedTranscriptPath)")
                     HoverIconButton("arrow.counterclockwise") {
                         listState.transcribe(id: recording.id); goBack()
                     }

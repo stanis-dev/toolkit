@@ -36,6 +36,8 @@ class Recorder: NSObject, SCStreamOutput {
     }
 
     func start() async throws {
+        ensureDefaultInputDevice(kTargetAudioDevice)
+
         let content = try await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: false
         )

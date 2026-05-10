@@ -8,7 +8,7 @@ WORKSPACE = "/Users/stan/code/toolkit/brain"
 SPEAKERS_FILE = os.path.join(DATA_DIR, "speakers.json")
 VOCAB_FILE = os.path.join(DATA_DIR, "vocab.txt")
 SIMILARITY_THRESHOLD = 0.75
-POLISH_MODEL = "claude-4.7-opus-max-thinking"
+POLISH_MODEL = "claude-opus-4-7-thinking-high"
 POLISH_TIMEOUT = 1800
 PROJECT_CONTEXT_FILES = [
     os.path.expanduser("~/code/pronet/CLAUDE.local.md"),
@@ -113,71 +113,24 @@ def polish_and_summarize(txt_file):
     summary_out = os.path.relpath(txt_file.replace(".txt", ".summary.md"), WORKSPACE)
 
     project_context = load_project_context()
-    context_block = ""
-    if project_context:
-        context_block = (
-            f"\nUse the following project context to make better inferences "
-            f"about what the discussed topics relate to and what to-dos are relevant:\n\n"
-            f"{project_context}\n"
-        )
+    context_block = (
+        f"PROJECT_CONTEXT:\n\n{project_context}\n"
+        if project_context
+        else "PROJECT_CONTEXT: (none)\n"
+    )
 
     prompt = (
-        f"Read the file {rel_txt}. This is a raw Whisper transcription of a meeting.\n"
-        f"You have TWO tasks.\n\n"
-        f"━━━ TASK 1: Correct the transcript ━━━\n\n"
-        f"Output a corrected version of the ENTIRE transcript. Fix ONLY obvious transcription errors:\n"
-        f"- Words that are clearly misheard (wrong homophones, nonsense words, garbled domain terms)\n"
-        f"- Repeated gibberish fragments\n"
-        f"- Clearly wrong punctuation that changes meaning\n\n"
-        f"For single-word corrections where context strongly indicates the right word\n"
-        f"(abbreviations: AA→AI, homophones: takes→tags, near-misses: depth→debt),\n"
-        f"go ahead and make the fix. These are low-risk, high-clarity improvements.\n"
-        f"Only hesitate on corrections that could change the speaker's intended meaning.\n\n"
-        # f"For expressions that appear to be non-native idioms, culturally-specific phrases,\n"
-        # f"or unclear but possibly intentional wording, keep the original text but add a\n"
-        # f"brief bracketed note for the reader's context. For example:\n"
-        # f'  "killing my heavens [Turkish idiom for \'beating myself up\']"\n'
-        # f'  "million knows [misheard name]"\n'
-        # f"Keep notes concise -- a few words, not a sentence.\n\n"
-        f"For passages that remain unintelligible even after considering context,\n"
-        f"add an [unclear] or [inaudible] marker so readers know the text is unreliable.\n\n"
-        f"Do NOT:\n"
-        f"- Rephrase or improve anyone's speech\n"
-        f"- Fix grammar (non-native speakers' grammar IS their speech)\n"
-        f"- Remove filler words (um, uh, like)\n"
-        f"- Add commentary or explanations\n\n"
-        f"- Never translate Spanish to English\n\n"
-        # f"- Add commentary or explanations outside of the bracketed notes described above\n\n"
-        f"Keep timestamps and the original structure exactly as-is.\n"
-        f"NEVER change speaker labels. Speaker names were assigned by voice matching and must not be altered.\n"
-        f"The filename may contain a calendar event name — this does NOT reliably indicate who is in the call.\n"
-        f"Participants may have joined after the calendar event ended, or the call may be unrelated to the event.\n"
-        f"For long speaker turns, insert paragraph breaks at natural topic shifts to improve readability.\n"
-        f"Keep the speaker label and timestamp on the first paragraph only.\n"
-        f"Write the corrected transcript to {polished_out}\n\n"
-        f"━━━ TASK 2: Generate a summary ━━━\n\n"
-        f"After correcting the transcript, generate a structured summary for Stan (always a participant).\n\n"
-        f"If the conversation content does not match the calendar event name in the filename,\n"
-        f"add a first line: ## Title: <descriptive name for the actual conversation>\n"
-        f"Only add this line when the filename is misleading. Otherwise omit it.\n\n"
-        f"## Summary\n"
-        f"A concise 3-7 bullet point summary covering: key topics discussed, decisions made, and open questions.\n\n"
-        f"## To-Dos\n"
-        f"Extract actionable to-dos. For each:\n"
-        f"- Include the timestamp [MM:SS] where it was discussed\n"
-        f"- Brief description of the task\n"
-        f"- Who is responsible (bold the name)\n\n"
-        f"Default assumption: if a task was discussed but not explicitly assigned to someone else, "
-        f"it is Stan's task. Stan works on Sierra agent projects and is responsible for technical "
-        f"implementation and client-facing coordination.\n\n"
-        f"Format each to-do as: - [ ] [MM:SS] Description — **Name**\n"
-        f"{context_block}\n"
-        f"Write the summary to {summary_out}"
+        f"Read the prompt instructions at prompts/polish.md and follow them exactly.\n\n"
+        f"Variable bindings:\n"
+        f"- INPUT_TRANSCRIPT: {rel_txt}\n"
+        f"- POLISHED_OUTPUT: {polished_out}\n"
+        f"- SUMMARY_OUTPUT: {summary_out}\n\n"
+        f"{context_block}"
     )
 
     reasoning_file = txt_file.replace(".txt", ".reasoning.jsonl")
 
-    print("  Correcting + summarizing with LLM...")
+    print(f"  Correcting + summarizing with LLM (model={POLISH_MODEL})...")
     try:
         result = subprocess.run(
             [agent_path, "--print", "--output-format", "stream-json",
@@ -185,21 +138,34 @@ def polish_and_summarize(txt_file):
              "--model", POLISH_MODEL, "--workspace", WORKSPACE, prompt],
             capture_output=True, text=True, timeout=POLISH_TIMEOUT,
         )
+
+        if result.returncode != 0:
+            stderr_tail = (result.stderr or "").strip().splitlines()[-5:]
+            print(f"  Agent exited with code {result.returncode}")
+            for line in stderr_tail:
+                print(f"    stderr: {line}")
+            return
+
         if result.stdout.strip():
             with open(reasoning_file, "w") as f:
                 f.write(result.stdout)
             print(f"  Reasoning saved ({os.path.getsize(reasoning_file)} bytes)")
+        else:
+            print("  Agent produced no stdout (no reasoning to save)")
 
         polished_file = txt_file.replace(".txt", ".polished.txt")
         summary_file = txt_file.replace(".txt", ".summary.md")
         if os.path.exists(polished_file):
             print(f"  Polished transcript saved ({os.path.getsize(polished_file)} bytes)")
         else:
-            print(f"  Polish: output file not created")
+            print("  Polish: output file not created")
+            stderr_tail = (result.stderr or "").strip().splitlines()[-5:]
+            for line in stderr_tail:
+                print(f"    stderr: {line}")
         if os.path.exists(summary_file):
             print(f"  Summary saved ({os.path.getsize(summary_file)} bytes)")
         else:
-            print(f"  Summary: output file not created")
+            print("  Summary: output file not created")
     except subprocess.TimeoutExpired:
         print(f"  Timed out after {POLISH_TIMEOUT}s")
     except Exception as e:
