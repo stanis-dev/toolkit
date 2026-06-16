@@ -10,3 +10,9 @@ brain/.venv/
 brain/.env
 brain/node_modules/
 brain/scripts/__pycache__/
+
+# Claude Code local settings (personal permissions)
+.claude/settings.local.json
+
+# Job hunt assistant personal data (never commit)
+jobhunt-data/

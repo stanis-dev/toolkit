@@ -79,6 +79,36 @@ Simulations must be evaluated:
   evaluating what matters.
 - Only then the pass or fail becomes relevant.
 
+## Synthesis Rewrites (voice)
+
+Regex substitutions applied to agent text just before TTS. **Audio-only**: transcripts, chat, sims, and
+issue snippets all keep the original text. Right tool when text is correct but spoken wrong
+(pronunciation); wrong tool when the text itself is the defect (use prompt guidance / KB fix instead).
+
+- **Pacing**: spaced capitals (`D E`) make TTS insert long pauses between letters; dash-joined letters
+  (`D-E`) give a shorter but still audible separation — use dashes for spelling at natural cadence
+  (e.g. German domain endings: `.de` → ` Punkt D-E`).
+- **String patterns match literal substrings** (grounded via `ask_sierra_assistant`, 2026-06): no regex
+  interpretation, and case-sensitive — so regex syntax inside a string (`"\\b\\d{4}\\b"`) is a silently
+  dead rule, and case variants need either explicit pairs (`www.` / `WWW.`) or a RegExp.
+- **RegExp patterns are fully supported**: flags honored end-to-end, applied in-memory before TTS (no
+  JSON serialization boundary). Use `/\.de/gi` style — the `g` flag matters, a non-global regex replaces
+  only the first occurrence.
+- **Replacements are passed verbatim** to the TTS engine — no normalization, and SSML is effectively
+  unsupported on OpenAI tts-1, so encode pronunciation in plain text. Start the replacement with a
+  leading space when the pattern can directly follow a word (`".de"` → `" Punkt D-E"`).
+- **Verify by ear in Studio**: Preview chat in voice mode renders TTS with in-progress synthesis rules —
+  no publish or phone call needed. TTS pronunciation can drift across provider updates; test empirically.
+- Punctuation pause/pronunciation reference (pause ladder, spoken-vs-silent, stability per element):
+  see `references/tts-punctuation.md`.
+- Rules apply **in array order** — specific patterns must precede generic ones they overlap with.
+
+## Useful diagnostic steps
+
+1. Explore the conversation and find the earliest deviation from spec. Don't just evaluate agent's responses, but also
+   tags for internal flow and tool/api responses, calls and their data.
+1. Create a simulation with the sole goal of forcing agent into the same situation and observe replay.
+
 ## Development Flow
 
 ### New Feature
