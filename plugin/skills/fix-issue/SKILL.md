@@ -46,7 +46,9 @@ issue-linked conversations from `get_issue_details` and any explicit conversatio
 you.
 
 **Exit criteria:** You understand the specific agent behavior that went wrong and have a hypothesis
-about the root cause (wrong tool response, missing policy, incorrect condition, etc.).
+about the root cause -- something missing (a policy gap, a wrong tool response, an incorrect
+condition) or something present (competing instructions, a stale policy, an over-specific rule left
+by a previous fix).
 
 ---
 
@@ -75,18 +77,15 @@ If the behavior is wired through a code-defined `tool_ref`, keep the `tool_ref` 
 only the surrounding no-code config here. If the registered tool implementation itself needs to
 change, tell the user that fix has to happen in the SDK/runtime layer.
 
-Apply the smallest change that addresses the root cause. Avoid adding policies to patch over tool or
-routing problems -- fix the source of truth for the behavior.
+Apply the smallest change that addresses the root cause: correct the block or tool that produced the
+bad behavior instead of adding a policy to patch over it. Before writing anything, name the kind of
+change the diagnosis calls for -- a deletion, an edit, or an addition. Do not let "fix" silently
+mean "add": when the root cause is something present rather than something missing, the fix is to
+delete or rewrite it, and the definition gets smaller. The editing rules in "Start lean: context is
+precious" (workspace instructions) bind hardest here; after the fix, remove or merge anything the
+fix made redundant.
 
-The smallest change is usually an edit, not an addition. Repeated point fixes are how agents
-accumulate bloat: each new rule, policy, or tool is locally small but globally additive (see "How
-the runtime assembles the prompt" in the workspace instructions). Before adding any block or tool,
-search the workspace for existing context that already covers the behavior and prefer correcting the
-block or tool that produced the bad behavior. A new block that paraphrases an existing one competes
-with it rather than reinforcing it. After the fix, re-read the blocks in the scope you touched and
-remove or merge anything the fix made redundant.
-
-**Exit criteria:** The relevant blocks have been updated to address the root cause.
+**Exit criteria:** The relevant blocks have been updated or removed to address the root cause.
 
 ---
 
@@ -106,12 +105,12 @@ remains unresolved and why.
 
 ## Quality checklist
 
-| #   | Check                                                                                        |
-| --- | -------------------------------------------------------------------------------------------- |
-| 1   | Called `get_issue_details` before investigating                                              |
-| 2   | Synced and analyzed the relevant conversations via `/debug-conversations`                    |
-| 3   | Built reproduction simulation via `/add-simulation-test`                                     |
-| 4   | Checked whether the issue is already fixed before making changes                             |
-| 5   | Fix addresses root cause, not symptoms                                                       |
-| 6   | Fix edits existing blocks/tools where possible; nothing added that restates existing context |
-| 7   | Reproduction simulation passes after the fix                                                 |
+| #   | Check                                                                                                       |
+| --- | ----------------------------------------------------------------------------------------------------------- |
+| 1   | Called `get_issue_details` before investigating                                                             |
+| 2   | Synced and analyzed the relevant conversations via `/debug-conversations`                                   |
+| 3   | Built reproduction simulation via `/add-simulation-test`                                                    |
+| 4   | Checked whether the issue is already fixed before making changes                                            |
+| 5   | Fix addresses root cause, not symptoms                                                                      |
+| 6   | Named the fix as a deletion, edit, or addition before writing; nothing added that restates existing context |
+| 7   | Reproduction simulation passes after the fix                                                                |

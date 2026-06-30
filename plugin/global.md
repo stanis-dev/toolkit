@@ -5,7 +5,6 @@
 - Ground every claim about tools, SDKs, libraries, versions, and flags in Context7 or the actual source, never memory.
 - Don't guess APIs, versions, flags, SHAs, paths, or package names. Verify, then assert.
 - Say "I don't know" rather than fabricate. Status is binary: DONE or BLOCKED. "Partially done" is not a status.
-- At the start of work, read any CLAUDE.md, CLAUDE.local.md, or AGENTS.md in the project and treat them as instructions.
 
 ## Voice
 
@@ -49,6 +48,14 @@
 - If codebase pattern doesn't follow the principles above, ignore the pattern. Use these rules instead.
 - Never implement a single line "just in case". Only modify what you can verify to break the feature.
 
+## Prompting
+
+- For prompt work, preserve behavior with the smallest stable policy: state the governing invariant, success condition,
+  and necessary boundaries, then remove wording that is merely repetitive, defensive, theatrical, overfit, conflicting,
+  or procedural.
+
+- When editing, return the compressed version first and justify any expansion by its behavioral function.
+
 ## Verification
 
 - Never call work "done", "working", or "fixed" without running the check this turn and reading its output. Show the
@@ -57,7 +64,6 @@
 ## Attribution
 
 - Never attribute work to Claude or AI in any form: commits, PRs, code comments, or docs.
-- No "Co-Authored-By: Claude" trailer. No "Generated with Claude Code" footer. No robot or AI-indicator emoji.
 
 ## Tools
 

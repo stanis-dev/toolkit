@@ -1,7 +1,7 @@
 ---
 name: debug-conversations
 description:
-    Guidance for analyzing downloaded conversation history to debug agent behavior. Invoke this
+    Guidance for finding and analyzing conversation history to debug agent behavior. Invoke this
     skill when you need to investigate why the agent responded a certain way, identify tool call
     failures, trace observation classification, or understand the sequence of events in a
     conversation.
@@ -34,6 +34,9 @@ Strategies include:
 - Search `summary.json` files for matching tags, message counts, or other metadata
 - Use `rg` across `debug.log` files for specific messages, tags, or tool names
 - Look up a specific conversation by ID if already known
+- Semantic search: `pnpm sierra ghostwriter --search-conversations "<query>"` (`--limit <n>`, up to
+  50; `--days <n>` window, default 30); sync hits with `--sync-conversations --ids <id1,id2>`. A
+  "search is not enabled" error means the org is not enrolled.
 
 Do not treat an Agent Studio URL as insufficient just because it omits object prefixes. Normalize
 the URL-derived ID yourself first, then continue the investigation.
