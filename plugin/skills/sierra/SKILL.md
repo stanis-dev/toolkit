@@ -66,10 +66,6 @@ sierras sim bench list                                       # List all bench ru
 sierras sim bench status <run-id>                            # Check progress of running bench
 sierras sim bench collect <run-id>                           # Collect results for interrupted bench
 
-sierras knowledge search "query"                             # workspace-scoped
-sierras knowledge search "query" --live                      # live published view
-sierras knowledge search "query" --source <id>,<id>
-
 ```
 
 ## Simulations
