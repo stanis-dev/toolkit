@@ -8,7 +8,11 @@
 #
 # Verified in April 2026 against:
 #   - ~/.agents/skills/   read by Codex, OpenCode, Pi, Cursor
-#   - ~/.claude/skills/   read by Claude Code (and OpenCode/Cursor as fallback)
+#
+# Claude Code is deliberately NOT linked: it gets these skills via the
+# toolkit plugin (stan-marketplace), and ~/.claude/skills must stay a real
+# directory for machine-local skills synced by other tools (e.g. Sierra
+# Agent Studio).
 
 set -euo pipefail
 
@@ -20,7 +24,6 @@ mkdir -p "$CANONICAL"
 
 TARGETS=(
   "$HOME/.agents/skills"
-  "$HOME/.claude/skills"
 )
 
 TS="$(date +%Y%m%d-%H%M%S)"
