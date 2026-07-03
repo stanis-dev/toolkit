@@ -29,12 +29,16 @@ functional - stop immediately and inform the user:
 
 ## Sierras CLI (Powertool) `sierras ...`
 
-All commands require --target <name> to select a workspace, e.g. --target default/baseline-pre-dedup.
+All commands require --target <path> pointing at a .targets file, e.g. --target agents/<bot>/.targets/default. The
+file is the sole source of org, workspace, and bot scope. The old scope flags (--org, --bot, --bot-id,
+--workspace-id, --workspace-name) no longer exist and fail as unknown flags. Missing --target fails with a typed
+validation_failed error plus a recovery command. Exception: sim bench resume/status/collect/cancel/query/list work
+without --target — scope is restored from the bench run itself; passing a mismatching --target with a run-id errors.
 
 `--json` wrapper `{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
 
 ```bash
-sierras sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status
+sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-bench-run-id command needs it)
 
 sierras sim status                                           # Suite summary (pass/fail/running counts)
 
