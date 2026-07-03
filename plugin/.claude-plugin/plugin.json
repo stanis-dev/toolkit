@@ -1,7 +1,6 @@
 {
   "name": "toolkit",
-  "description": "Personal development toolkit: Sierra agent workflows, research prompts, homelab SSH, music discovery",
-  "version": "1.9.1",
+  "description": "Personal development toolkit: research prompts, browser automation, homelab SSH, music discovery",
   "author": {
     "name": "Stan"
   },
