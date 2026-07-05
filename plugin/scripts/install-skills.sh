@@ -1,63 +1,47 @@
 #!/usr/bin/env bash
-# Install directory symlinks so every supported agent tool reads skills from
-# this plugin's skills/ directory.
+# Install per-skill symlinks so agent tools read each authored skill live
+# from this plugin's skills/ directory.
+#
+# ~/.agents/skills stays a REAL directory and only the individual skill
+# dirs inside it are symlinks. Tools that sync their own skills into it
+# (e.g. Sierra Agent Studio) then write machine-local copies instead of
+# writing through a directory symlink into this repo.
+#
+# Claude Code is deliberately not linked at all: it gets these skills via
+# the toolkit plugin (stan-marketplace), and ~/.claude/skills must stay a
+# real directory for machine-local skills.
 #
 # Idempotent: re-running is safe.
-# Existing real directories at the target paths are backed up to
-# <path>.bak.<timestamp> before being replaced by the symlink.
-#
-# Verified in April 2026 against:
-#   - ~/.agents/skills/   read by Codex, OpenCode, Pi, Cursor
-#
-# Claude Code is deliberately NOT linked: it gets these skills via the
-# toolkit plugin (stan-marketplace), and ~/.claude/skills must stay a real
-# directory for machine-local skills synced by other tools (e.g. Sierra
-# Agent Studio).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CANONICAL="$(cd "$SCRIPT_DIR/.." && pwd)/skills"
 
-# Ensure canonical exists (skills can be added later).
-mkdir -p "$CANONICAL"
+TARGET="$HOME/.agents/skills"
 
-TARGETS=(
-  "$HOME/.agents/skills"
-)
+# A leftover whole-directory symlink would route tool writes into the repo.
+if [[ -L "$TARGET" ]]; then
+  echo "  ↻ $TARGET  (was a directory symlink; replacing with real dir)"
+  rm "$TARGET"
+fi
+mkdir -p "$TARGET"
 
-TS="$(date +%Y%m%d-%H%M%S)"
 linked=0
 skipped=0
-backed_up=0
 
-echo "Canonical source: $CANONICAL"
-echo
-
-for path in "${TARGETS[@]}"; do
-  mkdir -p "$(dirname "$path")"
-
-  if [[ -L "$path" ]]; then
-    current="$(readlink "$path")"
-    if [[ "$current" == "$CANONICAL" ]]; then
-      echo "  ✓ $path  (already linked)"
-      ((skipped++))
-      continue
-    fi
-    echo "  ↻ $path  (was symlink to $current; repointing)"
-    rm "$path"
-  elif [[ -e "$path" ]]; then
-    backup="${path}.bak.${TS}"
-    mv "$path" "$backup"
-    echo "  ⚠ $path  (existing dir backed up to $backup)"
-    ((backed_up++))
-  else
-    echo "  + $path  (creating)"
+for skill in "$CANONICAL"/*/; do
+  name="$(basename "$skill")"
+  path="$TARGET/$name"
+  if [[ -L "$path" && "$(readlink "$path")" == "${skill%/}" ]]; then
+    echo "  ✓ $path  (already linked)"
+    ((skipped++))
+    continue
   fi
-
-  ln -s "$CANONICAL" "$path"
+  ln -sfn "${skill%/}" "$path"
+  echo "  + $path"
   ((linked++))
 done
 
 echo
-echo "Done. linked=$linked  skipped=$skipped  backed_up=$backed_up"
+echo "Done. linked=$linked  skipped=$skipped"
