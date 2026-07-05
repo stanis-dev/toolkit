@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install symlinks from each agent tool's expected global instruction path
-# to the toolkit's canonical file (plugin/global.md by default).
+# to the toolkit's canonical file (context/global.md at the repo root).
 #
 # Idempotent: re-running is safe.
 # Existing regular files are backed up to <path>.bak.<timestamp> before replacement.
@@ -16,9 +16,9 @@
 
 set -euo pipefail
 
-# Canonical source is always ../global.md
+# Canonical source is always <repo root>/context/global.md
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CANONICAL="$(cd "$SCRIPT_DIR/.." && pwd)/global.md"
+CANONICAL="$(cd "$SCRIPT_DIR/../.." && pwd)/context/global.md"
 
 if [[ ! -f "$CANONICAL" ]]; then
   echo "ERROR: canonical file not found: $CANONICAL" >&2
