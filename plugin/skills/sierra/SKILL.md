@@ -32,17 +32,30 @@ functional - stop immediately and inform the user:
 All commands require --target <path> pointing at a .targets file, e.g. --target agents/<bot>/.targets/default. The
 file is the sole source of org, workspace, and bot scope. The old scope flags (--org, --bot, --bot-id,
 --workspace-id, --workspace-name) no longer exist and fail as unknown flags. Missing --target fails with a typed
-validation_failed error plus a recovery command. Exception: sim bench resume/status/collect/cancel/query/list work
-without --target — scope is restored from the bench run itself; passing a mismatching --target with a run-id errors.
+validation_failed error plus a recovery command. Exception: sim resume/results/history and sim cancel <run-id> work
+without --target — scope is restored from the run record; passing a mismatching --target with a run-id errors.
 
 `--json` wrapper `{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
 
+There is ONE command for running sims: `sierras sim run`. It always blocks until completion and reports (there is
+no fire-and-forget mode; background the process if you need to keep working). Every invocation is recorded with a
+run ID (`run-...`) for later inspection. The old commands sim run-all, sim wait-all, sim bench *, sim cancel-all,
+and sim run --async were removed and fail with a pointer to the replacement.
+
 ```bash
-sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-bench-run-id command needs it)
+sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-run-id command needs it)
 
 sierras sim status                                           # Suite summary (pass/fail/running counts)
 
-sierras sim run <name> [--count <n>] [--timeout <duration>]  # Run a single sim (blocks until done)
+sierras sim run <name>                                       # Run one sim (exact name, else regex), waits, renders full replay
+sierras sim run [--group <g>] [--category <c>] [--rg <pat>]  # Run a filtered set; no filters = every sim in the workspace
+sierras sim run --count <n>                                  # n runs per sim (default 1); use 3+ for flake detection
+sierras sim run ... --peek                                   # Preview matched sims without running
+sierras sim resume <run-id>                                  # Re-attach to an interrupted run (Ctrl+C, cap handback)
+sierras sim results [run-id] [--failed] [--flaky] [--sim <n>] [--collect]  # Results/progress; no run-id = most recent run
+sierras sim history [--status <s>]                           # List recorded runs, newest first
+sierras sim cancel <run-id>                                  # Cancel that run's queued/running sims
+sierras sim cancel --all                                     # Cancel ALL running sims in workspace (needs --target)
 
 sierras sim replay <name>                                    # Latest result in turn-grouped format
 sierras sim replay <name> --id <id>                          # Specific result by ID
@@ -54,18 +67,6 @@ sierras sim replay <name> --trace <turn>                     # All LLM API calls
 sierras sim search <term> [--rg <pat>] [--cross-workspace]   # Search replay content by substring
 
 sierras sim diff --left <ws> --right <ws> [--detailed]       # Compare results between workspaces
-
-sierras sim cancel-all                                       # Cancel ALL running sims in workspace (clean slate)
-
-sierras sim bench start --rg <pat> --count <n> [--peek]      # Bench evaluation with regex sim filter
-sierras sim bench start --group <g> --count <n>              # Bench evaluation by group
-sierras sim bench start --rg <pat> --count <n> --peek        # Preview matched sims without running
-sierras sim bench cancel <run-id>                            # Cancel all running/pending sims in a bench run
-sierras sim bench query <run-id> [--failed] [--flaky]        # Query bench results
-sierras sim bench list                                       # List all bench runs
-sierras sim bench status <run-id>                            # Check progress of running bench
-sierras sim bench collect <run-id>                           # Collect results for interrupted bench
-
 ```
 
 ## Simulations
