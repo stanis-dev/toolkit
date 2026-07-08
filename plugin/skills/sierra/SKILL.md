@@ -52,7 +52,9 @@ sierras sim run [--group <g>] [--category <c>] [--rg <pat>]  # Run a filtered se
 sierras sim run --count <n>                                  # n runs per sim (default 1); use 3+ for flake detection
 sierras sim run ... --peek                                   # Preview matched sims without running
 sierras sim resume <run-id>                                  # Re-attach to an interrupted run (Ctrl+C, cap handback)
-sierras sim results [run-id] [--failed] [--flaky] [--sim <n>] [--collect]  # Results/progress; no run-id = most recent run
+sierras sim results [run-id] [--failed] [--flaky] [--sim <n>] [--collect]  # Results/progress; no run-id = most recent run; run lines include the result ID
+sierras sim results <run-id> --failed --replay               # Full transcripts of that run's FAILED results — use this to debug failures; never enumerate result sets by hand
+sierras sim results <run-id> --sim <n> [--run <i>] --replay  # Transcripts for one sim's runs (pass/fail labeled)
 sierras sim history [--status <s>]                           # List recorded runs, newest first
 sierras sim cancel <run-id>                                  # Cancel that run's queued/running sims
 sierras sim cancel --all                                     # Cancel ALL running sims in workspace (needs --target)
