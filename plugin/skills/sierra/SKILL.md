@@ -42,6 +42,13 @@ no fire-and-forget mode; background the process if you need to keep working). Ev
 run ID (`run-...`) for later inspection. The old commands sim run-all, sim wait-all, sim bench *, sim cancel-all,
 and sim run --async were removed and fail with a pointer to the replacement.
 
+On completion, every replay transcript is saved automatically to <tmp>/sierras/runs/<run-id>/ — one plain-text
+file per run (`<sim-slug>--run-NN.PASSED.txt` / `.FAILED.txt`) plus index.txt mapping files to sims and result
+IDs. The completion report prints the directory; in --json it is `data.replayDir` with `data.failedReplays`
+listing failed-transcript paths. Read/grep those files directly (e.g. `grep -l "OUTCOME\[missed\]"
+<dir>/*.FAILED.txt`) instead of re-fetching replays through the CLI. `--replay` remains for fetching a run's
+transcripts on demand.
+
 ```bash
 sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-run-id command needs it)
 
