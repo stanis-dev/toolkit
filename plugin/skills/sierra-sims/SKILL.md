@@ -29,6 +29,8 @@ Customer LLM's goal is to steer the agent into the exact scenario that is intend
 - Underspecified customer LLM improvisation steering conversation from the desired scenario, causing a simulation to
   fail due to that and not the agent's fault.
 - Customer LLM hints agent towards the right path with implementation info a real customer would not have.
+- Customer LLM parrots its instructions with same wording as the journey, instead of natural wording a real customer
+  would most likely use.
 
 ## Evaluation Criteria
 
