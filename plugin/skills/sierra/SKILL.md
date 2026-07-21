@@ -36,6 +36,8 @@ validation_failed error plus a recovery command. Exception: sim resume/results/h
 without --target — scope is restored from the run record; passing a mismatching --target with a run-id errors.
 
 `--json` wrapper `{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
+Errors in `--json` mode also print this envelope to stdout with `status: "error"`, the message in `summary`, and a
+typed recovery command — parse stdout even on exit 1.
 
 There is ONE command for running sims: `sierras sim run`. It always blocks until completion and reports (there is
 no fire-and-forget mode; background the process if you need to keep working). Every invocation is recorded with a
@@ -48,6 +50,16 @@ IDs. The completion report prints the directory; in --json it is `data.replayDir
 listing failed-transcript paths. Read/grep those files directly (e.g. `grep -l "OUTCOME\[missed\]"
 <dir>/*.FAILED.txt`) instead of re-fetching replays through the CLI. `--replay` remains for fetching a run's
 transcripts on demand.
+
+Result collection is pinned to the workspace version that was current at trigger time, so publishing or version
+bumps during a run do not lose its results. If the platform has no matching result set for some sims, the run
+finalizes as completed_with_errors and the command exits with a typed partial_failure error whose recovery is
+`sierras sim results <run-id> --collect` — rerun that to retry collection. The `sim results` summary reports
+`versionChanged` (with trigger and new version IDs) when a bump happened mid-run.
+
+`sim list` reflects the CURRENT workspace version's latest result per sim; CLI-triggered batch runs often show
+PEND there — use `sim results <run-id>` for run outcomes. Multi-run sets aggregate (any RUNNING → RUN, any
+FAILED → FAIL) with an `x/N passed` suffix.
 
 ```bash
 sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-run-id command needs it)
@@ -66,7 +78,7 @@ sierras sim history [--status <s>]                           # List recorded run
 sierras sim cancel <run-id>                                  # Cancel that run's queued/running sims
 sierras sim cancel --all                                     # Cancel ALL running sims in workspace (needs --target)
 
-sierras sim replay <name>                                    # Latest result in turn-grouped format
+sierras sim replay <name>                                    # Latest result (fetched live), turn-grouped; header shows RESULT: <id> | CREATED: <time>
 sierras sim replay <name> --id <id>                          # Specific result by ID
 sierras sim replay <name> --list                             # List all available results
 sierras sim replay <name> --transcript                       # Conversation only (no metadata)
