@@ -9,7 +9,7 @@ Sierra Agents are developed with a custom SDK based on React, with components re
 final context is compiled from the combination of the following items and all of them must be tracked to avoid having
 only partial understanding of agent context:
 
-- Studio Journey definition: `sierras journey ...`
+- Studio Journey definition: synced to `.composer/` by `pnpm sierra ghostwriter --sync`
 - Studio Configuration
 - Knowledge Base
 - Codebase context. Changes require `pnpm sierra upload/watch` to take effect.
@@ -19,7 +19,6 @@ functional - stop immediately and inform the user:
 
 - sierra mcp
 - sierra cli
-- sierras cli powertool
 
 ## Constraints
 
@@ -27,68 +26,32 @@ functional - stop immediately and inform the user:
     - use `sierra` mcp tool: `ask_sierra_assistant`
     - sdk source files in `node_modules`
 
-## Sierras CLI (Powertool) `sierras ...`
+## Replays, conversations and traces
 
-All commands require --target <path> pointing at a .targets file, e.g. --target agents/<bot>/.targets/default. The
-file is the sole source of org, workspace, and bot scope. The old scope flags (--org, --bot, --bot-id,
---workspace-id, --workspace-name) no longer exist and fail as unknown flags. Missing --target fails with a typed
-validation_failed error plus a recovery command. Exception: sim resume/results/history and sim cancel <run-id> work
-without --target — scope is restored from the run record; passing a mismatching --target with a run-id errors.
+`pnpm sierra ghostwriter <workspace> --sync-conversations [--ids <id>,...]` and
+`--sync-simulations --run-id <replaytestrunset-...>` download conversation and simulation
+artifacts into `.composer/`. Neither flag appears in `--help`; both are documented in
+`.composer/docs/agent-traces-reference.md`. Pass the workspace positionally or the command
+prompts. Conversation ids need the `audit-` prefix.
 
-`--json` wrapper `{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
-Errors in `--json` mode also print this envelope to stdout with `status: "error"`, the message in `summary`, and a
-typed recovery command — parse stdout even on exit 1.
+Layout is identical for a conversation and a simulation result:
 
-There is ONE command for running sims: `sierras sim run`. It always blocks until completion and reports (there is
-no fire-and-forget mode; background the process if you need to keep working). Every invocation is recorded with a
-run ID (`run-...`) for later inspection. The old commands sim run-all, sim wait-all, sim bench *, sim cancel-all,
-and sim run --async were removed and fail with a pointer to the replacement.
+- `summary.json` / `result.json` — metadata
+- `debug.log` — CSV event log (`seq,timestamp,event_type,message`); the reference doc lists which
+  event types have a trace file
+- `traces/<turn>.trace` — one file per turn that made an LLM call
 
-On completion, every replay transcript is saved automatically to <tmp>/sierras/runs/<run-id>/ — one plain-text
-file per run (`<sim-slug>--run-NN.PASSED.txt` / `.FAILED.txt`) plus index.txt mapping files to sims and result
-IDs. The completion report prints the directory; in --json it is `data.replayDir` with `data.failedReplays`
-listing failed-transcript paths. Read/grep those files directly (e.g. `grep -l "OUTCOME\[missed\]"
-<dir>/*.FAILED.txt`) instead of re-fetching replays through the CLI. `--replay` remains for fetching a run's
-transcripts on demand.
+Each `.trace` holds `llm_chat` (purpose, plus `raw_request` carrying model, temperature,
+max_output_tokens, tools, reasoning effort), `llm_chat_response` (input/output tokens, cached,
+retries, raw response) and `task` (task_id, input, output).
 
-Result collection is pinned to the workspace version that was current at trigger time, so publishing or version
-bumps during a run do not lose its results. If the platform has no matching result set for some sims, the run
-finalizes as completed_with_errors and the command exits with a typed partial_failure error whose recovery is
-`sierras sim results <run-id> --collect` — rerun that to retry collection. The `sim results` summary reports
-`versionChanged` (with trigger and new version IDs) when a bump happened mid-run.
+Read `summary.json`/`result.json` first, then `debug.log`, then only the traces for the rows that
+matter. The `personalized_progress_indicator` call is not captured in these traces.
 
-`sim list` reflects the CURRENT workspace version's latest result per sim; CLI-triggered batch runs often show
-PEND there — use `sim results <run-id>` for run outcomes. Multi-run sets aggregate (any RUNNING → RUN, any
-FAILED → FAIL) with an `x/N passed` suffix.
-
-```bash
-sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-run-id command needs it)
-
-sierras sim status                                           # Suite summary (pass/fail/running counts)
-
-sierras sim run <name>                                       # Run one sim (exact name, else regex), waits, renders full replay
-sierras sim run [--group <g>] [--category <c>] [--rg <pat>]  # Run a filtered set; no filters = every sim in the workspace
-sierras sim run --count <n>                                  # n runs per sim (default 1); use 3+ for flake detection
-sierras sim run ... --peek                                   # Preview matched sims without running
-sierras sim resume <run-id>                                  # Re-attach to an interrupted run (Ctrl+C, cap handback)
-sierras sim results [run-id] [--failed] [--flaky] [--sim <n>] [--collect]  # Results/progress; no run-id = most recent run; run lines include the result ID
-sierras sim results <run-id> --failed --replay               # Full transcripts of that run's FAILED results — use this to debug failures; never enumerate result sets by hand
-sierras sim results <run-id> --sim <n> [--run <i>] --replay  # Transcripts for one sim's runs (pass/fail labeled)
-sierras sim history [--status <s>]                           # List recorded runs, newest first
-sierras sim cancel <run-id>                                  # Cancel that run's queued/running sims
-sierras sim cancel --all                                     # Cancel ALL running sims in workspace (needs --target)
-
-sierras sim replay <name>                                    # Latest result (fetched live), turn-grouped; header shows RESULT: <id> | CREATED: <time>
-sierras sim replay <name> --id <id>                          # Specific result by ID
-sierras sim replay <name> --list                             # List all available results
-sierras sim replay <name> --transcript                       # Conversation only (no metadata)
-sierras sim replay <name> --verbose                          # Flat event timeline
-sierras sim replay <name> --trace <turn>                     # All LLM API calls for a turn
-
-sierras sim search <term> [--rg <pat>] [--cross-workspace]   # Search replay content by substring
-
-sierras sim diff --left <ws> --right <ws> [--detailed]       # Compare results between workspaces
-```
+Running sims: `pnpm sierra test --names <name> --num-runs <n>` (server caps `--num-runs` at 5;
+invoke twice for more) or the `run_test` MCP tool. `get_test_results` with `verbose:true` returns
+trace spans, prompt contexts with full bodies, and the model, but carries no temperature or token
+counts, and reaches only a test's latest result.
 
 ## Simulations
 
