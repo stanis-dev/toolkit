@@ -37,6 +37,15 @@ final class TodoOverlayState: ObservableObject {
         focusRequestID = UUID()
     }
 
+    var hasPendingSave: Bool { saveWorkItem != nil }
+
+    func flushPendingSave() {
+        guard saveWorkItem != nil else { return }
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
+        persist(rawText)
+    }
+
     private func observeEdits() {
         $rawText
             .dropFirst()

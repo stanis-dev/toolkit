@@ -8,6 +8,7 @@ struct AppRootView: View {
     @ObservedObject var assistantState: AssistantState
     @ObservedObject var chatSync: ChatSyncRunner
     @ObservedObject var chatAutoRefresh: ChatAutoRefreshCoordinator
+    @ObservedObject var audioEnforcer: AudioDeviceEnforcer
 
     var body: some View {
         HStack(spacing: 0) {
@@ -38,7 +39,7 @@ struct AppRootView: View {
                     case .dictator:
                         DictatorTabView()
                     case .macos:
-                        MacOSTabView(exporter: chatSync, autoRefresh: chatAutoRefresh)
+                        MacOSTabView(enforcer: audioEnforcer, exporter: chatSync, autoRefresh: chatAutoRefresh)
                     case .settings:
                         SettingsTabView()
                     case .logs:

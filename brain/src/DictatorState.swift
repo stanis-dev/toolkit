@@ -153,14 +153,35 @@ class DictatorState: ObservableObject {
         }
     }
 
+    /// Blocking readLine with a deadline. On timeout it terminates `process`,
+    /// which closes the pipe and unblocks the underlying read, then returns nil.
+    /// Prevents a stalled dictate.py (first-run model download, MPS hang) from
+    /// leaving the panel stuck on "Transcribing" forever.
+    private func readLine(from handle: FileHandle, timeout: TimeInterval, process: Process?) -> String? {
+        let sem = DispatchSemaphore(value: 0)
+        var result: String?
+        DispatchQueue.global(qos: .userInitiated).async {
+            result = self.readLine(from: handle)
+            sem.signal()
+        }
+        if sem.wait(timeout: .now() + timeout) == .timedOut {
+            log("Dictator: read timed out after \(Int(timeout))s — killing process")
+            if let process, process.isRunning { process.terminate() }
+            _ = sem.wait(timeout: .now() + 2)
+            return nil
+        }
+        return result
+    }
+
     private func transcribe(url: URL) -> String? {
         guard let stdin = warmStdin, let stdout = warmStdout else {
             log("Dictator: no warm process, falling back to cold start")
             return transcribeCold(url: url)
         }
 
-        // Wait for "ready" from the warm process
-        guard let readyLine = readLine(from: stdout), readyLine.hasPrefix("ready") else {
+        // Wait for "ready" (generous: first run downloads the model)
+        let readyLine = readLine(from: stdout, timeout: 180, process: warmProcess)
+        guard let readyLine, readyLine.hasPrefix("ready") else {
             log("Dictator: warm process did not become ready, falling back")
             tearDownWarmProcess()
             return transcribeCold(url: url)
@@ -172,7 +193,7 @@ class DictatorState: ObservableObject {
         stdin.closeFile()
 
         // Read transcription result
-        let text = readLine(from: stdout)?
+        let text = readLine(from: stdout, timeout: 60, process: warmProcess)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         warmProcess?.waitUntilExit()
@@ -216,8 +237,9 @@ class DictatorState: ObservableObject {
         let stdinH = stdinPipe.fileHandleForWriting
         let stdoutH = stdoutPipe.fileHandleForReading
 
-        guard let _ = readLine(from: stdoutH) else {
+        guard let _ = readLine(from: stdoutH, timeout: 180, process: proc) else {
             log("Dictator: cold process did not become ready")
+            if proc.isRunning { proc.terminate() }
             return nil
         }
 
@@ -225,7 +247,7 @@ class DictatorState: ObservableObject {
         stdinH.write(pathLine.data(using: .utf8)!)
         stdinH.closeFile()
 
-        let text = readLine(from: stdoutH)?
+        let text = readLine(from: stdoutH, timeout: 60, process: proc)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         proc.waitUntilExit()

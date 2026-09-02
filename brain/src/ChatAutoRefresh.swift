@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Combine
 import Darwin
+import UserNotifications
 
 struct AutoRefreshPlatformStatus {
     var headline: String = ""
@@ -11,6 +12,7 @@ struct AutoRefreshPlatformStatus {
     var lastSuccessAt: Date?
     var isWatching: Bool = false
     var isEnabled: Bool = true
+    var degradedReason: String?
 }
 
 private final class SlackPendingBucket {
@@ -96,6 +98,10 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
     private var lastSlackReconcileRequestAt: Date?
     private var lastSlackDiscoveryRequestAt: Date?
     private var lastSlackSuccessAt: Date?
+    private var lastSlackFailureSummary: String?
+    private var lastTeamsFailureSummary: String?
+    private var notifiedSlackDegraded = false
+    private var notifiedTeamsDegraded = false
     private var lastTeamsFastSyncRequestAt: Date?
     private var lastTeamsDiscoveryRequestAt: Date?
     private var lastTeamsSuccessAt: Date?
@@ -279,7 +285,7 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         do {
             try handle.seek(toOffset: watch.offset)
             let data = try handle.readToEnd() ?? Data()
-            watch.offset = currentSize
+            watch.offset += UInt64(data.count)
             guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
             watch.partialLine += text
             let segments = watch.partialLine.components(separatedBy: "\n")
@@ -404,7 +410,7 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         if bucket.needsDiscovery {
             arguments += []
         } else {
-            arguments += ["--skip-discovery", "--skip-users"]
+            arguments += ["--skip-discovery", "--skip-users", "--threads"]
             let channels = Array(bucket.channels).sorted()
             if !channels.isEmpty {
                 arguments += ["--channels", channels.joined(separator: ",")]
@@ -432,9 +438,12 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         if result.succeeded {
             lastSlackSuccessAt = result.finishedAt
             defaults.set(result.finishedAt, forKey: slackLastSuccessKey)
+            lastSlackFailureSummary = nil
             if discoveryRequested {
                 refreshSlackWorkspaceMap()
             }
+        } else {
+            lastSlackFailureSummary = result.summary.isEmpty ? "Sync failed" : result.summary
         }
         publishStatuses()
     }
@@ -516,9 +525,12 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         if result.succeeded {
             lastTeamsSuccessAt = result.finishedAt
             defaults.set(result.finishedAt, forKey: teamsLastSuccessKey)
+            lastTeamsFailureSummary = nil
             if !wasDiscovery {
                 lastTeamsFastSyncRequestAt = result.finishedAt
             }
+        } else {
+            lastTeamsFailureSummary = result.summary.isEmpty ? "Sync failed" : result.summary
         }
 
         if !teamsEnabled {
@@ -636,7 +648,55 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         log("Chat auto-refresh: baselined periodic timers on \(reason); no boot-time full sync")
     }
 
+    private func slackDegradedReason() -> String? {
+        guard slackEnabled else { return nil }
+        if slackLogWatches.isEmpty { return "No Slack log files found — is Slack running?" }
+        if let failure = lastSlackFailureSummary { return "Last sync failed: \(failure)" }
+        return nil
+    }
+
+    private func teamsDegradedReason() -> String? {
+        guard teamsEnabled else { return nil }
+        if let failure = lastTeamsFailureSummary { return "Last sync failed: \(failure)" }
+        return nil
+    }
+
+    private func evaluateHealth(slackReason: String?, teamsReason: String?) {
+        if let slackReason {
+            if !notifiedSlackDegraded {
+                notifiedSlackDegraded = true
+                postDegradedNotification(platform: "Slack", reason: slackReason)
+            }
+        } else {
+            notifiedSlackDegraded = false
+        }
+        if let teamsReason {
+            if !notifiedTeamsDegraded {
+                notifiedTeamsDegraded = true
+                postDegradedNotification(platform: "Teams", reason: teamsReason)
+            }
+        } else {
+            notifiedTeamsDegraded = false
+        }
+    }
+
+    private func postDegradedNotification(platform: String, reason: String) {
+        log("Chat auto-refresh: \(platform) degraded — \(reason)")
+        let content = UNMutableNotificationContent()
+        content.title = "\(platform) sync stalled"
+        content.body = reason
+        let request = UNNotificationRequest(
+            identifier: "brain-chat-degraded-\(platform.lowercased())",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     private func publishStatuses() {
+        let slackDegraded = slackDegradedReason()
+        let teamsDegraded = teamsDegradedReason()
+        evaluateHealth(slackReason: slackDegraded, teamsReason: teamsDegraded)
         let slackQueued = slackBuckets.values.reduce(0) { $0 + $1.queuedCount }
         var slackHeadline = ""
         if slackEnabled && syncRunner.slackRunning {
@@ -653,7 +713,8 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
             queuedCount: slackQueued,
             lastSuccessAt: lastSlackSuccessAt,
             isWatching: slackEnabled && !slackLogWatches.isEmpty,
-            isEnabled: slackEnabled
+            isEnabled: slackEnabled,
+            degradedReason: slackDegraded
         )
 
         let teamsQueued = (pendingTeamsDiscovery ? 1 : 0) + (pendingTeamsFastSync ? 1 : 0)
@@ -672,7 +733,8 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
             queuedCount: teamsQueued,
             lastSuccessAt: lastTeamsSuccessAt,
             isWatching: teamsEnabled,
-            isEnabled: teamsEnabled
+            isEnabled: teamsEnabled,
+            degradedReason: teamsDegraded
         )
     }
 

@@ -18,9 +18,18 @@ import tempfile
 import time
 import uuid
 from hashlib import pbkdf2_hmac
+from urllib.parse import urlparse
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 import requests
+
+
+def _host_of(url):
+    """Return the lowercase host of a URL, tolerating scheme-less team URLs."""
+    if not url:
+        return ""
+    parsed = urlparse(url if "//" in url else f"https://{url}")
+    return (parsed.hostname or "").lower()
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -128,7 +137,7 @@ const { ClassicLevel } = require('classic-level');
                 "url": team["url"],
                 "token": team["token"],
                 "user_id": team["user_id"],
-                "is_enterprise": "enterprise" in team.get("url", ""),
+                "is_enterprise": _host_of(team.get("url", "")).endswith(".enterprise.slack.com"),
                 "enterprise_id": team.get("enterprise_id"),
             }
         return teams

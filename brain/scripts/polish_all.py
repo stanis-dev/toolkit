@@ -7,9 +7,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 WORKSPACE = "/Users/stan/code/toolkit/brain"
 DATA_DIR = os.path.join(WORKSPACE, "data")
 AGENT = "/Users/stan/.local/bin/agent"
-POLISH_MODEL = "claude-4.6-opus-max-thinking"
-SUMMARY_MODEL = "claude-4.6-opus-max-thinking"
-REVIEW_MODEL = "claude-4.5-opus-high-thinking"
+POLISH_MODEL = "claude-opus-5-thinking-xhigh"
+SUMMARY_MODEL = "claude-opus-5-thinking-xhigh"
+REVIEW_MODEL = "claude-opus-5-thinking-high"
 POLISH_TIMEOUT = 1800
 SUMMARY_TIMEOUT = 600
 REVIEW_TIMEOUT = 600
@@ -51,9 +51,10 @@ def build_polish_prompt(txt_path):
         f"- Rephrase or improve anyone's speech\n"
         f"- Fix grammar (non-native speakers' grammar IS their speech)\n"
         f"- Remove filler words (um, uh, like)\n"
-        f"- Add commentary or explanations outside of the bracketed notes described above\n\n"
+        f"- Add commentary or explanations outside of the bracketed notes described above\n"
+        f"- Translate Spanish to English (or any language to any other language) — preserve the source language of every utterance exactly\n\n"
         f"Keep timestamps and the original structure exactly as-is.\n"
-        f"For speaker labels, fix obvious misattributions where the content clearly belongs to a different speaker.\n"
+        f"NEVER change speaker labels. Speaker names were assigned by voice matching and must not be altered.\n"
         f"For long speaker turns, insert paragraph breaks at natural topic shifts to improve readability.\n"
         f"Keep the speaker label and timestamp on the first paragraph only.\n"
         f"Output ONLY the corrected transcript, nothing else.\n"
@@ -90,6 +91,9 @@ def build_summary_prompt(txt_path):
     return (
         f"Read the file {rel_source}. "
         f"This is a transcript of a meeting. You are summarizing it for Stan, who is always a participant.\n\n"
+        f"If the conversation content does not match the calendar event name in the filename,\n"
+        f"add a first line: `## Title: <descriptive name for the actual conversation>`\n"
+        f"Only add this line when the filename is misleading. Otherwise omit it.\n\n"
         f"Generate a structured summary with two sections:\n\n"
         f"## Summary\n"
         f"A concise 3-7 bullet point summary covering: key topics discussed, decisions made, and open questions.\n\n"

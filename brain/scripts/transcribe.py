@@ -8,7 +8,7 @@ WORKSPACE = "/Users/stan/code/toolkit/brain"
 SPEAKERS_FILE = os.path.join(DATA_DIR, "speakers.json")
 VOCAB_FILE = os.path.join(DATA_DIR, "vocab.txt")
 SIMILARITY_THRESHOLD = 0.75
-POLISH_MODEL = "claude-opus-4-7-thinking-high"
+POLISH_MODEL = "claude-opus-5-thinking-high"
 POLISH_TIMEOUT = 1800
 PROJECT_CONTEXT_FILES = [
     os.path.expanduser("~/code/pronet/CLAUDE.local.md"),
@@ -172,58 +172,8 @@ def polish_and_summarize(txt_file):
         print(f"  Error — {e}")
 
 
-def main():
-    arg = sys.argv[1] if len(sys.argv) > 1 else None
-    if arg:
-        wav_file = arg if arg.startswith("/") else os.path.join(DATA_DIR, arg)
-    else:
-        wav_file = find_latest_wav()
-
-    if not os.path.exists(wav_file):
-        print(f"File not found: {wav_file}", file=sys.stderr)
-        sys.exit(1)
-
-    hf_token = load_hf_token()
-    base = wav_file.rsplit(".wav", 1)[0]
-    basename = os.path.basename(wav_file)
-    print(f"Transcribing {basename}...")
-
-    initial_prompt = build_initial_prompt(basename)
-    if initial_prompt:
-        print(f"  Vocabulary hint: {initial_prompt[:100]}...")
-
-    import whispermlx
-
-    print("  Loading model...")
-    asr_options = {"initial_prompt": initial_prompt} if initial_prompt else None
-    model = whispermlx.load_model("large-v3", device="cpu", asr_options=asr_options)
-
-    print("  Transcribing...")
-    result = model.transcribe(wav_file)
-    language = result.get("language", "unknown")
-    print(f"  Language: {language}")
-
-    print("  Aligning words...")
-    model_a, metadata = whispermlx.load_align_model(language_code=language, device="cpu")
-    result = whispermlx.align(result["segments"], model_a, metadata, wav_file, device="cpu")
-
-    print("  Diarizing speakers...")
-    from whispermlx.diarize import DiarizationPipeline
-
-    diarize_model = DiarizationPipeline(token=hf_token, device="mps")
-    diarize_df, speaker_embeddings = diarize_model(
-        wav_file, min_speakers=2, max_speakers=8, return_embeddings=True
-    )
-    n_speakers = diarize_df["speaker"].nunique() if len(diarize_df) > 0 else 0
-    print(f"  Detected {n_speakers} speakers in {len(diarize_df)} segments")
-
-    result = whispermlx.assign_word_speakers(
-        diarize_df, result, speaker_embeddings=speaker_embeddings, fill_nearest=True
-    )
-
-    known_speakers = load_known_speakers()
-    rename_map = match_speakers(speaker_embeddings or {}, known_speakers)
-
+def write_outputs(result, base, language, rename_map):
+    """Write .txt (turn-grouped) and .json from segments; rename_map maps SPEAKER_XX to names."""
     def label(spk):
         return rename_map.get(spk, spk)
 
@@ -266,7 +216,67 @@ def main():
     with open(json_file, "w") as f:
         json.dump(result, f, indent=2, default=str)
 
-    print(f"\nTranscript saved to {os.path.basename(txt_file)} ({len(speakers)} speakers)")
+    return txt_file, len(speakers)
+
+
+def main():
+    arg = sys.argv[1] if len(sys.argv) > 1 else None
+    if arg:
+        wav_file = arg if arg.startswith("/") else os.path.join(DATA_DIR, arg)
+    else:
+        wav_file = find_latest_wav()
+
+    if not os.path.exists(wav_file):
+        print(f"File not found: {wav_file}", file=sys.stderr)
+        sys.exit(1)
+
+    hf_token = load_hf_token()
+    base = wav_file.rsplit(".wav", 1)[0]
+    basename = os.path.basename(wav_file)
+    print(f"Transcribing {basename}...")
+
+    initial_prompt = build_initial_prompt(basename)
+    if initial_prompt:
+        print(f"  Vocabulary hint: {initial_prompt[:100]}...")
+
+    import whispermlx
+
+    print("  Loading model...")
+    asr_options = {"initial_prompt": initial_prompt} if initial_prompt else None
+    model = whispermlx.load_model("large-v3", device="cpu", asr_options=asr_options)
+
+    print("  Transcribing...")
+    result = model.transcribe(wav_file)
+    language = result.get("language", "unknown")
+    print(f"  Language: {language}")
+
+    print("  Aligning words...")
+    model_a, metadata = whispermlx.load_align_model(language_code=language, device="cpu")
+    result = whispermlx.align(result["segments"], model_a, metadata, wav_file, device="cpu")
+
+    write_outputs(result, base, language, {})
+    print("  Raw transcript saved (pre-diarization)")
+
+    print("  Diarizing speakers...")
+    from whispermlx.diarize import DiarizationPipeline
+
+    diarize_model = DiarizationPipeline(token=hf_token, device="mps")
+    diarize_df, speaker_embeddings = diarize_model(
+        wav_file, min_speakers=1, max_speakers=8, return_embeddings=True
+    )
+    n_speakers = diarize_df["speaker"].nunique() if len(diarize_df) > 0 else 0
+    print(f"  Detected {n_speakers} speakers in {len(diarize_df)} segments")
+
+    result = whispermlx.assign_word_speakers(
+        diarize_df, result, speaker_embeddings=speaker_embeddings, fill_nearest=True
+    )
+
+    known_speakers = load_known_speakers()
+    rename_map = match_speakers(speaker_embeddings or {}, known_speakers)
+
+    txt_file, n_speakers_final = write_outputs(result, base, language, rename_map)
+
+    print(f"\nTranscript saved to {os.path.basename(txt_file)} ({n_speakers_final} speakers)")
 
     polish_and_summarize(txt_file)
 

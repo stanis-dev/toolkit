@@ -2,14 +2,13 @@
 name: sierra
 description: Critical guidance for Sierra agent development. Must always be loaded when working with Sierra agents.
 ---
-
 # Sierra Agent Development Guidance
 
 Sierra Agents are developed with a custom SDK based on React, with components rendering agent context instead of UI. The
 final context is compiled from the combination of the following items and all of them must be tracked to avoid having
 only partial understanding of agent context:
 
-- Studio Journey definition: `sierras journey ...`
+- Studio Journey definition: synced to `.composer/` by `pnpm sierra ghostwriter --sync`
 - Studio Configuration
 - Knowledge Base
 - Codebase context. Changes require `pnpm sierra upload/watch` to take effect.
@@ -19,132 +18,45 @@ functional - stop immediately and inform the user:
 
 - sierra mcp
 - sierra cli
-- sierras cli powertool
 
-## Constraints
+## My preferences
 
-- **Sierra SDK is private.** You must ground your understanding with:
-    - use `sierra` mcp tool: `ask_sierra_assistant`
-    - sdk source files in `node_modules`
+- Refer to Studio block by their display name and type to help me follow.
 
-## Sierras CLI (Powertool) `sierras ...`
+## Replays, conversations and traces
 
-All commands require --target <path> pointing at a .targets file, e.g. --target agents/<bot>/.targets/default. The
-file is the sole source of org, workspace, and bot scope. The old scope flags (--org, --bot, --bot-id,
---workspace-id, --workspace-name) no longer exist and fail as unknown flags. Missing --target fails with a typed
-validation_failed error plus a recovery command. Exception: sim resume/results/history and sim cancel <run-id> work
-without --target — scope is restored from the run record; passing a mismatching --target with a run-id errors.
+`pnpm sierra ghostwriter <workspace> --sync-conversations [--ids <id>,...]` and
+`--sync-simulations --run-id <replaytestrunset-...>` download conversation and simulation
+artifacts into `.composer/`. Neither flag appears in `--help`; both are documented in
+`.composer/docs/agent-traces-reference.md`. Pass the workspace positionally or the command
+prompts. Conversation ids need the `audit-` prefix.
 
-`--json` wrapper `{"workspace":"...","command":"...","data":...,"next":[...]}`: `data` field contains the payload.
-Errors in `--json` mode also print this envelope to stdout with `status: "error"`, the message in `summary`, and a
-typed recovery command — parse stdout even on exit 1.
+Layout is identical for a conversation and a simulation result:
 
-There is ONE command for running sims: `sierras sim run`. It always blocks until completion and reports (there is
-no fire-and-forget mode; background the process if you need to keep working). Every invocation is recorded with a
-run ID (`run-...`) for later inspection. The old commands sim run-all, sim wait-all, sim bench *, sim cancel-all,
-and sim run --async were removed and fail with a pointer to the replacement.
+- `summary.json` / `result.json` — metadata
+- `debug.log` — CSV event log (`seq,timestamp,event_type,message`); the reference doc lists which
+event types have a trace file
+- `traces/<turn>.trace` — one file per turn that made an LLM call
 
-On completion, every replay transcript is saved automatically to <tmp>/sierras/runs/<run-id>/ — one plain-text
-file per run (`<sim-slug>--run-NN.PASSED.txt` / `.FAILED.txt`) plus index.txt mapping files to sims and result
-IDs. The completion report prints the directory; in --json it is `data.replayDir` with `data.failedReplays`
-listing failed-transcript paths. Read/grep those files directly (e.g. `grep -l "OUTCOME\[missed\]"
-<dir>/*.FAILED.txt`) instead of re-fetching replays through the CLI. `--replay` remains for fetching a run's
-transcripts on demand.
+Each `.trace` holds `llm_chat` (purpose, plus `raw_request` carrying model, temperature,
+max_output_tokens, tools, reasoning effort), `llm_chat_response` (input/output tokens, cached,
+retries, raw response) and `task` (task_id, input, output).
 
-Result collection is pinned to the workspace version that was current at trigger time, so publishing or version
-bumps during a run do not lose its results. If the platform has no matching result set for some sims, the run
-finalizes as completed_with_errors and the command exits with a typed partial_failure error whose recovery is
-`sierras sim results <run-id> --collect` — rerun that to retry collection. The `sim results` summary reports
-`versionChanged` (with trigger and new version IDs) when a bump happened mid-run.
+Read `summary.json`/`result.json` first, then `debug.log`, then only the traces for the rows that
+matter. The `personalized_progress_indicator` call is not captured in these traces.
 
-`sim list` reflects the CURRENT workspace version's latest result per sim; CLI-triggered batch runs often show
-PEND there — use `sim results <run-id>` for run outcomes. Multi-run sets aggregate (any RUNNING → RUN, any
-FAILED → FAIL) with an `x/N passed` suffix.
+Running sims: `pnpm sierra test --names <name> --num-runs <n>` (server caps `--num-runs` at 5;
+invoke twice for more) or the `run_test` MCP tool. `get_test_results` with `verbose:true` returns
+trace spans, prompt contexts with full bodies, and the model, but carries no temperature or token
+counts, and reaches only a test's latest result.
 
-```bash
-sierras --target agents/<bot>/.targets/default sim list [--group <g>] [--category <c>] [--rg <pat>] # List sims with pass/fail status (scope flag shown once; every non-run-id command needs it)
+## Agent Design Principles
 
-sierras sim status                                           # Suite summary (pass/fail/running counts)
+- Agent must have a clear and centralised definition of what its register must be. 
+  - Smell: separate items instructing agent how to say the content.
+- Negative instructions are usually bad smell. Can be caused by conflicting instructions, over/under-specification.
+- Agent works with turns as its scope. Instruction must be clear about any turn-specific logic.
+- (GPT5.4 specific) - model is known to be very aggressive calling tools. Two mechanisms help remediate it 
+  - place tool inside a condition so that it's only revealed when needed. Good for session variable dependant tools or those that have clear context pre-requisites.
+  - add a param to the actual tool for agent to evaluate that conditions for calling the tool are indeed, correct. Description should avoid explicitly stating it evaluates agent correctness in calling the tool.
 
-sierras sim run <name>                                       # Run one sim (exact name, else regex), waits, renders full replay
-sierras sim run [--group <g>] [--category <c>] [--rg <pat>]  # Run a filtered set; no filters = every sim in the workspace
-sierras sim run --count <n>                                  # n runs per sim (default 1); use 3+ for flake detection
-sierras sim run ... --peek                                   # Preview matched sims without running
-sierras sim resume <run-id>                                  # Re-attach to an interrupted run (Ctrl+C, cap handback)
-sierras sim results [run-id] [--failed] [--flaky] [--sim <n>] [--collect]  # Results/progress; no run-id = most recent run; run lines include the result ID
-sierras sim results <run-id> --failed --replay               # Full transcripts of that run's FAILED results — use this to debug failures; never enumerate result sets by hand
-sierras sim results <run-id> --sim <n> [--run <i>] --replay  # Transcripts for one sim's runs (pass/fail labeled)
-sierras sim history [--status <s>]                           # List recorded runs, newest first
-sierras sim cancel <run-id>                                  # Cancel that run's queued/running sims
-sierras sim cancel --all                                     # Cancel ALL running sims in workspace (needs --target)
-
-sierras sim replay <name>                                    # Latest result (fetched live), turn-grouped; header shows RESULT: <id> | CREATED: <time>
-sierras sim replay <name> --id <id>                          # Specific result by ID
-sierras sim replay <name> --list                             # List all available results
-sierras sim replay <name> --transcript                       # Conversation only (no metadata)
-sierras sim replay <name> --verbose                          # Flat event timeline
-sierras sim replay <name> --trace <turn>                     # All LLM API calls for a turn
-
-sierras sim search <term> [--rg <pat>] [--cross-workspace]   # Search replay content by substring
-
-sierras sim diff --left <ws> --right <ws> [--detailed]       # Compare results between workspaces
-```
-
-## Simulations
-
-Simulations evaluate a scenario based on expected/forbidden tags and judge LLM conditions.
-
-Simulations must be evaluated:
-
-- LLM user must play its role in a way that will allow the target scenario to happen.
-- Declared conditions must be worded correctly. The wording is correct when Judge LLM comments reveal that it is
-  evaluating what matters.
-- Only then the pass or fail becomes relevant.
-
-## Synthesis Rewrites (voice)
-
-Regex substitutions applied to agent text just before TTS. **Audio-only**: transcripts, chat, sims, and
-issue snippets all keep the original text. Right tool when text is correct but spoken wrong
-(pronunciation); wrong tool when the text itself is the defect (use prompt guidance / KB fix instead).
-
-- **Pacing**: spaced capitals (`D E`) make TTS insert long pauses between letters; dash-joined letters
-  (`D-E`) give a shorter but still audible separation — use dashes for spelling at natural cadence
-  (e.g. German domain endings: `.de` → ` Punkt D-E`).
-- **String patterns match literal substrings** (grounded via `ask_sierra_assistant`, 2026-06): no regex
-  interpretation, and case-sensitive — so regex syntax inside a string (`"\\b\\d{4}\\b"`) is a silently
-  dead rule, and case variants need either explicit pairs (`www.` / `WWW.`) or a RegExp.
-- **RegExp patterns are fully supported**: flags honored end-to-end, applied in-memory before TTS (no
-  JSON serialization boundary). Use `/\.de/gi` style — the `g` flag matters, a non-global regex replaces
-  only the first occurrence.
-- **Replacements are passed verbatim** to the TTS engine — no normalization, and SSML is effectively
-  unsupported on OpenAI tts-1, so encode pronunciation in plain text. Start the replacement with a
-  leading space when the pattern can directly follow a word (`".de"` → `" Punkt D-E"`).
-- **Verify by ear in Studio**: Preview chat in voice mode renders TTS with in-progress synthesis rules —
-  no publish or phone call needed. TTS pronunciation can drift across provider updates; test empirically.
-- Punctuation pause/pronunciation reference (pause ladder, spoken-vs-silent, stability per element):
-  see `references/tts-punctuation.md`.
-- Rules apply **in array order** — specific patterns must precede generic ones they overlap with.
-
-## Useful diagnostic steps
-
-1. Explore the conversation and find the earliest deviation from spec. Don't just evaluate agent's responses, but also
-   tags for internal flow and tool/api responses, calls and their data.
-1. Create a simulation with the sole goal of forcing agent into the same situation and observe replay.
-
-## Development Flow
-
-### New Feature
-
-1. Create a failing simulation for the feature first.
-
-### Bug Fix
-
-1. Check whether there's an existing simulation that covers the failing behaviour.
-    - if exists: check sim quality
-    - if not: create one
-
-### Issue
-
-1. Fetch the issues
-1. Fetch the related conversation/s
-1. Produce short report on the source of the problem
