@@ -180,8 +180,10 @@ class AssistantState: NSObject, ObservableObject {
         trackSessionFromNavigation(url)
     }
 
-    fileprivate func didFailNavigation(_ error: Error) {
+    fileprivate func didFailNavigation(_ error: Error, url: URL?) {
         let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return }
+        guard isEmbeddedURL(url) || url == nil else { return }
         failureMessage = unavailableMessage(for: nsError)
         phase = .unavailable
         log("assistant: failed to load OpenCode web UI — \(nsError.localizedDescription)")
@@ -404,11 +406,11 @@ private final class AssistantNavigationProxy: NSObject, WKNavigationDelegate, WK
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        owner?.didFailNavigation(error)
+        owner?.didFailNavigation(error, url: webView.url)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        owner?.didFailNavigation(error)
+        owner?.didFailNavigation(error, url: webView.url)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {

@@ -24,14 +24,13 @@ let kAssistantTodoFile = "\(kOutputDir)/assistant-todo.md"
 let kAssistantOpenCodeURL = URL(string: "http://127.0.0.1:4096")!
 let kAssistantOpenCodeLaunchCommand = "opencode web --hostname 127.0.0.1 --port 4096"
 let kAssistantOpenCodeLastTargetDefaultsKey = "brain.assistant.opencode.last-target"
-let kWorkRadarSkillFile = "/Users/stan/code/toolkit/skills/work-radar/SKILL.md"
-let kCommunicationCopilotSkillFile = "/Users/stan/code/toolkit/skills/communication-copilot/SKILL.md"
-let kGitHubSkillFile = "/Users/stan/.codex/plugins/cache/openai-curated/github/f78e3ad49297672a905eb7afb6aa0cef34edc79e/skills/github/SKILL.md"
-let kCursorChatHistorySkillFile = "/Users/stan/code/toolkit/skills/cursor-chat-history/SKILL.md"
-let kCodexSessionsDir = "/Users/stan/.codex/sessions"
-let kCodexSessionIndexFile = "/Users/stan/.codex/session_index.jsonl"
-let kCodexHistoryFile = "/Users/stan/.codex/history.jsonl"
-let kCodexSessionStorageDir = "/Users/stan/Library/Application Support/Codex/Session Storage"
+
+/// Extensions of the derived transcript artifacts for a `rec-*.wav`, relative to
+/// the shared base path. Excludes `.wav` itself so callers choose whether to also
+/// remove the source recording.
+let kTranscriptArtifactExtensions = [
+    ".json", ".txt", ".polished.txt", ".reasoning.jsonl", ".summary.md", ".summary-reasoning.jsonl"
+]
 
 let kMeetingAppBundleIDs: [String: String] = [
     "com.microsoft.teams2": "Teams",
@@ -68,16 +67,28 @@ func formatDuration(_ t: TimeInterval) -> String {
     return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
 }
 
+private let kLogMaxBytes: UInt64 = 5 * 1024 * 1024
+private let logQueue = DispatchQueue(label: "brain.log")
+
 func log(_ msg: String) {
     let ts = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
     let line = "[\(ts)] \(msg)\n"
     fputs(line, stderr)
-    if let data = line.data(using: .utf8),
-       let fh = FileHandle(forWritingAtPath: kLogFile) {
-        fh.seekToEndOfFile()
-        fh.write(data)
-        fh.closeFile()
-    } else {
-        FileManager.default.createFile(atPath: kLogFile, contents: line.data(using: .utf8))
+    guard let data = line.data(using: .utf8) else { return }
+    logQueue.async {
+        let fm = FileManager.default
+        if let size = (try? fm.attributesOfItem(atPath: kLogFile))?[.size] as? UInt64,
+           size > kLogMaxBytes {
+            let rotated = kLogFile + ".old"
+            try? fm.removeItem(atPath: rotated)
+            try? fm.moveItem(atPath: kLogFile, toPath: rotated)
+        }
+        if let fh = FileHandle(forWritingAtPath: kLogFile) {
+            fh.seekToEndOfFile()
+            fh.write(data)
+            fh.closeFile()
+        } else {
+            fm.createFile(atPath: kLogFile, contents: data)
+        }
     }
 }

@@ -113,7 +113,7 @@ class RecordingListState: ObservableObject {
         guard let rec = recordings.first(where: { $0.id == id }) else { return }
         log("Recordings: deleting \(rec.filename)")
         let base = rec.url.path.replacingOccurrences(of: ".wav", with: "")
-        for ext in [".wav", ".json", ".txt", ".polished.txt", ".reasoning.jsonl", ".summary.md", ".summary-reasoning.jsonl"] {
+        for ext in [".wav"] + kTranscriptArtifactExtensions {
             let url = URL(fileURLWithPath: base + ext)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
             try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
@@ -287,8 +287,31 @@ class RecordingState: ObservableObject {
         Task {
             do { try await rec.start() } catch {
                 log("Recording: start failed — \(error)")
-                await MainActor.run { NSApp.terminate(nil) }
+                await MainActor.run { self.handleStartFailure(error) }
             }
+        }
+    }
+
+    private func handleStartFailure(_ error: Error) {
+        timer?.invalidate()
+        timer = nil
+        isRecording = false
+        isPaused = false
+        recorder = nil
+
+        let alert = NSAlert()
+        alert.messageText = "Couldn't start recording"
+        if (error as? RecorderError) == .noDisplay {
+            alert.informativeText = "No display was available to capture system audio. Try again once a display is active."
+        } else {
+            alert.informativeText = "Recording needs Screen Recording permission. Grant it in System Settings › Privacy & Security › Screen Recording, then try again.\n\n\(error.localizedDescription)"
+            alert.addButton(withTitle: "Open System Settings")
+            alert.addButton(withTitle: "Cancel")
+        }
+        if alert.runModal() == .alertFirstButtonReturn,
+           (error as? RecorderError) != .noDisplay,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
         }
     }
 

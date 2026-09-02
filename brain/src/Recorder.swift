@@ -1,7 +1,12 @@
 import Foundation
 import ScreenCaptureKit
 import AVFoundation
+import CoreAudio
 import CoreMedia
+
+enum RecorderError: Error, Equatable {
+    case noDisplay
+}
 
 class Recorder: NSObject, SCStreamOutput {
     private var stream: SCStream?
@@ -17,6 +22,11 @@ class Recorder: NSObject, SCStreamOutput {
     private var loggedMicFormat = false
     private var systemConverter: AVAudioConverter?
     private var micConverter: AVAudioConverter?
+    private let sampleQueue = DispatchQueue(label: "rec.samples")
+    private var firstSystemTime: Double?
+    private var firstMicTime: Double?
+    private var alignedStarts = false
+    private var previousInputDevice: AudioDeviceID?
     private let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: kSampleRate, channels: 1, interleaved: false
     )!
@@ -36,14 +46,18 @@ class Recorder: NSObject, SCStreamOutput {
     }
 
     func start() async throws {
+        let inputBefore = getDefaultInputDevice()
         ensureDefaultInputDevice(kTargetAudioDevice)
+        if getDefaultInputDevice() != inputBefore {
+            previousInputDevice = inputBefore
+        }
 
         let content = try await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: false
         )
         guard let display = content.displays.first else {
-            fputs("Error: no display found\n", stderr)
-            exit(1)
+            log("Recorder: no display found")
+            throw RecorderError.noDisplay
         }
 
         let excludedBundleIDs: Set<String> = ["tv.plex.plexamp", "tv.plex.desktop"]
@@ -77,8 +91,8 @@ class Recorder: NSObject, SCStreamOutput {
 
         log("Recorder: display \(display.displayID) (\(display.width)x\(display.height)), sampleRate=\(kSampleRate)")
         stream = SCStream(filter: filter, configuration: config, delegate: nil)
-        try stream!.addStreamOutput(self, type: .audio, sampleHandlerQueue: .global())
-        try stream!.addStreamOutput(self, type: .microphone, sampleHandlerQueue: .global())
+        try stream!.addStreamOutput(self, type: .audio, sampleHandlerQueue: sampleQueue)
+        try stream!.addStreamOutput(self, type: .microphone, sampleHandlerQueue: sampleQueue)
         try await stream!.startCapture()
 
         startWriteTimer()
@@ -88,8 +102,21 @@ class Recorder: NSObject, SCStreamOutput {
     func stop() {
         writeTimer?.cancel()
         writeTimer = nil
+        if let stream {
+            try? stream.removeStreamOutput(self, type: .audio)
+            try? stream.removeStreamOutput(self, type: .microphone)
+            stream.stopCapture { error in
+                if let error { log("Recorder: stopCapture failed — \(error)") }
+            }
+        }
+        stream = nil
         writeQueue.sync { self.mixAndWrite() }
         audioFile = nil
+        if let previous = previousInputDevice {
+            setDefaultInputDevice(previous)
+            log("Recorder: restored default input → '\(getDeviceName(previous) ?? "Unknown")'")
+            previousInputDevice = nil
+        }
 
         let elapsed = Date().timeIntervalSince(startTime)
         let filePath = "\(kOutputDir)/\(filename)"
@@ -115,14 +142,28 @@ class Recorder: NSObject, SCStreamOutput {
 
         guard let floats = extractFloats(from: sampleBuffer, type: type) else { return }
 
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
         lock.lock()
         switch type {
         case .audio:
+            if firstSystemTime == nil { firstSystemTime = pts }
             systemSamples.append(contentsOf: floats)
         case .microphone:
+            if firstMicTime == nil { firstMicTime = pts }
             micSamples.append(contentsOf: floats)
         default:
             break
+        }
+        if !alignedStarts, let sysStart = firstSystemTime, let micStart = firstMicTime {
+            alignedStarts = true
+            let delta = micStart - sysStart
+            let pad = Int((abs(delta) * kSampleRate).rounded())
+            if pad > 0, pad < Int(kSampleRate) * 5 {
+                let zeros = [Float](repeating: 0, count: pad)
+                if delta > 0 { micSamples.insert(contentsOf: zeros, at: 0) }
+                else { systemSamples.insert(contentsOf: zeros, at: 0) }
+                log("Recorder: aligned stream starts — padded \(delta > 0 ? "mic" : "system") by \(pad) samples")
+            }
         }
         lock.unlock()
     }
@@ -154,16 +195,16 @@ class Recorder: NSObject, SCStreamOutput {
             count = min(sysCount, micCount)
             mixed = [Float](repeating: 0, count: count)
             for i in 0..<count {
-                mixed[i] = max(-1.0, min(1.0, systemSamples[i] + micSamples[i]))
+                mixed[i] = max(-1.0, min(1.0, (systemSamples[i] + micSamples[i]) * 0.5))
             }
             systemSamples.removeFirst(count)
             micSamples.removeFirst(count)
         } else if sysCount > 0 {
-            mixed = Array(systemSamples)
+            mixed = systemSamples.map { $0 * 0.5 }
             count = sysCount
             systemSamples.removeAll(keepingCapacity: true)
         } else {
-            mixed = Array(micSamples)
+            mixed = micSamples.map { $0 * 0.5 }
             count = micCount
             micSamples.removeAll(keepingCapacity: true)
         }

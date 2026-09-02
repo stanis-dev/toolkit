@@ -24,6 +24,10 @@ class AudioDeviceEnforcer: ObservableObject {
         if enabled { startPolling() }
     }
 
+    deinit {
+        timer?.invalidate()
+    }
+
     private func startPolling() {
         stopPolling()
         log("Audio.enforce: polling started (every 3s, heartbeat every \(Int(heartbeatInterval))s)")
@@ -75,7 +79,7 @@ class AudioDeviceEnforcer: ObservableObject {
 }
 
 struct MacOSTabView: View {
-    @StateObject private var enforcer = AudioDeviceEnforcer()
+    @ObservedObject var enforcer: AudioDeviceEnforcer
     @ObservedObject var exporter: ChatSyncRunner
     @ObservedObject var autoRefresh: ChatAutoRefreshCoordinator
 
@@ -174,6 +178,18 @@ struct MacOSTabView: View {
                     }
                 }
                 .disabled(running)
+            }
+
+            if let degraded = status.degradedReason {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                    Text(degraded)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
             }
 
             HStack(spacing: 6) {

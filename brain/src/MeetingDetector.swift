@@ -5,9 +5,6 @@ import AppKit
 import ApplicationServices
 
 class MeetingDetector: ObservableObject {
-    @Published var detectedApp: String?
-    @Published var detectedMatch: MeetingMatch?
-
     private struct RecentActivation {
         let bundleID: String
         let appName: String
@@ -334,8 +331,6 @@ class MeetingDetector: ObservableObject {
 
         if let match = detectMeetingMatch(camera: camera, mic: mic) {
             log("MeetingDetector: meeting detected → \(match.appName) [\(match.evidenceSummary)]")
-            detectedApp = match.appName
-            detectedMatch = match
             lastNotificationTime = Date()
             onMeetingDetected?(match)
         } else {
@@ -548,10 +543,6 @@ class MeetingDetector: ObservableObject {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
         return value as? String
-    }
-
-    func resetDebounce() {
-        lastNotificationTime = .distantPast
     }
 }
 

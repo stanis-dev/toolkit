@@ -9,11 +9,13 @@ import argparse
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -37,6 +39,30 @@ MSG_BASE = "https://emea.ng.msg.teams.microsoft.com/v1/users/ME/conversations"
 PAGE_SIZE = 50
 REQUEST_DELAY = 0.3
 OLDEST_DT = "2025-12-01T00:00:00.0000000Z"
+
+
+def _teams_dt(s):
+    """Parse a Teams composetime/originalarrivaltime into an aware datetime.
+
+    Tolerates trailing Z, ±hh:mm offsets, and 0-9 fractional-second digits
+    (Python only accepts up to 6, so extra digits are truncated). Unparseable
+    or empty values sort as the epoch minimum so they never win a max()."""
+    if not s:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    text = s.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    m = re.match(r"^(.*\.\d{6})\d*(([+-]\d{2}:\d{2})?)$", text)
+    if m:
+        text = m.group(1) + m.group(2)
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+OLDEST_DT_PARSED = _teams_dt(OLDEST_DT)
 
 
 # ===================================================================
@@ -223,12 +249,13 @@ def fetch_messages(ic3_token, conversation_id, since_dt=None, max_pages=200):
             break
 
         hit_cutoff = False
+        since_parsed = _teams_dt(since_dt) if since_dt else None
         for msg in messages:
-            dt = msg.get("composetime") or msg.get("originalarrivaltime", "")
-            if dt < OLDEST_DT:
+            dt = _teams_dt(msg.get("composetime") or msg.get("originalarrivaltime", ""))
+            if dt < OLDEST_DT_PARSED:
                 hit_cutoff = True
                 break
-            if since_dt and dt <= since_dt:
+            if since_parsed and dt <= since_parsed:
                 hit_cutoff = True
                 break
             # Skip system messages (member adds/removes/topic changes)
@@ -395,8 +422,9 @@ def sync_manifest_conversations(ic3_token, workspace_dir, manifest, state, conve
         if messages:
             new_count = save_conversation(workspace_dir, subdir, meta, messages)
             totals[subdir] += new_count
-            latest = max(m.get("composetime") or m.get("originalarrivaltime", "") for m in messages)
-            state[cid] = {"last_dt": latest}
+            latest = max(messages, key=lambda m: _teams_dt(m.get("composetime") or m.get("originalarrivaltime", "")))
+            latest_dt = latest.get("composetime") or latest.get("originalarrivaltime", "")
+            state[cid] = {"last_dt": latest_dt}
             save_state(workspace_dir, state)
             touched.append((subdir, cid))
             print(f"    Saved {new_count} new messages", file=sys.stderr)

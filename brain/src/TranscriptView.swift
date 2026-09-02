@@ -52,12 +52,12 @@ struct TranscriptView: View {
         speakers = ordered
     }
 
-    private var reasoningPath: String { recording.url.path.replacingOccurrences(of: ".wav", with: ".reasoning.jsonl") }
-    private var summaryReasoningPath: String { recording.url.path.replacingOccurrences(of: ".wav", with: ".summary-reasoning.jsonl") }
-
     private func deleteTranscript() {
-        for path in [txtPath, polishedPath, reasoningPath, summaryPath, summaryReasoningPath, jsonPath] {
-            try? FileManager.default.removeItem(atPath: path)
+        let base = recording.url.path.replacingOccurrences(of: ".wav", with: "")
+        for ext in kTranscriptArtifactExtensions {
+            let path = base + ext
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            try? FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
         }
         goBack()
         listState.refresh()
@@ -82,8 +82,19 @@ struct TranscriptView: View {
 
         _ = saveSpeakerProfile(oldName: oldName, newName: newName, jsonPath: jsonPath)
 
+        for path in [txtPath, polishedPath] where FileManager.default.fileExists(atPath: path) {
+            guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+                log("Transcript: rename skipped unreadable \(path)")
+                continue
+            }
+            let renamed = text.replacingOccurrences(of: "] \(oldName):", with: "] \(newName):")
+            do {
+                try renamed.write(toFile: path, atomically: true, encoding: .utf8)
+            } catch {
+                log("Transcript: rename write failed for \(path) — \(error)")
+            }
+        }
         content = content.replacingOccurrences(of: "] \(oldName):", with: "] \(newName):")
-        try? content.write(toFile: txtPath, atomically: true, encoding: .utf8)
         speakers = speakers.map { $0 == oldName ? newName : $0 }
     }
 

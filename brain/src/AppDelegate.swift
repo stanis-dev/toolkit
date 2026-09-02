@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     let todoOverlayState = TodoOverlayState()
     let dictatorState = DictatorState()
     let meetingDetector = MeetingDetector()
+    let audioEnforcer = AudioDeviceEnforcer()
     var window: NSWindow!
     var statusItem: NSStatusItem!
     var todoPanel: TodoOverlayPanel!
@@ -76,6 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
 
             if event.keyCode == 53 {
+                if NSApp.keyWindow?.firstResponder is NSTextView { return event }
                 if self.appState.viewingTranscriptId != nil {
                     withAnimation(.easeInOut(duration: 0.2)) { self.appState.viewingTranscriptId = nil }
                     return nil
@@ -217,7 +219,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             playback: playback,
             assistantState: assistantState,
             chatSync: chatSync,
-            chatAutoRefresh: chatAutoRefresh
+            chatAutoRefresh: chatAutoRefresh,
+            audioEnforcer: audioEnforcer
         )
         let hosting = NSHostingView(rootView: rootView)
 
@@ -516,6 +519,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if dictatorState.status == .recording { reasons.append("dictation recording") }
         if dictatorState.status == .transcribing { reasons.append("dictation transcription") }
         if listState.recordings.contains(where: { $0.transcribing }) { reasons.append("transcript processing") }
+        if todoOverlayState.hasPendingSave { reasons.append("unsaved TODO edit") }
         return reasons
     }
 
@@ -566,6 +570,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        todoOverlayState.flushPendingSave()
+        meetingDetector.stopMonitoring()
         NotificationCenter.default.removeObserver(self, name: .brainToggleTodoOverlay, object: nil)
         if let todoHotKeyRef {
             UnregisterEventHotKey(todoHotKeyRef)

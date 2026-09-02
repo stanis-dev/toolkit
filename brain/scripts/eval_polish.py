@@ -10,9 +10,9 @@ PROMPT_FILE = os.path.join(EVAL_DIR, "prompt.txt")
 AGENT = "/Users/stan/.local/bin/agent"
 
 MODELS = {
-    "opus": "claude-4.6-opus-max-thinking",
-    "gpt": "gpt-5.4-xhigh",
-    "gemini": "gemini-3.1-pro",
+    "opus": "claude-opus-5-thinking-xhigh",
+    "gpt": "gpt-5.6-sol-xhigh",
+    "luna": "gpt-5.6-luna-high",
 }
 
 RUNS_PER_MODEL = 10
