@@ -19,44 +19,19 @@ functional - stop immediately and inform the user:
 - sierra mcp
 - sierra cli
 
+## My workflow
+
+1. (If issue) Understand what has to be done (read [issues.md](./references/issues.md))
+2. Decide on sim strategy (read [sim-strategy.md](./references/sims/sim-strategy.md))
+3. Ensure there's a sim/s I can trust (read [sim-design.md](./references/sims/sim-design.md))
+4. Understand what changes are needed for the agent (read [agent-design.md](./references/agent/agent-design.md))
+5. Implement and verify (read [agent-design.md](./references/agent/agent-design.md))
+6. Draft a PR (read [pr.md](./references/pr.md))
+7. Draft reporting (read [reporting.md](./references/reporting.md))
+
+
+
 ## My preferences
 
 - Refer to Studio block by their display name and type to help me follow.
-
-## Replays, conversations and traces
-
-`pnpm sierra ghostwriter <workspace> --sync-conversations [--ids <id>,...]` and
-`--sync-simulations --run-id <replaytestrunset-...>` download conversation and simulation
-artifacts into `.composer/`. Neither flag appears in `--help`; both are documented in
-`.composer/docs/agent-traces-reference.md`. Pass the workspace positionally or the command
-prompts. Conversation ids need the `audit-` prefix.
-
-Layout is identical for a conversation and a simulation result:
-
-- `summary.json` / `result.json` — metadata
-- `debug.log` — CSV event log (`seq,timestamp,event_type,message`); the reference doc lists which
-event types have a trace file
-- `traces/<turn>.trace` — one file per turn that made an LLM call
-
-Each `.trace` holds `llm_chat` (purpose, plus `raw_request` carrying model, temperature,
-max_output_tokens, tools, reasoning effort), `llm_chat_response` (input/output tokens, cached,
-retries, raw response) and `task` (task_id, input, output).
-
-Read `summary.json`/`result.json` first, then `debug.log`, then only the traces for the rows that
-matter. The `personalized_progress_indicator` call is not captured in these traces.
-
-Running sims: `pnpm sierra test --names <name> --num-runs <n>` (server caps `--num-runs` at 5;
-invoke twice for more) or the `run_test` MCP tool. `get_test_results` with `verbose:true` returns
-trace spans, prompt contexts with full bodies, and the model, but carries no temperature or token
-counts, and reaches only a test's latest result.
-
-## Agent Design Principles
-
-- Agent must have a clear and centralised definition of what its register must be. 
-  - Smell: separate items instructing agent how to say the content.
-- Negative instructions are usually bad smell. Can be caused by conflicting instructions, over/under-specification.
-- Agent works with turns as its scope. Instruction must be clear about any turn-specific logic.
-- (GPT5.4 specific) - model is known to be very aggressive calling tools. Two mechanisms help remediate it 
-  - place tool inside a condition so that it's only revealed when needed. Good for session variable dependant tools or those that have clear context pre-requisites.
-  - add a param to the actual tool for agent to evaluate that conditions for calling the tool are indeed, correct. Description should avoid explicitly stating it evaluates agent correctness in calling the tool.
 
