@@ -1,7 +1,3 @@
----
-name: good-prompting
-description: Guidance for writing and refining agent prompts. Critical to use any time you're modifying agent instructions.
----
 # Good prompting
 
 With agent prompts, your goal is to create a consistent and resilient behaviour pattern.
@@ -20,8 +16,7 @@ With agent prompts, your goal is to create a consistent and resilient behaviour 
   - check if existing context over/under-loads something in task definition.
 - Iterate on phrasing multiple times. Try different alternative phrasing options, verify through simulations.
 - Prune ambiguity and contradictions ruthlessly.
-- Agent's phrasing is best addressed through a clear definition of the communication context and its role in it. "Say
-this, not that" is almost always a symptom of poor definition of that.
+- Agent's phrasing is best addressed through a clear definition of the communication context and its role in it. "Say this, not that" is almost always a symptom of poor definition of that.
 - Agent must have a clear and centralised definition of what its register must be. 
   - Smell: separate items instructing agent how to say the content.
 - Negative instructions are usually bad smell. Can be caused by conflicting instructions, over/under-specification.
@@ -29,8 +24,6 @@ this, not that" is almost always a symptom of poor definition of that.
 - (GPT5.4 specific) - model is known to be very aggressive calling tools. Two mechanisms help remediate it 
   - place tool inside a condition so that it's only revealed when needed. Good for session variable dependant tools or those that have clear context pre-requisites.
   - add a param to the actual tool for agent to evaluate that conditions for calling the tool are indeed, correct. Description should avoid explicitly stating it evaluates agent correctness in calling the tool.
-
-
 
 ## General Structure
 
@@ -46,8 +39,6 @@ Coherence is critical, because it needs to be understood within the complete pro
 - Instruction with a set of example cases - it can bias agent towards them. It's often a signal that better definition is needed.
 - Empty instructions. Bits that have no actual meaning.
 
-
-
 ## Conditional blocks
 
 That analogy of somebody appearing out of nowhere without any preparation somewhere else and needing to do stuff - applies here heavily. Conditional blocks embed everything within them once the conditions are met, and they do so permanently. When we look at the transcript and the logs, we see that a certain condition triggered, and we understand that something happened. The agent will not have that, it will only have new context appear, and because of the way it is done, the agent will believe that the context has always been there throughout the entire conversation. That is important to understand for the coherency and cohesiveness of the story when a certain condition block is revealed.
@@ -59,15 +50,10 @@ Context that lives within a condition must always be scoped to that situation. I
 
 Conditional blocks work is a way that can be easy to mis interpret.
 
-- The mechanism that triggers the actual condition and decides that an observation matches the situation is external to
-agent memory. This means that the gated context will appear as is and that context must account for that.
-- The observation conditions are inferred with an llm call that gets only the glossary and the transcript. That system
-will not have access to journey context, make sure condition wording accounts for that.
+- The mechanism that triggers the actual condition and decides that an observation matches the situation is external to agent memory. This means that the gated context will appear as is and that context must account for that.
+- The observation conditions are inferred with an llm call that gets only the glossary and the transcript. That system will not have access to journey context, make sure condition wording accounts for that.
 - Observation conditions are meant for observations about the conversation, do not confuse them with agent decisions.
-- Once context is revealed, it will remain for the rest of the conversation. Plan for how it will interact with
-everything else.
-
-
+- Once context is revealed, it will remain for the rest of the conversation. Plan for how it will interact with everything else.
 
 ## Rules
 
@@ -82,20 +68,14 @@ Rules are meant to correct unwanted agent behaviour that survives even the good 
 
 - Include information model already has - either from its training or other parts of agent context.
 - Attempt to fix undesirable behaviour by adding "don't"s instead of refining task definition.
-- Adding to the task definition instructions specific to a specific behaviour failure mode, instead of refining task
-definition.
+- Adding to the task definition instructions specific to a specific behaviour failure mode, instead of refining task definition.
 - Providing agent example words for non-english languages.
-- Using emphasis in phrasing, words in caps. Never use without observing behaviour fail without it. If behaviour does
-fail without those, find which part of agent context is fighting it. Make them work together
+- Using emphasis in phrasing, words in caps. Never use without observing behaviour fail without it. If behaviour does fail without those, find which part of agent context is fighting it. Make them work together
 - Tangentially related parts of context silently fighting each other.
-
-
 
 ## Cookbook
 
 - Agent will ask questions with and without offering options which can create prompt leaks.  Potential solution:
   - Declare Phrasing Instruction of type: "When instructed to ask a question, offer response options only when the instruction clearly asks/permits to do so and provides allowed options"
-  - Review all instructions for agent asking questions and make sure those observe the above rule.
-- 
+  - Review all instructions for agent asking questions and make sure those observe the above rule. 
 
- 

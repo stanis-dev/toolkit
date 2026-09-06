@@ -1,8 +1,3 @@
----
-name: sierra-debug
-description: Critical guidance for Sierra agent debugging. Use every time you need to find why an agent failed.
----
-
 # Guide for diagnosing Simulations Replays and Conversation
 
 Your goal is find the earliest turn where agent went off script and identify the potential cause. All context edits are validated with me first and applied on my OK. Only offer followups if those are critical and justify taxing my attention. If the fix requires multiple steps - we'll focus on ony thing at a time. Once this gets fixed, we'll talk about next steps.
