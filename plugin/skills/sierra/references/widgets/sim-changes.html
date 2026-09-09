@@ -1,0 +1,81 @@
+<style>
+html,body{margin:0;padding:0}
+.ss{font-family:var(--font-sans, inherit);color:var(--text-primary, var(--foreground));font-size:14.5px;line-height:1.4}
+.ss svg.ti{width:1em;height:1em}
+.ss .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.ss header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 10px;background:var(--surface-1, var(--muted));border-bottom:1px solid var(--border)}
+.ss .id{display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:20px}
+.ss .id>span{display:inline-flex;align-items:center;height:20px;gap:4px}
+.ss .id .num{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px;color:var(--text-secondary, var(--muted-foreground))}
+.ss .sim{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:5px 10px 7px;border-bottom:1px solid var(--border)}
+.ss .sim:last-child{border-bottom:0}
+.ss .sim .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px}
+.ss .sim.add .n{color:var(--text-success, var(--green))}
+.ss .sim.mod .n{color:var(--text-warning, var(--orange))}
+.ss .sim.del .n{color:var(--text-danger, var(--destructive))}
+.ss .nmrow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:20px}
+.ss .nm{font-weight:500;font-size:13.5px;display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.ss .nm em{font-style:normal;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11px;font-weight:400;color:var(--text-muted, var(--muted-foreground));margin-left:6px}
+.ss .sim.del .nm{color:var(--text-muted, var(--muted-foreground));text-decoration:line-through}
+.ss .sim.del .nm em{text-decoration:none}
+.ss .crumb{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-secondary, var(--muted-foreground));white-space:nowrap;flex:none}
+.ss .crumb .ti{font-size:14px;line-height:1;margin-right:2px}
+.ss .crumb .sep{color:var(--text-muted, var(--muted-foreground));margin:0 2px}
+.ss .crumb code{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground))}
+.ss .sim.del .crumb{color:var(--text-muted, var(--muted-foreground))}
+.ss .line{display:flex;gap:8px;align-items:baseline;padding:2px 0}
+.ss .k{flex:none;width:70px;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground));text-align:right}
+.ss .gist{font-size:13.5px}
+.ss .tags{display:flex;flex-wrap:wrap;gap:3px}
+.ss .tag{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11px;padding:0 5px;border-radius:3px;border:1px solid var(--border);color:var(--text-secondary, var(--muted-foreground));white-space:nowrap}
+.ss .tag.ins{background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent));color:var(--text-success, var(--green));border-color:var(--border-success, var(--green))}
+.ss .tag.rm{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));border-color:var(--border-danger, var(--destructive));text-decoration:line-through}
+.ss .del-t{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));text-decoration:line-through;padding:0 2px;border-radius:3px}
+.ss .ins-t{background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent));color:var(--text-success, var(--green));padding:0 2px;border-radius:3px}
+@media (max-width:520px){.ss .nmrow{flex-direction:column;align-items:flex-start;gap:2px}}
+</style>
+<div class="ss" id="ss">
+<h2 class="sr-only">ONE-SENTENCE DESCRIPTION FOR SCREEN READERS</h2>
+<header class="top">
+  <div class="id"><span class="num">#NNN</span><span>ISSUE TITLE</span></div>
+</header>
+
+<div class="sim add">
+  <div class="n">+</div>
+  <div>
+    <div class="nmrow"><div class="nm">NEW SIMULATION NAME</div><div class="crumb"><i class="ti ti-folder" data-lucide="folder" aria-hidden="true"></i>GROUP<span class="sep">›</span><code>path:SLUG</code></div></div>
+    <div class="line"><span class="k">gist</span><span class="gist">What the persona does and what must come of it, one sentence.</span></div>
+    <div class="line"><span class="k">assertions</span><span class="tags"><span class="tag">tag:positive</span><span class="tag">!tag:negative</span></span></div>
+  </div>
+</div>
+
+<div class="sim mod">
+  <div class="n">~</div>
+  <div>
+    <div class="nmrow"><div class="nm"><span class="del-t">OLD NAME</span><span class="ins-t">NEW NAME</span></div><div class="crumb"><i class="ti ti-folder" data-lucide="folder" aria-hidden="true"></i>GROUP<span class="sep">›</span><code>path:SLUG</code></div></div>
+    <div class="line"><span class="k">gist</span><span class="gist">Only when the persona's behaviour changes: what it now does differently.</span></div>
+    <div class="line"><span class="k">assertions</span><span class="tags"><span class="tag">tag:unchanged</span><span class="tag rm">!tag:removed</span><span class="tag ins">!tag:added</span></span></div>
+  </div>
+</div>
+
+<div class="sim del">
+  <div class="n">-</div>
+  <div>
+    <div class="nmrow"><div class="nm">DELETED NAME<em>covered by «OTHER SIMULATION»</em></div><div class="crumb"><i class="ti ti-folder" data-lucide="folder" aria-hidden="true"></i>GROUP<span class="sep">›</span><code>path:SLUG</code></div></div>
+  </div>
+</div>
+</div>
+<script>
+(function(){
+  var oc=document.getElementById('ss');
+  var b=document.body, h=document.documentElement;
+  var cb=getComputedStyle(b), ch=getComputedStyle(h);
+  var top=parseFloat(cb.paddingTop)+parseFloat(cb.marginTop)+parseFloat(ch.paddingTop)+parseFloat(ch.marginTop);
+  var left=parseFloat(cb.paddingLeft)+parseFloat(cb.marginLeft)+parseFloat(ch.paddingLeft)+parseFloat(ch.marginLeft);
+  var right=parseFloat(cb.paddingRight)+parseFloat(cb.marginRight)+parseFloat(ch.paddingRight)+parseFloat(ch.marginRight);
+  var bottom=parseFloat(cb.paddingBottom)+parseFloat(cb.marginBottom)+parseFloat(ch.paddingBottom)+parseFloat(ch.marginBottom);
+  var r=oc.getBoundingClientRect();
+  top=Math.max(top,r.top); left=Math.max(left,r.left);
+  oc.style.margin=(-top)+'px '+(-right)+'px '+(-bottom)+'px '+(-left)+'px';
+})();
+</script>

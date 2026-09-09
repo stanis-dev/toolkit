@@ -16,13 +16,18 @@ Issues are not created only for bugs, but for all type of feedback for the agent
 - TTS: something did not sound right in voice synthesis.
 - STT: bad transcription.
 
-## Report Format
+## Report
 
-```diff
-!   #xxx | bug: agent failed to respond to a question.
+Report back per the Issue Analysis variation in [info.md](./info.md) and nothing else. I will
+request details if I need to. What goes in each part:
 
-# User: How can I see how much I owe on my credit?
-- Agent: I do not have information about that.
-+ Agent: Sure, you can find out by...
-```
-
+- Header: the issue number, its type from the list above, its title, the reporter's name, how
+  many calls are linked and the call date.
+- Reporter's words: what they wrote, paraphrased short. If their words don't translate well to
+  agent implementation - then under it write what that means in agent terms, one short paragraph.
+- Closes it: 3-10 word tldr on agent change that'd close the issue.
+- Conversation: only the turns that matter, with neighbours that give them sense. Mark 3 spans:
+  1. the turn the reporter is pointing at.
+  2. then two rows: what agent produced vs what it should have according to reported
+- Observations: omitted by default. Only for insight that would make the report dangerously
+  incomplete.

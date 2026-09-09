@@ -1,0 +1,94 @@
+<style>
+html,body{margin:0;padding:0}
+.ia{font-family:var(--font-sans, inherit);color:var(--text-primary, var(--foreground));font-size:14.5px;line-height:1.4}
+.ia svg.ti{width:1em;height:1em}
+.ia .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.ia header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 10px;background:var(--surface-1, var(--muted));border-bottom:1px solid var(--border)}
+.ia .id{display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:20px}
+.ia .id>span{display:inline-flex;align-items:center;height:20px;gap:4px}
+.ia .id .ti{font-size:16px;line-height:1;display:inline-block}
+.ia .id .num{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px;color:var(--text-secondary, var(--muted-foreground))}
+.ia .id .type{font-weight:500}
+.ia .id .type.bug .ti{color:var(--text-danger, var(--destructive))}
+.ia .meta{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap;text-align:right}
+.ia .part{border-bottom:1px solid var(--border)}
+.ia .part:last-child{border-bottom:0}
+.ia h4{margin:0;padding:4px 10px 0;font-size:11.5px;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--text-muted, var(--muted-foreground))}
+.ia h4.warn{color:var(--text-warning, var(--orange))}
+.ia .body{padding:3px 10px 5px}
+.ia .top2{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+.ia .top2>div{padding:5px 10px 6px}
+.ia .top2>div:first-child{border-right:1px solid var(--border)}
+.ia .top2 h4{padding:0 0 2px}
+.ia .said{color:var(--text-muted, var(--muted-foreground));font-style:italic}
+.ia .means{margin-top:3px}
+.ia .where{display:flex;align-items:center;gap:6px}
+.ia .where .ti{font-size:15px;line-height:1;color:var(--text-secondary, var(--muted-foreground))}
+.ia ul{margin:0;padding:0 0 0 14px;font-size:13.5px}
+.ia li{padding:1px 0}
+.ia .row{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 0;align-items:start}
+.ia .row .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px}
+.ia .row .n .ti{font-size:14px;line-height:1}
+.ia .row.dim{color:var(--text-muted, var(--muted-foreground))}
+.ia .row.ev>span:last-child{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;color:var(--text-muted, var(--muted-foreground));line-height:20px}
+.ia .row.bad>span:last-child,.ia .row.good>span:last-child{justify-self:start;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px;padding:0 6px;border-radius:3px}
+.ia .row.bad>span:last-child{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive))}
+.ia .row.good>span:last-child{background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent));color:var(--text-success, var(--green))}
+.ia .row.bad .n,.ia .row.good .n{color:var(--text-secondary, var(--muted-foreground))}
+.ia .mono{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px}
+.ia .hl{background:var(--bg-warning, color-mix(in srgb, var(--yellow) 20%, transparent));color:var(--text-warning, var(--orange));padding:0 2px;border-radius:3px}
+@media (max-width:520px){.ia .top2{grid-template-columns:1fr}.ia .top2>div:first-child{border-right:0;border-bottom:1px solid var(--border)}}
+</style>
+<div class="ia" id="ia">
+<h2 class="sr-only">ONE-SENTENCE DESCRIPTION FOR SCREEN READERS</h2>
+<header class="top">
+  <div class="id"><span class="num">#NNN</span><span class="type bug"><i class="ti ti-bug" data-lucide="bug" aria-hidden="true"></i>Bug</span><span>ISSUE TITLE</span></div>
+  <div class="meta">REPORTER NAME · N calls · DD/MM</div>
+</header>
+
+<div class="top2">
+  <div>
+    <div class="said">the reporter's words, paraphrased short</div>
+    <div class="means">What it means in agent terms, one short paragraph, <span class="mono">values in mono</span>.</div>
+  </div>
+  <div>
+    <h4>Closes it</h4>
+    <div class="where"><i class="ti ti-webhook" data-lucide="webhook" aria-hidden="true"></i>WHERE THE CHANGE GOES</div>
+  </div>
+</div>
+
+<div class="part">
+  <h4>Call</h4>
+  <div class="body">
+    <div class="row dim"><span class="n"><i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i></span><span>Neighbouring agent turn, dimmed.</span></div>
+    <div class="row"><span class="n"><i class="ti ti-user" data-lucide="user" aria-hidden="true"></i></span><span>Caller turn with <span class="hl">the reporter's evidence span</span> marked.</span></div>
+    <div class="row dim"><span class="n"><i class="ti ti-tool" data-lucide="wrench" aria-hidden="true"></i></span><span>ToolName {args}</span></div>
+    <div class="row ev"><span class="n"><i class="ti ti-phone-off" data-lucide="phone-off" aria-hidden="true"></i></span><span>0.8 s</span></div>
+    <div class="row bad"><span class="n"><i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i>-</span><span>the line it said</span></div>
+    <div class="row good"><span class="n"><i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i>+</span><span>the line it should have said</span></div>
+  </div>
+</div>
+
+<div class="part">
+  <h4 class="warn">Observations</h4>
+  <div class="body">
+    <ul>
+      <li>Omit this whole part unless a fact here changes what happens next.</li>
+    </ul>
+  </div>
+</div>
+</div>
+<script>
+(function(){
+  var oc=document.getElementById('ia');
+  var b=document.body, h=document.documentElement;
+  var cb=getComputedStyle(b), ch=getComputedStyle(h);
+  var top=parseFloat(cb.paddingTop)+parseFloat(cb.marginTop)+parseFloat(ch.paddingTop)+parseFloat(ch.marginTop);
+  var left=parseFloat(cb.paddingLeft)+parseFloat(cb.marginLeft)+parseFloat(ch.paddingLeft)+parseFloat(ch.marginLeft);
+  var right=parseFloat(cb.paddingRight)+parseFloat(cb.marginRight)+parseFloat(ch.paddingRight)+parseFloat(ch.marginRight);
+  var bottom=parseFloat(cb.paddingBottom)+parseFloat(cb.marginBottom)+parseFloat(ch.paddingBottom)+parseFloat(ch.marginBottom);
+  var r=oc.getBoundingClientRect();
+  top=Math.max(top,r.top); left=Math.max(left,r.left);
+  oc.style.margin=(-top)+'px '+(-right)+'px '+(-bottom)+'px '+(-left)+'px';
+})();
+</script>
