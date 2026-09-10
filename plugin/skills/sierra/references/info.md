@@ -10,6 +10,8 @@ site at `http://127.0.0.1:8489/`, served from `~/.claude/bbva-issues/`; start it
 open tracker issues in a sidebar grouped in buckets, and one card for the selected issue,
 `http://127.0.0.1:8489/#a=<agent>&i=<n>`.
 
+If the card is not open in app browser, open it for me.
+
 The agents are `openpay` (repo `agents/openpay`, MCP `sierra`) and `cobranzas` (repo
 `agents/base`, MCP `sierra-base`). Everything below lives under `agents/<agent>/`.
 
@@ -80,35 +82,26 @@ cannot hold:
 - Layer 1 of the relevant context ([agent-diagnose.md](./agent/agent-diagnose.md)) by default;
   layers 2 and 3 only when I ask for them.
 
-### Issue Analysis
+### Issue Analysis (Workflow, Step 1)
 
-When to use: step 1 of the workflow. What each part holds is in [issues.md](./issues.md). The
-template [sections/issue-analysis.html](./sections/issue-analysis.html) holds the layout and a
-placeholder row for every row kind; copy the row, replace its text. What the template cannot
-hold:
+What each part holds is in [issues.md](./issues.md). The template is [sections/issue-analysis.html](./sections/issue-analysis.html).
 
 - Type: `ti-bug` in `--text-danger` for bug, `ti-arrow-up-circle` for improvement, then the
   change type.
 - The failure row takes the gutter icon of the row kind whose value changed: `ti-robot` for a
   spoken line, `ti-tool` for a tool call or its result, `ti-webhook` for a post-call tag.
 
-### Sim Strategy
+### Sim Strategy (Workflow, Step 1)
 
-When to use: step 2 of the workflow, reporting which simulations change for the task at hand.
-The template [sections/sim-changes.html](./sections/sim-changes.html) holds one row per kind of
-change: addition, modification, deletion; copy the row, replace its text. Each simulation's row
-holds its own Expectations and Replay parts: the changes to its expectations are written into the
-Expectations rows as diffs, its tags close that list. What the template cannot hold:
+Template: [sections/sim-changes.html](./sections/sim-changes.html).
 
-- Only simulations that change appear. Simulations that stay as they are, however close to the
-  scenario, are not listed.
+- Only affected simulations.
 - A modification shows only the lines that change. A group move goes on the crumb the way the
   rename goes on the name.
-- Once a simulation has run, its pass count sits in the gutter after the change mark and on the
-  Expectations summary; the Replay part exists from the first run.
-- A deletion's fold holds the simulation that covers the scenario and what of it that one
-  already observes.
-- Below Issue Analysis the section has no header; a `Sim Strategy` heading takes its place.
+- All simulation runs must update pass rate for sims.
+- Replay shows the replay that with the most relevant failure scenario.
+- Deletion's fold holds one short sentence about the reason it gets deleted.
+- If regressions linked to our work are found, append them here and track their pass rates as well.
 
 ### Simulation Replay
 
