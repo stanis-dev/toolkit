@@ -147,4 +147,4 @@ again when reporting the change as applied. The template
 block entry with the diff written into the edited item. What the template cannot hold:
 
 - One block entry per block that changes, its neighbours dimmed and elided as in Studio Context.
-- Once pushed, the block entry's status label reads `applied · <target>`.
+- The block entry's status label reads `proposed`, and `applied` once pushed.
