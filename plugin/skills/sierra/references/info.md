@@ -69,16 +69,19 @@ the model saw. The template
 entry per block kind and a row per item kind; copy the row, replace its text. What the template
 cannot hold:
 
-- The summary row appears only when the answer is a pattern across places, such as one trigger
-  worded four ways.
+- The summary row exists for one case: layer 1 holds a conflict. One part of the context asks
+  for the behaviour the turn needed, another overpowers it at that turn. Role A is the part that
+  asks, role B the part that wins. Each column lists its spans as they read below. The note, in
+  column B only, is one sentence: what wins and what it makes the agent do. A section without
+  that conflict has no summary row.
 - One block entry per place, in the order the model reads them. The breadcrumb carries display
   names only: no sibling ordinals, no type words once an icon carries the type, no predicate
   icons on the path.
 - Block icons beyond the ones in the template: `ti-list-check` rules, `ti-git-branch`
   condition, `ti-book` glossary, `ti-gavel` policies, `ti-message-language` response phrasing,
   `ti-puzzle` component.
-- Highlights carry a role, two roles at most; the role's key is the superscript on the span and
-  the list key in the summary row.
+- Highlights carry role A or role B; the role's key is the superscript on the span and the list
+  key in the summary row.
 - Layer 1 of the relevant context ([agent-diagnose.md](./agent/agent-diagnose.md)) by default;
   layers 2 and 3 only when I ask for them.
 
