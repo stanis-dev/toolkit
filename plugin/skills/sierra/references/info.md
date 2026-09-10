@@ -106,6 +106,8 @@ Expectations rows as diffs, its tags close that list. What the template cannot h
   rename goes on the name.
 - Once a simulation has run, its pass count sits in the gutter after the change mark and on the
   Expectations summary; the Replay part exists from the first run.
+- A deletion's fold holds the simulation that covers the scenario and what of it that one
+  already observes.
 - Below Issue Analysis the section has no header; a `Sim Strategy` heading takes its place.
 
 ### Simulation Replay
