@@ -18,10 +18,17 @@ The agents are `openpay` (repo `agents/openpay`, MCP `sierra`) and `cobranzas` (
 - The card, `cards/<n>.html`: one file per issue, the only thing you write for me, and only for
   the issue you are working. Nobody else writes it.
 
-A card is a bucket line followed by sections, one per workflow step, in workflow order:
+A card is a bucket line, then state lines while there is state to show, then sections, one per
+workflow step, in workflow order:
 
     <!-- bucket: Pedido de humano -->
+    <!-- pr: draft https://github.com/<org>/<repo>/pull/NNN -->
+    <!-- ws: default -->
     …section HTML, exactly as its template under sections/ renders it…
+
+`pr` is `draft`, `ready` or `merged`, then the link. `ws` is the Studio workspace that holds the
+edit, `default` once it is there, `released` once it is in a release. Update both the moment they
+change.
 
 ## Card rules
 
