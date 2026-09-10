@@ -56,6 +56,12 @@ Tag expectations evaluate deterministic pathing of the agent. Observation condit
 - Always search for the earliest deviation from happy path. Actual damage may present on later turn, obscuring the source.
 
 
+## Judge LLM expectations
+
+- Phrasing must allow a human understand what the simulation is evaluating at glance and be short.
+- Be careful about connecting expectations with tying a a condition to a specific turn. Progress Indicators can fail them even if agent behaviour is correct otherwise.
+- 
+
 
 ## Assessing Simulation Success
 
