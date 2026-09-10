@@ -17,8 +17,12 @@ disk, never from `get_test_results`.
 
 ## Issues
 
-`get_issue_details`, directly. The linked conversation ids come back in the `audit-` form the sync
-needs.
+An issue's data lives in `~/.claude/bbva-issues/agents/<agent>/issues/<n>.json`: the
+`get_issue_details` response with its default arguments, saved verbatim, so comments and linked
+calls without conversation transcripts. Read it before calling the tracker. Every call you do
+make, because the file is missing or because something changed the issue, a comment, a status,
+ends with its response written there untouched. The linked conversation ids come back in the
+`audit-` form the sync needs.
 
 ## Conversations
 

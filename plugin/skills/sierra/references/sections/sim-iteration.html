@@ -1,51 +1,4 @@
-<style>
-html,body{margin:0;padding:0}
-.si{font-family:var(--font-sans, inherit);color:var(--text-primary, var(--foreground));font-size:14.5px;line-height:1.4}
-.si svg.ti{width:1em;height:1em}
-.si .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.si header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 10px;background:var(--surface-1, var(--muted));border-bottom:1px solid var(--border)}
-.si .id{display:flex;align-items:center;gap:10px;line-height:20px}
-.si .nm{font-weight:500;font-size:13.5px}
-.si .cnt{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12.5px;font-weight:500;color:var(--text-danger, var(--destructive));white-space:nowrap}
-.si .crumb{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-secondary, var(--muted-foreground));white-space:nowrap;flex:none}
-.si .crumb .ti{font-size:14px;line-height:1;margin-right:2px}
-.si .crumb .sep{color:var(--text-muted, var(--muted-foreground));margin:0 2px}
-.si .crumb code{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground))}
-.si h4{margin:0;padding:4px 10px 0;font-size:11.5px;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--text-muted, var(--muted-foreground))}
-.si .body{padding:3px 10px 5px}
-.si .part{border-bottom:1px solid var(--border)}
-.si .part:last-child{border-bottom:0}
-.si details.part>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:4px 10px;user-select:none}
-.si details.part>summary::-webkit-details-marker{display:none}
-.si details.part>summary h4{padding:0;display:flex;align-items:center;gap:4px}
-.si details.part>summary h4 .ti{font-size:13px;line-height:1;transition:transform .15s}
-.si details.part[open]>summary h4 .ti{transform:rotate(90deg)}
-.si details.part>summary .loc{flex:1;min-width:0}
-.si details.part[open]>summary .loc{visibility:hidden}
-.si details.part>summary:hover h4{color:var(--text-secondary, var(--muted-foreground))}
-.si .row{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 0;align-items:start}
-.si .row .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px}
-.si .row .n .ti{font-size:14px;line-height:1}
-.si .row.x .n{color:var(--text-danger, var(--destructive))}
-.si .row.ok .n{color:var(--text-success, var(--green))}
-.si .loc{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-secondary, var(--muted-foreground));flex-wrap:wrap;line-height:20px}
-.si .loc .ti{font-size:14px;line-height:1;margin-right:2px}
-.si .loc .sep{color:var(--text-muted, var(--muted-foreground));margin:0 2px}
-.si .edit{font-size:14px;padding:1px 0 2px}
-.si .del{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));text-decoration:line-through;padding:0 2px;border-radius:3px}
-.si .ins{background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent));color:var(--text-success, var(--green));padding:0 2px;border-radius:3px}
-.si .judge{color:var(--text-muted, var(--muted-foreground));font-size:13px}
-.si .tags{display:flex;flex-wrap:wrap;gap:3px;padding:2px 0}
-.si .tag{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11px;padding:0 5px;border-radius:3px;border:1px solid var(--border);color:var(--text-secondary, var(--muted-foreground));white-space:nowrap}
-.si .tag.viol{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));border-color:var(--border-danger, var(--destructive))}
-.si .row.sys>span:last-child{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);color:var(--text-muted, var(--muted-foreground));line-height:20px;font-size:12.5px}
-.si .row.sys>span:last-child .ti{font-size:13px;line-height:1;flex:none;align-self:center}
-.si .row.sys .arg{opacity:.8}
-.si .row.ev>span:last-child{font-size:11.5px}
-.si .row.gap{color:var(--text-muted, var(--muted-foreground));font-size:12.5px;font-style:italic}
-.si .bad{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));padding:0 2px;border-radius:3px}
-</style>
-<div class="si" id="si">
+<div class="si">
 <h2 class="sr-only">ONE-SENTENCE DESCRIPTION FOR SCREEN READERS</h2>
 <header class="top">
   <div class="id"><span class="nm">SIMULATION NAME</span><span class="cnt">N / 5</span></div>
@@ -81,17 +34,3 @@ html,body{margin:0;padding:0}
   </div>
 </div>
 </div>
-<script>
-(function(){
-  var oc=document.getElementById('si');
-  var b=document.body, h=document.documentElement;
-  var cb=getComputedStyle(b), ch=getComputedStyle(h);
-  var top=parseFloat(cb.paddingTop)+parseFloat(cb.marginTop)+parseFloat(ch.paddingTop)+parseFloat(ch.marginTop);
-  var left=parseFloat(cb.paddingLeft)+parseFloat(cb.marginLeft)+parseFloat(ch.paddingLeft)+parseFloat(ch.marginLeft);
-  var right=parseFloat(cb.paddingRight)+parseFloat(cb.marginRight)+parseFloat(ch.paddingRight)+parseFloat(ch.marginRight);
-  var bottom=parseFloat(cb.paddingBottom)+parseFloat(cb.marginBottom)+parseFloat(ch.paddingBottom)+parseFloat(ch.marginBottom);
-  var r=oc.getBoundingClientRect();
-  top=Math.max(top,r.top); left=Math.max(left,r.left);
-  oc.style.margin=(-top)+'px '+(-right)+'px '+(-bottom)+'px '+(-left)+'px';
-})();
-</script>

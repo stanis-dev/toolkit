@@ -1,43 +1,4 @@
-<style>
-html,body{margin:0;padding:0}
-.so{font-family:var(--font-sans, inherit);color:var(--text-primary, var(--foreground));font-size:14.5px;line-height:1.4}
-.so svg.ti{width:1em;height:1em}
-.so .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.so header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 10px;background:var(--surface-1, var(--muted));border-bottom:1px solid var(--border)}
-.so .nm{font-weight:500;font-size:14px;display:flex;align-items:center;gap:8px;height:20px}
-.so .nm .res{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;font-weight:400;color:var(--text-danger, var(--destructive))}
-.so .nm .res.ok{color:var(--text-success, var(--green))}
-.so .crumb{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-secondary, var(--muted-foreground));white-space:nowrap}
-.so .crumb .ti{font-size:14px;line-height:1;margin-right:2px}
-.so .crumb .sep{color:var(--text-muted, var(--muted-foreground));margin:0 2px}
-.so .crumb code{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground))}
-.so .part{border-bottom:1px solid var(--border)}
-.so .part:last-child{border-bottom:0}
-.so h4{margin:0;padding:4px 10px 0;font-size:11.5px;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--text-muted, var(--muted-foreground))}
-.so .body{padding:3px 10px 5px}
-.so .exp{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 0;align-items:start}
-.so .exp .n{display:flex;align-items:center;justify-content:flex-end;height:20px}
-.so .exp .n .ti{font-size:15px;line-height:1}
-.so .exp.ok .n .ti{color:var(--text-success, var(--green))}
-.so .exp.ko .n .ti{color:var(--text-danger, var(--destructive))}
-.so .exp .judge{display:block;font-size:13px;color:var(--text-muted, var(--muted-foreground));margin-top:1px}
-.so .tags{display:flex;flex-wrap:wrap;gap:3px;padding-top:2px}
-.so .tag{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11px;padding:0 5px;border-radius:3px;border:1px solid var(--border);color:var(--text-secondary, var(--muted-foreground));white-space:nowrap}
-.so .tag.ko{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));border-color:var(--border-danger, var(--destructive))}
-.so .row{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 0;align-items:start}
-.so .row .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px}
-.so .row .n .ti{font-size:14px;line-height:1}
-.so .row.sys>span:last-child{display:flex;align-items:baseline;gap:6px;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);color:var(--text-muted, var(--muted-foreground));line-height:20px}
-.so .row.sys>span:last-child .ti{font-size:13px;line-height:1;flex:none;align-self:center}
-.so .row.tool>span:last-child{font-size:12.5px}
-.so .row.tool .arg{opacity:.8}
-.so .row.ev>span:last-child{font-size:11.5px}
-.so .row.gap>span:last-child{font-family:var(--font-sans, inherit);font-size:12.5px;font-style:italic}
-.so .bad{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));padding:0 2px;border-radius:3px}
-.so .row.bad-row .n{color:var(--text-danger, var(--destructive))}
-.so .row.bad-row.sys>span:last-child .ti{color:var(--text-danger, var(--destructive))}
-</style>
-<div class="so" id="so">
+<div class="so">
 <h2 class="sr-only">ONE-SENTENCE DESCRIPTION FOR SCREEN READERS</h2>
 <header class="top">
   <div class="nm">SIMULATION NAME<span class="res">0 / 5</span></div>
@@ -54,29 +15,17 @@ html,body{margin:0;padding:0}
 </div>
 
 <div class="part">
-  <h4>Replay</h4>
+  <h4><a href="https://bbva.sierra.ai/agents/AGENT_ID/simulations/runs/RUN_ID?resultId=RESULT_ID">Replay</a></h4>
   <div class="body">
-    <div class="row"><span class="n"><i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i></span><span>Agent turn.</span></div>
-    <div class="row"><span class="n"><i class="ti ti-user" data-lucide="user" aria-hidden="true"></i></span><span>Persona turn.</span></div>
-    <div class="row sys tool"><span class="n"></span><span><i class="ti ti-tool" data-lucide="wrench" aria-hidden="true"></i>ToolName(<span class="arg">key: "value"</span>)</span></div>
+    <div class="row sys gap"><span class="n"></span><span>five turns: what happened in them</span></div>
+    <div class="row"><span class="n">6<i class="ti ti-user" data-lucide="user" aria-hidden="true"></i></span><span>The turn before the break, no colour of its own.</span></div>
+    <div class="row sys tool"><span class="n"></span><span><i class="ti ti-tool" data-lucide="wrench" aria-hidden="true"></i>ToolName(<span class="arg">args from the trace</span>)</span></div>
     <div class="row sys ev"><span class="n"></span><span><i class="ti ti-eye" data-lucide="eye" aria-hidden="true"></i>Activated observation text, elided …</span></div>
+    <div class="row"><span class="n">7<i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i></span><span>First message of the breaking turn, a progress line.</span></div>
     <div class="row sys tool bad-row"><span class="n"></span><span><i class="ti ti-tool" data-lucide="wrench" aria-hidden="true"></i><span class="bad">OffendingTool()</span></span></div>
-    <div class="row bad-row"><span class="n"><i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i></span><span>Agent turn with <span class="bad">the offending span</span> marked.</span></div>
-    <div class="row sys gap"><span class="n"></span><span>three more turns: what happened in them</span></div>
+    <div class="row bad-row"><span class="n"><i class="ti ti-robot" data-lucide="bot" aria-hidden="true"></i></span><span>Later message of the same turn, no number, with <span class="bad">the offending span</span> marked.</span></div>
+    <div class="row"><span class="n">8<i class="ti ti-user" data-lucide="user" aria-hidden="true"></i></span><span>The turn after the break.</span></div>
+    <div class="row sys gap"><span class="n"></span><span>fifteen turns: what happened in them</span></div>
   </div>
 </div>
 </div>
-<script>
-(function(){
-  var oc=document.getElementById('so');
-  var b=document.body, h=document.documentElement;
-  var cb=getComputedStyle(b), ch=getComputedStyle(h);
-  var top=parseFloat(cb.paddingTop)+parseFloat(cb.marginTop)+parseFloat(ch.paddingTop)+parseFloat(ch.marginTop);
-  var left=parseFloat(cb.paddingLeft)+parseFloat(cb.marginLeft)+parseFloat(ch.paddingLeft)+parseFloat(ch.marginLeft);
-  var right=parseFloat(cb.paddingRight)+parseFloat(cb.marginRight)+parseFloat(ch.paddingRight)+parseFloat(ch.marginRight);
-  var bottom=parseFloat(cb.paddingBottom)+parseFloat(cb.marginBottom)+parseFloat(ch.paddingBottom)+parseFloat(ch.marginBottom);
-  var r=oc.getBoundingClientRect();
-  top=Math.max(top,r.top); left=Math.max(left,r.left);
-  oc.style.margin=(-top)+'px '+(-right)+'px '+(-bottom)+'px '+(-left)+'px';
-})();
-</script>

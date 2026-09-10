@@ -30,8 +30,8 @@ Fetching anything, an issue, a conversation, a simulation run or Studio content,
 - If you discover edits between your turns, those are my edits and are not to be reverted without my consent.
 - Before editing ghostwriter blocks, always sync first.
 - Before presenting an issue, context, simulation, or proposed edit, read
-  [info.md](./references/info.md). Use the inline renderer exposed by the current client and
-  preserve the selected variation's documented structure and data exactly.
+  [info.md](./references/info.md). It goes on the issue's card, in the section's template
+  structure, nothing else.
 
 ## My workflow
 

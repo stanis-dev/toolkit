@@ -1,32 +1,4 @@
-<style>
-html,body{margin:0;padding:0}
-.oc{font-family:var(--font-sans, inherit);color:var(--text-primary, var(--foreground));font-size:14.5px;line-height:1.4}
-.oc svg.ti{width:1em;height:1em}
-.oc .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.oc .sec{border-bottom:1px solid var(--border)}
-.oc .sec:last-child{border-bottom:0}
-.oc .sec header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:5px 10px;background:var(--surface-1, var(--muted));border-bottom:1px solid var(--border)}
-.oc .crumb{margin:0;font-size:13.5px;font-weight:400;display:flex;align-items:center;flex-wrap:wrap;gap:4px;color:var(--text-secondary, var(--muted-foreground))}
-.oc .crumb .ti{font-size:15px;margin-right:4px;vertical-align:-2px}
-.oc .crumb .sep{color:var(--text-muted, var(--muted-foreground));margin:0 3px}
-.oc .crumb .cur{color:var(--text-primary, var(--foreground));font-weight:500}
-.oc .crumb .cur .ti{color:var(--text-primary, var(--foreground))}
-.oc .sec .body{padding:3px 10px 4px}
-.oc .row{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 0;align-items:start}
-.oc .row.sub{grid-template-columns:88px 1fr}
-.oc .row .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px;align-self:start}
-.oc .row.dim{color:var(--text-muted, var(--muted-foreground))}
-.oc .row.on .n{color:var(--text-secondary, var(--muted-foreground))}
-.oc .gate{margin:2px 0 3px;padding:3px 8px;border-left:2px solid var(--border-strong, var(--border));font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;line-height:1.35;color:var(--text-muted, var(--muted-foreground))}
-.oc .gate p{margin:0;padding:1px 0;display:flex;gap:6px;align-items:baseline}
-.oc .gate .k{flex:none;display:inline-flex;align-items:center;gap:3px;min-width:30px}
-.oc .gate .k .ti{font-size:12.5px;line-height:1}
-.oc .el{color:var(--text-muted, var(--muted-foreground));cursor:help;border-bottom:1px dotted var(--border-strong, var(--border))}
-.oc .del{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));text-decoration:line-through;text-decoration-thickness:1px;padding:0 2px;border-radius:3px}
-.oc .ins{background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent));color:var(--text-success, var(--green));padding:0 2px;border-radius:3px}
-.oc .tool{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px}
-</style>
-<div class="oc" id="oc">
+<div class="oc">
 <h2 class="sr-only">ONE-SENTENCE DESCRIPTION FOR SCREEN READERS</h2>
 <section class="sec">
   <header><h3 class="crumb"><span><i class="ti ti-folder" data-lucide="folder" aria-hidden="true"></i>SECTION</span><span class="sep">›</span><span><i class="ti ti-route" data-lucide="route" aria-hidden="true"></i>JOURNEY</span><span class="sep">›</span><span><i class="ti ti-git-branch" data-lucide="git-branch" aria-hidden="true"></i></span><span class="sep">›</span><span class="cur"><i class="ti ti-file-text" data-lucide="file-text" aria-hidden="true"></i>BLOCK NAME</span></h3></header>
@@ -39,17 +11,3 @@ html,body{margin:0;padding:0}
   </div>
 </section>
 </div>
-<script>
-(function(){
-  var oc=document.getElementById('oc');
-  var b=document.body, h=document.documentElement;
-  var cb=getComputedStyle(b), ch=getComputedStyle(h);
-  var top=parseFloat(cb.paddingTop)+parseFloat(cb.marginTop)+parseFloat(ch.paddingTop)+parseFloat(ch.marginTop);
-  var left=parseFloat(cb.paddingLeft)+parseFloat(cb.marginLeft)+parseFloat(ch.paddingLeft)+parseFloat(ch.marginLeft);
-  var right=parseFloat(cb.paddingRight)+parseFloat(cb.marginRight)+parseFloat(ch.paddingRight)+parseFloat(ch.marginRight);
-  var bottom=parseFloat(cb.paddingBottom)+parseFloat(cb.marginBottom)+parseFloat(ch.paddingBottom)+parseFloat(ch.marginBottom);
-  var r=oc.getBoundingClientRect();
-  top=Math.max(top,r.top); left=Math.max(left,r.left);
-  oc.style.margin=(-top)+'px '+(-right)+'px '+(-bottom)+'px '+(-left)+'px';
-})();
-</script>
