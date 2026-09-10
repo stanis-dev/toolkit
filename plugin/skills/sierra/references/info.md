@@ -101,7 +101,11 @@ Template: [sections/sim-changes.html](./sections/sim-changes.html).
 - All simulation runs must update pass rate for sims.
 - Replay shows the replay that with the most relevant failure scenario.
 - Deletion's fold holds one short sentence about the reason it gets deleted.
-- If regressions linked to our work are found, append them here and track their pass rates as well.
+- A regression is a simulation the edit did not touch whose pass count fell between the run before
+  the edit and the run after it, same workspace, same replicas. Its row comes after the changed
+  ones and carries no change mark: the count after in the gutter, then the count before, dimmed,
+  linking to the run before. The Expectations mark the one that fails now with the judge's words,
+  the Replay is one failing run. A count that recovers updates in place.
 
 ### Simulation Replay
 
