@@ -7,6 +7,12 @@ Usage:
   runset.py <run-id> --transcript <result>   turn list; <result> is a result id, a test id or a name substring
   runset.py conv <conversation-id>           summary line plus turn list of a downloaded conversation
   runset.py names <file>                     import test names from a saved `sierra test --json` output
+  runset.py summary <file>… [--vs <file>…]   what `sierra test --json` wrote: per sim passed/total, judge
+                                             lines, run ids; `--vs` files are the baseline
+
+`summary` reads only the files `sierra test <ws> --names … --num-runs 5 --json > <file>` wrote; several
+files add up (two passes of five, or a batch split). Transcripts, tags and traces are not in that
+file: download the run and use the views above.
 
 Run ids accept both `01M...` and `replaytestrunset-01M...`. The .composer directory is found by
 walking up from the working directory, or under agents/*/ when run from the repository root.
@@ -248,6 +254,71 @@ def cmd_names(args):
     print(f"{len(imported)} names imported, {len(names)} cached in {cache}")
 
 
+def load_run_file(path):
+    """A `sierra test --json` output file. Empty means the launch failed before the run started."""
+    text = open(path, encoding="utf-8").read()
+    start = text.find('{"')
+    if start < 0:
+        fail(
+            f"{path} holds no run: `sierra test` failed before starting; its message went to stderr."
+            " The frequent causes: the workspace positional was left out («Multiple workspaces match»),"
+            " several names were passed as one quoted or comma-joined argument, --num-runs above 5."
+        )
+    payload = json.loads(text[start : text.rfind("}") + 1])
+    if not payload.get("tests"):
+        fail(
+            f"{path}: the run matched no simulations. `--names` takes space-separated display names"
+            " or id slugs, as `sierra test <ws> --list --json` prints them."
+        )
+    payload["_file"] = path
+    return payload
+
+
+def add_up(payloads):
+    """Per test id across files: name, passed, total, and each judge line with how often it appeared."""
+    sims = {}
+    for p in payloads:
+        for t in p["tests"]:
+            s = sims.setdefault(t["testId"], {"name": t["name"], "passed": 0, "total": 0, "judge": {}})
+            s["passed"] += t.get("passed", 0)
+            s["total"] += t.get("total", 0)
+            for line in t.get("statusDetails") or []:
+                s["judge"][line] = s["judge"].get(line, 0) + 1
+    return sims
+
+
+def cmd_summary(args):
+    if "--vs" in args:
+        cut = args.index("--vs")
+        now_files, base_files = args[:cut], args[cut + 1 :]
+    else:
+        now_files, base_files = args, []
+    if not now_files or ("--vs" in args and not base_files):
+        fail(__doc__)
+    now = add_up([load_run_file(f) for f in now_files])
+    base = add_up([load_run_file(f) for f in base_files]) if base_files else None
+    ids = sorted(set(now) | set(base or {}), key=lambda i: ((now.get(i) or base.get(i))["name"]))
+    ids.sort(key=lambda i: now[i]["passed"] == now[i]["total"] if i in now else True)
+    width = max(len((now.get(i) or base.get(i))["name"]) for i in ids)
+    for i in ids:
+        score = f"{now[i]['passed']}/{now[i]['total']}" if i in now else "—"
+        if base is not None:
+            before = f"{base[i]['passed']}/{base[i]['total']}" if i in base else "—"
+            score = f"{before} → {score}"
+        print(f"{score:>13}  {(now.get(i) or base.get(i))['name']}")
+        for line, n in sorted((now.get(i) or {}).get("judge", {}).items(), key=lambda kv: -kv[1]):
+            print(f"{'':>13}  ✗ {'×' + str(n) + ' ' if n > 1 else ''}{line}")
+    print()
+    for label, files in (("now", now_files), ("baseline", base_files)):
+        for f in files:
+            p = load_run_file(f)
+            sm = p.get("summary") or {}
+            print(
+                f"{label:<8} {p.get('simulationRunId')}  {sm.get('expectedResultCount', '?')} results"
+                f"  {p.get('durationSeconds', '?')}s  {p.get('simulationRunUrl', '')}"
+            )
+
+
 def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -256,6 +327,8 @@ def main(argv):
         cmd_conv(argv[1:])
     elif argv[0] == "names":
         cmd_names(argv[1:])
+    elif argv[0] == "summary":
+        cmd_summary(argv[1:])
     else:
         cmd_run(argv)
 

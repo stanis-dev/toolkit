@@ -37,15 +37,22 @@ change.
 - Don't change a section's structure unless asked explicitly.
 - The card is the whole answer. Outside it, only a blocker or a question, one line each. I will
   ask for details myself if I need them.
-- Only the top section has its own header.
 - A step that re-measures an object already on the card refreshes that object's part where it
   stands: e.g. Expectations and the Replay of the simulation chosen in steps 2 and 3 update in
   place, not repeated.
+- The card reads top to bottom in the order things are inferred, so each part rests on the ones
+  above it. When a part changes, in its content and not just its measurement, everything below
+  it is deleted and the workflow resumes from that part: the later sections are written again
+  from scratch with the changed part in mind, not patched.
 - Expectations and Replay are `<details>` parts, closed by default. The Expectations summary
   carries the pass count of the run it reports; the Replay summary carries the heading with the
   result link.
 - An expectation row states the observable only: the turn, what it must contain or omit, and
   the phrasings that do not meet it when the judge has passed one.
+- A gap row stands for the turns a Conversation or a Replay leaves out: the count, then one
+  clause with the customer's move and the agent's answer across them. It carries no quotes, no
+  numbers the agent read out, no tool results and no tags; those belong to the rows that show
+  them.
 - Each step edits the card file in place: its section appended, or the part it refreshes
   replaced.
 
@@ -69,11 +76,8 @@ the model saw. The template
 entry per block kind and a row per item kind; copy the row, replace its text. What the template
 cannot hold:
 
-- The summary row exists for one case: layer 1 holds a conflict. One part of the context asks
-  for the behaviour the turn needed, another overpowers it at that turn. Role A is the part that
-  asks, role B the part that wins. Each column lists its spans as they read below. The note, in
-  column B only, is one sentence: what wins and what it makes the agent do. A section without
-  that conflict has no summary row.
+- The summary row exists situations where related context holds a conflict. Left - context that asks
+  for the behaviour the turn needed, Right - context that overpowers it at that turn.
 - One block entry per place, in the order the model reads them. The breadcrumb carries display
   names only: no sibling ordinals, no type words once an icon carries the type, no predicate
   icons on the path.

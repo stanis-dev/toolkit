@@ -36,6 +36,17 @@ only there; `summary.json` has an empty `release_target`.
 
 ## Simulation runs
 
+Launch from the agent directory with the workspace name from `.targets/` as the positional, and keep
+the JSON the CLI prints:
+
+```
+pnpm --dir=<agent> exec sierra test <ws> --names <a> <b> --num-runs 5 --json -y > <file>.json
+python3 <base>/scripts/runset.py summary <file>.json [--vs <baseline>.json]
+```
+
+`summary` prints per sim passed/total, the judge lines and the run ids from that file; more files add
+up. Everything below needs the run downloaded.
+
 Read with `python3 <base>/scripts/runset.py`; `--help` lists the views. Write a parser only for what
 the views do not cover: request and response bodies and timing in `traces/*.trace`, tool arguments
 and results, comparisons across run ids. When a parser turns out reusable, add it to `runset.py` as

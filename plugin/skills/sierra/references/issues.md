@@ -34,10 +34,29 @@ mechanism moves the issue: change its line.
 Report back per the Issue Analysis section in [info.md](./info.md) and nothing else. I will
 request details if I need to. What goes in each part:
 
-- Header: the issue number, its type and change type from the lists above, its title, the
-  reporter's name, how many calls are linked and the call date.
-- Reporter's words: what they wrote, paraphrased short.
+### Top part
+
+- Reporter's words: reporter's ask, paraphrased into a single, short sentence.
 - Closes it: 3-10 word tldr on customer-facing agent change that'd close the issue.
-- Conversation: the turns that matter. Mark 3 spans -
-    1. the reported turn (if doesn't match agent bad vs good turn)
-    2. what agent produced vs what it should have of the earliest failure in the conversation.
+
+### Conversation
+
+Turns that matter and one surrounding turn. Read [agent-diagnose.md](./agent/agent-diagnose.md) and [agent-design.md](./agent/agent-design.md), then mark 3 spans:
+
+1. turn reporter chose.
+2. what agent did/said (bad). 
+3. what agent whould have done/said (good).
+
+The last row is the call's post-call tags, `ti-webhook` in the gutter, name and value as the
+tracker holds them. When the fix changes a tag, that row is the failure row and takes the diff.
+
+When considering "good" agent turn:
+- consider what a trained human professional would say in given situation. do so with the whole conversation in mind.
+- changing agent turn can lead to different customer responses. make sure that the "good" proposition accounts for all the effects until the end of the conversation.
+- pay attention not only to "what" agent would say, but also to "how".
+
+## Recipies
+
+- Issue already fixed: stop workflow, gather proof and report to me.
+- Transcription: unless mis-transcribed word/expression is very common and critical, stop analysis and just let me know.
+- Multi-turn effects: ask will potentially affect several agent turns or transform one-turn behaviour into multi-turn. Let me know asap, multiturn changes are especially complicated.

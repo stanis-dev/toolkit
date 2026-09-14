@@ -5,6 +5,7 @@ With agent prompts, your goal is to create a consistent and resilient behaviour 
 ## Guidance
 
 - Always think of the full context in mind because because modifications will interact with every part of the prompt. Modifications will have ripple effects throughout the prompt and may give more force to other sections of the prompt or  deprecate  context. Good prompting empowers words, produces maximum steering through minimum context.
+- Be very intentional about the scope of each edit. Evaluate whether you want to affect wide pattern of behaviours and scenarios or a specific subset or a single specific scenario. Always attempt to avoid adding context for a single scenario. 
 - Good prompt defines the task and subtasks clearly: what, how and definition of done. A task needs no further explanation if it is well defined.
 - Prompt phrasing will bias the agent towards those words and structures. Always make sure that you're biasing the agent correctly towards the register, vocabulary, and any other context requirements.
 - Any time you add any content:
@@ -38,6 +39,35 @@ Coherence is critical, because it needs to be understood within the complete pro
 - Negative instructions.
 - Instruction with a set of example cases - it can bias agent towards them. It's often a signal that better definition is needed.
 - Empty instructions. Bits that have no actual meaning.
+
+## Progress Indicators
+
+- PI is a separate mechanism from main agent. As context it receives conversation transcript, "Glossary" block context and additional instructions when those are configured for the agent. Agent has no control over when or how PIs trigger, and once triggered - PI prompt cannot influence that either.
+- PI trigger mechanism:
+  - tool call will trigger PI deterministically unless tool setting disables those. Even if PIs are disabled by tool setting, they will still trigger if timeout is reached.
+  - timeout setting for agent.
+  - PIs are much more likely to trigger on turns with tool call because those take longer, so it's easier for them to reach the timeout.
+- Tools allow to provide a set of pre-determined strings and one of those is chosen at random during conversation. 
+
+### Strategy
+
+PIs can be a wild card in agent design, since they can trigger at any time. The following cases must be accounted for in additional instructions:
+
+- Tone and register: PIs don't receive any of the agent context except for the Glossary and will not be aware of instructions related to tone and register. Those must be declared separately for this system and maintained throughout agent development to be aligned.
+- Commitment language prohibition: see known problems.
+
+PIs can also be used as a tool to increase naturalness. One such case presents itself for turns where a tool call is expected.
+- PI can announce that it's performing the action and upon tool completion agent can continue with a "done" or "before I can do that, I need to... (think validation error). This case requires a scenario where PI can infer from the transcript a situation where a tool call will happen with high confidence, as being a separate system - the transcript is all it sees.
+- If a tool can benefit from a personalised PI just for it and scenarios which can lead are such that provided strings would fit well, prefer this scenario.
+- If scenarios leading to tool's use are distinct enough that a single pool of PIs is not reasonable, then you can specify those scenarios in additionalInstructions so that PI mechanism can reason through it. This requires that seeing nothing but transcript, PI could infer with reasonable confidence that agent is about to invoke the tool or that if the instructed PI were to trigger on a delay of that situation it wouldn't be off.
+
+### Known problems 
+
+- PIs may name the following action. This creates two problems: 
+  - agent can decide for a different action, which will create confusion for the user
+  - agent can end up being influenced by PIs wording and chose the action PI announced, derailing agent's behaviour.
+- PI may produce a sentence that doesn't create a wrong behavior, yet still create unnatural pattern.
+
 
 ## Conditional blocks
 
@@ -78,4 +108,3 @@ Rules are meant to correct unwanted agent behaviour that survives even the good 
 - Agent will ask questions with and without offering options which can create prompt leaks.  Potential solution:
   - Declare Phrasing Instruction of type: "When instructed to ask a question, offer response options only when the instruction clearly asks/permits to do so and provides allowed options"
   - Review all instructions for agent asking questions and make sure those observe the above rule. 
-
