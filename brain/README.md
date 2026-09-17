@@ -9,7 +9,7 @@ A personal macOS app for recording meetings, transcribing them locally with spea
 - **Polish + summary**: An `agent` (cursor-agent) pass corrects obvious transcription errors and writes a structured summary with to-dos.
 - **Dictation**: Global hotkey (Ctrl+Shift+Option+Cmd+D) records and transcribes speech with `parakeet-mlx`, then copies (or pastes) the result.
 - **Meeting detection**: Watches camera/mic use and Slack/Teams/browser windows, and offers to start recording when a call is detected.
-- **Chat sync**: Background exporters pull Slack and Teams history to `data/` as readable Markdown for the assistant (opencode) to consume.
+- **Chat sync**: Background exporters pull Slack, Teams, and two Google Chat spaces to `data/` as readable Markdown for the assistant (opencode) to consume.
 - **Assistant tab**: Embeds the local opencode web UI (`127.0.0.1:4096`).
 - **TODO overlay**: A floating panel two-way-synced with `data/assistant-todo.md`.
 
@@ -58,6 +58,95 @@ Runs the test suite (`scripts/test.sh`, skip with `--skip-tests`), compiles all 
 
 # A specific file
 .venv/bin/python3 scripts/transcribe.py rec-2026-03-24-143022.wav
+```
+
+## Programmatic control
+
+`brainctl` controls the running app and returns JSON. It uses a private Unix
+socket accessible only to the current macOS user; there is no network port.
+Launch the app with `brainctl launch` if it is not running.
+
+```bash
+brainctl status
+brainctl sync google-chat --wait
+brainctl sync slack
+brainctl job <job-id> --wait
+brainctl auto google-chat on
+brainctl recording start
+brainctl recording pause
+brainctl recording resume
+brainctl recording stop
+brainctl recordings
+brainctl transcribe <recording-id>
+brainctl dictation start
+brainctl dictation finish
+brainctl dictation cancel
+brainctl todo get
+brainctl todo set --file /absolute/path/todo.md
+brainctl todo append --file /absolute/path/additions.md
+brainctl navigate macos
+brainctl navigate hide
+```
+
+- Sync platforms: `slack`, `teams`, `google-chat`. `sync` returns a job ID;
+  `--wait` waits for completion and exits nonzero on failure. Jobs are kept in
+  memory until restart, with up to 100 completed jobs retained.
+- `auto` accepts `on` or `off`. Navigation accepts `assistant`, `recorder`,
+  `dictator`, `macos`, `settings`, `logs`, or `hide`.
+- Recording start is asynchronous. Poll `status` for `recording.starting`,
+  `recording.active`, and `recording.error`. CLI start errors do not open a modal.
+- Dictation finish transcribes and copies text to the clipboard. `--paste` also
+  pastes it. Poll `status` for `dictation.state`, `dictation.text`, and
+  `dictation.error`. Transcription progress is available through `recordings`.
+- TODO set/append also accept piped stdin. Append adds the supplied text verbatim.
+
+The client is `scripts/brainctl.py`, linked at `/Users/stan/.local/bin/brainctl`.
+Other programs can send one newline-delimited JSON object to
+`/Users/stan/Library/Application Support/Brain/control.sock`; replies use
+`{"ok":true,"result":...}` or `{"ok":false,"error":{"code":...,"message":...}}`.
+The client's `--help` lists commands and arguments.
+
+## Google Chat
+
+Google Chat uses the signed-in browser through the Playwriter extension, without
+a Cloud project or OAuth setup. Keep the browser connected to Playwriter and
+signed into Google Chat as `stan.samisco@ext.sierra.ai`.
+Install the `playwriter` CLI if it is not already on PATH.
+
+The macOS tab has a **Google Chat** Sync button and Auto toggle. Auto refresh runs
+every five minutes after launch or the preceding sync. Only these spaces are read:
+
+- **Voicebot - Openpay** (`AAQAkdY0pQg`)
+- **VoiceBot- Cobranza** (`AAQAZ0v2SzU`)
+
+The first sync briefly opens a temporary background tab to obtain browser
+authentication, then closes that tab before reading history through direct HTTP
+requests. Authentication is reused across spaces and later syncs in Playwriter's
+relay memory. It is refreshed only when Google rejects it, with one refresh/retry
+per run. Network failures and rate limits do not trigger a browser refresh.
+
+Cookies and anti-CSRF tokens are never written to disk. Restarting the relay or
+updating the exporter clears the cache. Chat does not need to remain open: when
+authentication is needed, the helper opens a temporary Chat tab in the connected
+browser. It uses the account index of an existing verified Sierra tab, or the
+known account-2 URL, and verifies the Sierra account before reading credentials.
+If sign-in expires or the account index changes, open Sierra Chat in the connected
+browser and press Sync.
+
+The exporter checks the account, space IDs, pagination and reply counts before
+replacing either space's export. The previous snapshot remains available after a
+failed scrape.
+
+Outputs are in `data/google-chat/sierra/snapshot.json` and
+`data/google-chat/sierra/readable/google_chat_<space-id>.md`. Each refresh rereads
+the accessible history so edits, replies and reactions are reflected. Timestamps,
+sender names, threads, canonical links and attachment names are retained;
+attachment files are not downloaded. History Google no longer exposes cannot be
+recovered. Google's undocumented browser format may change; unrecognized or
+incomplete responses fail instead of silently replacing the export.
+
+```bash
+/Users/stan/code/toolkit/brain/.venv/bin/python3 /Users/stan/code/toolkit/brain/scripts/google_chat_export.py
 ```
 
 ## Tests

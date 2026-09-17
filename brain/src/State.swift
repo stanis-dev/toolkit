@@ -269,36 +269,52 @@ class RecordingState: ObservableObject {
     @Published var isRecording = false
     @Published var isPaused = false
     @Published var elapsed: TimeInterval = 0
+    @Published private(set) var isStarting = false
+    @Published private(set) var startError: String?
     private var timer: Timer?
     private var recordingStart: Date?
     private var recorder: Recorder?
+    private var startTask: Task<Void, Never>?
 
-    func startRecording() {
+    func startRecording(showErrors: Bool = true) {
+        guard !isRecording else { return }
         log("Recording: starting…")
         let meeting = currentMeetingName()
         log("Recording: calendar lookup → \(meeting ?? "no meeting")")
         let rec = Recorder(meetingName: meeting)
         recorder = rec
         isRecording = true
+        isStarting = true
+        startError = nil
         isPaused = false
         elapsed = 0
         recordingStart = Date()
         startTimer()
-        Task {
-            do { try await rec.start() } catch {
+        startTask = Task { @MainActor [weak self] in
+            do {
+                try await rec.start()
+                guard !Task.isCancelled, self?.recorder === rec else { rec.stop(); return }
+                self?.isStarting = false
+                self?.startTask = nil
+            } catch {
+                guard !Task.isCancelled, self?.recorder === rec else { rec.stop(); return }
                 log("Recording: start failed — \(error)")
-                await MainActor.run { self.handleStartFailure(error) }
+                self?.handleStartFailure(error, showAlert: showErrors)
             }
         }
     }
 
-    private func handleStartFailure(_ error: Error) {
+    private func handleStartFailure(_ error: Error, showAlert: Bool) {
         timer?.invalidate()
         timer = nil
         isRecording = false
+        isStarting = false
+        startTask = nil
+        startError = error.localizedDescription
         isPaused = false
         recorder = nil
 
+        guard showAlert else { return }
         let alert = NSAlert()
         alert.messageText = "Couldn't start recording"
         if (error as? RecorderError) == .noDisplay {
@@ -317,6 +333,9 @@ class RecordingState: ObservableObject {
 
     func stopRecording() {
         guard isRecording else { return }
+        startTask?.cancel()
+        startTask = nil
+        isStarting = false
         log("Recording: stopping (elapsed \(formattedTime))")
         timer?.invalidate()
         timer = nil

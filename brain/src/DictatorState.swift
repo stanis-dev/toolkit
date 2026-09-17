@@ -7,6 +7,8 @@ class DictatorState: ObservableObject {
 
     @Published var status: Status = .idle
     @Published var audioLevel: CGFloat = 0
+    @Published private(set) var lastText: String?
+    @Published private(set) var lastError: String?
     private var audioRecorder: AVAudioRecorder?
     private var meterTimer: Timer?
     private var tempURL: URL {
@@ -20,6 +22,8 @@ class DictatorState: ObservableObject {
 
     func startDictation() {
         guard status == .idle else { return }
+        lastText = nil
+        lastError = nil
 
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
@@ -32,12 +36,17 @@ class DictatorState: ObservableObject {
         do {
             audioRecorder = try AVAudioRecorder(url: tempURL, settings: settings)
             audioRecorder?.isMeteringEnabled = true
-            audioRecorder?.record()
+            guard audioRecorder?.record() == true else {
+                audioRecorder = nil
+                lastError = "Microphone recording could not start."
+                return
+            }
             status = .recording
             startMeterTimer()
             launchWarmProcess()
             log("Dictator: recording started")
         } catch {
+            lastError = error.localizedDescription
             log("Dictator: failed to start recording — \(error)")
         }
     }
@@ -54,6 +63,8 @@ class DictatorState: ObservableObject {
             guard let self = self else { return }
             let text = self.transcribe(url: self.tempURL)
             DispatchQueue.main.async {
+                self.lastText = text
+                self.lastError = text == nil ? "Dictation transcription failed." : nil
                 if let text = text, !text.isEmpty {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)

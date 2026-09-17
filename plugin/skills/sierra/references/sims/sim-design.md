@@ -58,6 +58,8 @@ Tag expectations evaluate deterministic pathing of the agent. Observation condit
 
 ## Debugging Problems
 
+- A valid repro must reproduce the reported failure’s causal mechanism, verified in the traces—not merely its outcome.
+  Identical wording and unrelated turns are not required.
 - You must verify failure is not persona or simulation design flaw before attempting to diagnose or fix agent behaviour.
 - Always search for the earliest deviation from happy path. Actual damage may present on later turn, obscuring the
   source.

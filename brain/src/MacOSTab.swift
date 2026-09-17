@@ -84,66 +84,79 @@ struct MacOSTabView: View {
     @ObservedObject var autoRefresh: ChatAutoRefreshCoordinator
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("macOS")
-                .font(.system(size: 15, weight: .semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            Divider()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("macOS")
+                    .font(.system(size: 15, weight: .semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                Divider()
 
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: $enforcer.enabled) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Enforce default audio input")
-                            .font(.system(size: 13))
-                        Text("Always set to \(kTargetAudioDevice)")
-                            .font(.system(size: 11))
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(isOn: $enforcer.enabled) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Enforce default audio input")
+                                .font(.system(size: 13))
+                            Text("Always set to \(kTargetAudioDevice)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(enforcer.currentDevice == kTargetAudioDevice ? .green : .orange)
+                            .frame(width: 8, height: 8)
+                        Text("Current: \(enforcer.currentDevice)")
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
 
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(enforcer.currentDevice == kTargetAudioDevice ? .green : .orange)
-                        .frame(width: 8, height: 8)
-                    Text("Current: \(enforcer.currentDevice)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                Divider()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Chat Sync")
+                        .font(.system(size: 13, weight: .medium))
+
+                    chatSyncRow(
+                        label: "Slack",
+                        status: autoRefresh.slackStatus,
+                        running: exporter.slackRunning,
+                        progress: exporter.slackProgress,
+                        result: exporter.slackResult,
+                        enabled: $autoRefresh.slackEnabled
+                    ) {
+                        exporter.runSlackExport()
+                    }
+
+                    chatSyncRow(
+                        label: "Teams",
+                        status: autoRefresh.teamsStatus,
+                        running: exporter.teamsRunning,
+                        progress: exporter.teamsProgress,
+                        result: exporter.teamsResult,
+                        enabled: $autoRefresh.teamsEnabled
+                    ) {
+                        exporter.runTeamsExport()
+                    }
+
+                    chatSyncRow(
+                        label: "Google Chat",
+                        status: autoRefresh.googleChatStatus,
+                        running: exporter.googleChatRunning,
+                        progress: exporter.googleChatProgress,
+                        result: exporter.googleChatResult,
+                        enabled: $autoRefresh.googleChatEnabled
+                    ) {
+                        autoRefresh.syncGoogleChat()
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Chat Sync")
-                    .font(.system(size: 13, weight: .medium))
-
-                chatSyncRow(
-                    label: "Slack",
-                    status: autoRefresh.slackStatus,
-                    running: exporter.slackRunning,
-                    progress: exporter.slackProgress,
-                    result: exporter.slackResult,
-                    enabled: $autoRefresh.slackEnabled
-                ) {
-                    exporter.runSlackExport()
-                }
-
-                chatSyncRow(
-                    label: "Teams",
-                    status: autoRefresh.teamsStatus,
-                    running: exporter.teamsRunning,
-                    progress: exporter.teamsProgress,
-                    result: exporter.teamsResult,
-                    enabled: $autoRefresh.teamsEnabled
-                ) {
-                    exporter.runTeamsExport()
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

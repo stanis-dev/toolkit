@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-process Slack and Teams raw JSON exports into agent-readable markdown.
+"""Post-process Slack, Teams and Google Chat exports into agent-readable markdown.
 
 Resolves user IDs, strips platform markup, inlines thread replies, groups by
 date, and writes one .md file per conversation under a `readable/` directory.
@@ -349,8 +349,48 @@ def _teams_messages_to_md(title, messages):
 # Main
 # ===================================================================
 
+def process_google_chat_workspace(workspace_dir):
+    path = os.path.join(workspace_dir, "snapshot.json")
+    if not os.path.exists(path):
+        return 0
+    with open(path) as source:
+        snapshot = json.load(source)
+    readable = os.path.join(workspace_dir, "readable")
+    os.makedirs(readable, exist_ok=True)
+    for entry in snapshot["spaces"]:
+        space = entry["space"]
+        lines = [f"# Google Chat: {space['name']}", "",
+                 f"Captured: {snapshot['captured_at']}",
+                 "Times below are UTC. Attachments are references only.", ""]
+        threads = sorted(entry["threads"], key=lambda t: int(t["messages"][0]["create_time_usec"]))
+        for thread in threads:
+            lines += [f"## Thread {thread['id']}", ""]
+            for message in thread["messages"]:
+                when = datetime.fromtimestamp(int(message["create_time_usec"]) / 1_000_000, timezone.utc)
+                label = "Reply" if message["id"] != thread["id"] else "Message"
+                lines += [f"### {when:%Y-%m-%d %H:%M:%S} — {message['sender']['name']} ({label})", ""]
+                lines += [message["text"] or ("[Deleted message]" if message.get("deleted") else "[Attachment or non-text message]"), ""]
+                for url in message.get("links", []):
+                    if url not in message["text"]:
+                        lines += [f"Link: {url}"]
+                for attachment in message.get("attachments", []):
+                    lines += [f"Attachment: {attachment['name']}"]
+                reactions = message.get("reactions", [])
+                if reactions:
+                    lines += ["Reactions: " + " · ".join(f"{r['emoji']} ×{r['count']}" for r in reactions)]
+                if message["update_time_usec"] != message["create_time_usec"]:
+                    lines += ["[Edited]"]
+                lines += [""]
+        target = os.path.join(readable, f"google_chat_{space['id']}.md")
+        pending = target + ".tmp"
+        with open(pending, "w") as output:
+            output.write("\n".join(lines))
+        os.replace(pending, target)
+    return len(snapshot["spaces"])
+
+
 def process_all():
-    """Process all Slack and Teams exports."""
+    """Process all communication exports."""
     total = 0
 
     # Slack workspaces
@@ -377,6 +417,7 @@ def process_all():
             print(f"  {n} files written to readable/", file=sys.stderr)
             total += n
 
+    total += process_google_chat_workspace(os.path.join(DATA_DIR, "google-chat", "sierra"))
     print(f"\nDone: {total} readable files generated.", file=sys.stderr)
     return total
 

@@ -39,6 +39,15 @@ final class TodoOverlayState: ObservableObject {
 
     var hasPendingSave: Bool { saveWorkItem != nil }
 
+    @discardableResult
+    func setText(_ text: String) -> Bool {
+        rawText = text
+        saveWorkItem?.cancel()
+        saveWorkItem = nil
+        persist(text)
+        return statusText == "Saved"
+    }
+
     func flushPendingSave() {
         guard saveWorkItem != nil else { return }
         saveWorkItem?.cancel()

@@ -4,6 +4,7 @@ import Combine
 enum ChatPlatform: String {
     case slack = "Slack"
     case teams = "Teams"
+    case googleChat = "Google Chat"
 }
 
 struct ExportResult {
@@ -16,13 +17,17 @@ struct ExportResult {
 final class ChatSyncRunner: ObservableObject {
     @Published var slackRunning = false
     @Published var teamsRunning = false
+    @Published var googleChatRunning = false
     @Published var slackProgress = ""
     @Published var teamsProgress = ""
+    @Published var googleChatProgress = ""
     @Published var slackResult = ExportResult()
     @Published var teamsResult = ExportResult()
+    @Published var googleChatResult = ExportResult()
 
     private var slackProcess: Process?
     private var teamsProcess: Process?
+    private var googleChatProcess: Process?
     private var completionHandlers: [ChatPlatform: [(ExportResult) -> Void]] = [:]
 
     @discardableResult
@@ -41,7 +46,14 @@ final class ChatSyncRunner: ObservableObject {
         switch platform {
         case .slack: return slackRunning
         case .teams: return teamsRunning
+        case .googleChat: return googleChatRunning
         }
+    }
+
+    @discardableResult
+    func runGoogleChatExport(reason: String = "manual",
+                             completion: ((ExportResult) -> Void)? = nil) -> Bool {
+        run(platform: .googleChat, script: kGoogleChatExportScript, arguments: [], reason: reason, completion: completion)
     }
 
     private func run(platform: ChatPlatform, script: String, arguments: [String], reason: String,
@@ -103,9 +115,13 @@ final class ChatSyncRunner: ObservableObject {
             let elapsed = Date().timeIntervalSince(startTime)
             let code = proc.terminationStatus
             let summary = code == 0 ? (summaryLine.isEmpty ? (lastProgressLine.isEmpty ? "Finished" : lastProgressLine) : summaryLine)
-                                    : "Failed (exit \(code))"
+                                    : (platform == .googleChat && !lastProgressLine.isEmpty
+                                       ? String(lastProgressLine.prefix(300)) : "Failed (exit \(code))")
             let result = ExportResult(summary: summary, succeeded: code == 0, elapsed: elapsed, finishedAt: Date())
             log("\(platform.rawValue) sync: exited with code \(code) in \(Int(elapsed))s")
+            if platform == .googleChat && code != 0 {
+                log("Google Chat sync: \(summary)")
+            }
             DispatchQueue.main.async {
                 self?.setRunning(false, platform: platform)
                 self?.setProgress("", platform: platform)
@@ -138,6 +154,7 @@ final class ChatSyncRunner: ObservableObject {
         switch platform {
         case .slack: slackRunning = running
         case .teams: teamsRunning = running
+        case .googleChat: googleChatRunning = running
         }
     }
 
@@ -145,6 +162,7 @@ final class ChatSyncRunner: ObservableObject {
         switch platform {
         case .slack: slackProgress = progress
         case .teams: teamsProgress = progress
+        case .googleChat: googleChatProgress = progress
         }
     }
 
@@ -152,6 +170,7 @@ final class ChatSyncRunner: ObservableObject {
         switch platform {
         case .slack: slackResult = result
         case .teams: teamsResult = result
+        case .googleChat: googleChatResult = result
         }
     }
 
@@ -159,6 +178,7 @@ final class ChatSyncRunner: ObservableObject {
         switch platform {
         case .slack: slackProcess = process
         case .teams: teamsProcess = process
+        case .googleChat: googleChatProcess = process
         }
     }
 }

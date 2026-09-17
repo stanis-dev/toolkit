@@ -24,6 +24,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var lastKnownBinaryModDate: Date?
     private var pendingUpdateDate: Date?
     private var updateCheckTimer: Timer?
+    private var controlServer: ControlServer?
+    private var control: BrainControl?
     private var todoHotKeyRef: EventHotKeyRef?
     private var todoHotKeyHandlerRef: EventHandlerRef?
     private let todoHotKeySignature = fourCharCode("BTDO")
@@ -61,6 +63,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         setupAutoUpdate()
         setupMeetingDetector()
         chatAutoRefresh.start()
+        control = BrainControl(app: self)
+        let server = ControlServer(path: kControlSocket) { [weak self] request in
+            self?.control?.handle(request) ?? ControlServer.error("unavailable", "Brain is shutting down.")
+        }
+        do {
+            try server.start()
+            controlServer = server
+            log("Control: listening at \(kControlSocket)")
+        } catch {
+            log("Control: could not start — \(error.localizedDescription)")
+        }
         log("App: setup complete")
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -519,6 +532,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if dictatorState.status == .recording { reasons.append("dictation recording") }
         if dictatorState.status == .transcribing { reasons.append("dictation transcription") }
         if listState.recordings.contains(where: { $0.transcribing }) { reasons.append("transcript processing") }
+        if chatSync.googleChatRunning { reasons.append("Google Chat sync") }
         if todoOverlayState.hasPendingSave { reasons.append("unsaved TODO edit") }
         return reasons
     }
@@ -541,7 +555,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         NSApp.terminate(nil)
     }
 
-    @objc private func showWindow() {
+    @objc func showWindow() {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -570,6 +584,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        controlServer?.stop()
         todoOverlayState.flushPendingSave()
         meetingDetector.stopMonitoring()
         NotificationCenter.default.removeObserver(self, name: .brainToggleTodoOverlay, object: nil)

@@ -76,6 +76,13 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
     @Published var teamsEnabled: Bool {
         didSet { handleToggleChange(platform: .teams, enabled: teamsEnabled) }
     }
+    @Published var googleChatEnabled: Bool {
+        didSet { handleToggleChange(platform: .googleChat, enabled: googleChatEnabled) }
+    }
+    @Published var googleChatStatus = AutoRefreshPlatformStatus(
+        cadence: "5m refresh • 2 spaces",
+        detail: "Keep the browser signed into Sierra Chat and connected to Playwriter"
+    )
     @Published var slackStatus = AutoRefreshPlatformStatus(
         headline: "Watching Slack logs",
         cadence: "10s event • 15m reconcile • 60m discovery",
@@ -105,6 +112,9 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
     private var lastTeamsFastSyncRequestAt: Date?
     private var lastTeamsDiscoveryRequestAt: Date?
     private var lastTeamsSuccessAt: Date?
+    private var lastGoogleChatRequestAt: Date?
+    private var lastGoogleChatSuccessAt: Date?
+    private var lastGoogleChatFailure: String?
     private var lastTeamsStorageMutation: Date?
     private var pendingTeamsFastSync = false
     private var pendingTeamsDiscovery = false
@@ -114,6 +124,8 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
     private let defaults = UserDefaults.standard
     private let slackToggleKey = "brain.autoRefresh.slackEnabled"
     private let teamsToggleKey = "brain.autoRefresh.teamsEnabled"
+    private let googleChatToggleKey = "brain.autoRefresh.googleChatEnabled"
+    private let googleChatLastSuccessKey = "brain.autoRefresh.googleChatLastSuccessAt"
     private let slackLastSuccessKey = "brain.autoRefresh.slackLastSuccessAt"
     private let teamsLastSuccessKey = "brain.autoRefresh.teamsLastSuccessAt"
 
@@ -121,8 +133,10 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         self.syncRunner = syncRunner
         self.slackEnabled = defaults.object(forKey: slackToggleKey) as? Bool ?? true
         self.teamsEnabled = defaults.object(forKey: teamsToggleKey) as? Bool ?? true
+        self.googleChatEnabled = defaults.object(forKey: googleChatToggleKey) as? Bool ?? true
         self.lastSlackSuccessAt = defaults.object(forKey: slackLastSuccessKey) as? Date
         self.lastTeamsSuccessAt = defaults.object(forKey: teamsLastSuccessKey) as? Date
+        self.lastGoogleChatSuccessAt = defaults.object(forKey: googleChatLastSuccessKey) as? Date
         syncRunner.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -168,6 +182,10 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         rescanSlackLogFiles()
 
         let now = Date()
+        if googleChatEnabled && !syncRunner.googleChatRunning
+            && shouldRequest(now, lastRequestAt: lastGoogleChatRequestAt, interval: 5 * 60) {
+            syncGoogleChat(reason: "auto-interval")
+        }
         if slackEnabled && isSlackRunning() {
             if shouldRequest(now, lastRequestAt: lastSlackReconcileRequestAt, interval: 15 * 60) {
                 lastSlackReconcileRequestAt = now
@@ -607,8 +625,32 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
 
     // MARK: - Status publishing
 
+    func syncGoogleChat(reason: String = "manual", completion: ((ExportResult) -> Void)? = nil) {
+        guard !syncRunner.googleChatRunning else { return }
+        lastGoogleChatRequestAt = Date()
+        syncRunner.runGoogleChatExport(reason: reason) { [weak self] result in
+            defer { completion?(result) }
+            guard let self else { return }
+            self.lastGoogleChatRequestAt = result.finishedAt ?? Date()
+            if result.succeeded {
+                self.lastGoogleChatSuccessAt = result.finishedAt
+                self.defaults.set(result.finishedAt, forKey: self.googleChatLastSuccessKey)
+                self.lastGoogleChatFailure = nil
+            } else {
+                self.lastGoogleChatFailure = result.summary
+            }
+            self.publishStatuses()
+        }
+        publishStatuses()
+    }
+
     private func handleToggleChange(platform: ChatPlatform, enabled: Bool) {
-        let key = platform == .slack ? slackToggleKey : teamsToggleKey
+        let key: String
+        switch platform {
+        case .slack: key = slackToggleKey
+        case .teams: key = teamsToggleKey
+        case .googleChat: key = googleChatToggleKey
+        }
         defaults.set(enabled, forKey: key)
         switch platform {
         case .slack:
@@ -623,6 +665,8 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
             } else {
                 lastTeamsStorageMutation = latestTeamsStorageMutation()
             }
+        case .googleChat:
+            lastGoogleChatRequestAt = Date()
         }
         if enabled {
             baselineAutoRefreshSchedule(reason: "\(platform.rawValue.lowercased()) enabled")
@@ -645,6 +689,7 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
         lastSlackDiscoveryRequestAt = now
         lastTeamsFastSyncRequestAt = now
         lastTeamsDiscoveryRequestAt = now
+        lastGoogleChatRequestAt = now
         log("Chat auto-refresh: baselined periodic timers on \(reason); no boot-time full sync")
     }
 
@@ -694,6 +739,16 @@ final class ChatAutoRefreshCoordinator: ObservableObject {
     }
 
     private func publishStatuses() {
+        googleChatStatus = AutoRefreshPlatformStatus(
+            headline: syncRunner.googleChatRunning ? "Syncing" : (googleChatEnabled ? "" : "Off"),
+            cadence: "5m refresh • 2 spaces",
+            detail: lastGoogleChatSuccessAt.map { "Last success \(relativeTimeString(from: $0))" }
+                ?? "Keep the browser signed into Sierra Chat and connected to Playwriter",
+            lastSuccessAt: lastGoogleChatSuccessAt,
+            isWatching: googleChatEnabled,
+            isEnabled: googleChatEnabled,
+            degradedReason: googleChatEnabled ? lastGoogleChatFailure : nil
+        )
         let slackDegraded = slackDegradedReason()
         let teamsDegraded = teamsDegradedReason()
         evaluateHealth(slackReason: slackDegraded, teamsReason: teamsDegraded)

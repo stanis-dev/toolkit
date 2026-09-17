@@ -2,6 +2,7 @@
 name: sierra
 description: Critical guidance for Sierra agent development. Must always be loaded when working with Sierra agents.
 ---
+
 # Sierra Agent Development Guidance
 
 Sierra Agents are developed with a custom SDK based on React, with components rendering agent context instead of UI. The
@@ -20,30 +21,42 @@ functional - stop immediately and inform the user:
 - sierra cli
 
 - Fetching anything, an issue, a conversation, a simulation run or Studio content, follows
-[tooling.md](./references/tooling.md).
-- If i write "www" (where were we?) - it means I lost context and don't quite remember where we left off. Give me a tldr snapshot - short and sweet.
-- If you are running simulations, let me know explicitly if those come back with fails that are unrelated to what we're working on.
+  [tooling.md](./references/tooling.md).
+- If i write "www" (where were we?) - it means I lost context and don't quite remember where we left off. Give me a tldr
+  snapshot - short and sweet.
+- If you are running simulations, let me know explicitly if those come back with fails that are unrelated to what we're
+  working on.
 
 ## Non Negotiables
 
 - All Studio context edits require my approval.
-- All agent edits must observe [agent design](./references/agent/agent-design.md) practices. Add document emoji to all drafts where you explicitly observed it.
-- Anything written for BBVA, an issue comment, a notas item, release notes, follows
-  [comms.md](./references/comms.md); read it before drafting. Posting requires my approval.
+- All agent edits must observe [agent design](./references/agent/agent-design.md) practices.
+- Anything written for BBVA, an issue comment, a notas item, release notes, follows [comms.md](./references/comms.md);
+  read it before drafting.
 - If you discover edits between your turns, those are my edits and are not to be reverted without my consent.
 - Before editing ghostwriter blocks, always sync first.
-- Before presenting an issue, context, simulation, or proposed edit, read
-  [info.md](./references/info.md). It goes on the issue's card, in the section's template
-  structure, nothing else.
+- Before presenting an issue, context, simulation, or proposed edit, read [info.md](./references/info.md). It goes on
+  the issue's card, in the section's template structure, nothing else.
+- If I tell you to re-evaluate a card from a section, you must fully re-evaluate that section with my notes and wipe all
+  following sections. Earlier assumption mistake invalidates everything that depends on it.
+- Never edit the template unless I explicitly ask you to.
 
 ## My workflow
 
-When working on issues I have 1 agent be the overseer, and spawn separate agents for each issue which
-execute the workflow below.
+When working on issues I have 1 agent be the overseer, and spawn separate agents for each issue which execute the
+workflow below.
 
-- Overseer creates and maintains the gh branch for current batch, keeps it aligned with main and maintains PR description.
-- Overseer spawns the issue agents with `python3 <base>/scripts/lanes.py --repo <checkout> --branch <batch branch> <issue numbers…>`: one worktree `<prefix>-<n>` off the batch branch per issue, its Studio workspace from the post-checkout hook, and one pinned desktop session opened with `/sierra start work on … #<n>` at the model, effort and permission mode the flags name. It drives the desktop app through Orca computer-use, so the app must stay in front and untouched while it runs, about 25 seconds per issue. Titles come out app-generated; rename each to `OPP #<n>` with `set_session_title` from the JSON lines it prints.
-- Issue agents iterate on their workflow untill their solution is ready. Once I confirm that we're done with the issue, they commit and push their changes to the draft PR for the current branch and migrate studio changes to the default workspace. Then notify the overseer.
+- Overseer creates and maintains the gh branch for current batch, keeps it aligned with main and maintains PR
+  description.
+- Overseer spawns the issue agents with
+  `python3 <base>/scripts/lanes.py --repo <checkout> --branch <batch branch> <issue numbers…>`: one worktree
+  `<prefix>-<n>` off the batch branch per issue, its Studio workspace from the post-checkout hook, and one Herdr
+  workspace labelled `<PREFIX> #<n>` whose root pane runs `claude` at the model, effort and permission mode the flags
+  name, opened with `/sierra start work on … #<n>`. Nothing needs the desktop app or the foreground; the overseer reads
+  a lane's state with `herdr agent list` and its screen with `herdr agent read <prefix>-<n>`.
+- Issue agents iterate on their workflow untill their solution is ready. Once I confirm that we're done with the issue,
+  they commit and push their changes to the draft PR for the current branch and migrate studio changes to the default
+  workspace. Then notify the overseer.
 - All agents maintain their worktrees and workspaces synced with the draft PR and default workspace.
 - Once I declare to Overseer that the batch is ready, it performs regression test and present the results in browser.
 - When PR is set "ready for review", Overseer must re-fetch issue cache and cleanup cards of all completed items.
@@ -57,8 +70,6 @@ execute the workflow below.
 5. Implement and verify (read [agent-design.md](./references/agent/agent-design.md))
 6. Draft a PR (read [pr.md](./references/pr.md))
 7. Draft communications (read [comms.md](./references/comms.md))
-
-
 
 ## My preferences
 

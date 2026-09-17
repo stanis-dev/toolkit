@@ -8,6 +8,20 @@ Everything BBVA reads. Nothing is posted without my go.
    - issues: `https://bbva.sierra.ai/agents/<agent-id>/issues/<number>`
 - Drafts are plain text for easy copy/paste.
 
+## Project conversations
+
+### Google Chat
+
+- [Voicebot - Openpay](/Users/stan/code/toolkit/brain/data/google-chat/sierra/readable/google_chat_AAQAkdY0pQg.md)
+- [VoiceBot- Cobranza](/Users/stan/code/toolkit/brain/data/google-chat/sierra/readable/google_chat_AAQAZ0v2SzU.md)
+
+### Slack · Sierra
+
+- [#bbva-working-group](/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/slack_C0ABSRJ3VSN.md)
+- [Juan Ruiz Pozuelo — DM](/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/slack_D0BFDVCHXEV.md)
+- [Álvaro Rausell Guiard — DM](/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/slack_D0AUHRG4AG2.md)
+- [Shynggys Kassen — DM](/Users/stan/code/toolkit/brain/data/slack/sierra-ai/readable/slack_D0BMGE8DH35.md)
+
 ## Clarification Questions
 
 - Each ask starts with issue number if it's coming from one.
