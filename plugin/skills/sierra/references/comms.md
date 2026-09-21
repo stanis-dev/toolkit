@@ -2,7 +2,7 @@
 
 Everything BBVA reads. Nothing is posted without my go.
 
-- Use neutral, ES Spanish. No em dashes.
+- Use neutral, ES Spanish. No em dashes. No opening question mark (¿). Quote with " not «».
 - The reader is aware of the context. Say only what changed for them or what they need to act on.
 - Issue numbers, simulation mentions and PRs are links
    - issues: `https://bbva.sierra.ai/agents/<agent-id>/issues/<number>`

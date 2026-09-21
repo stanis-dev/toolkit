@@ -10,26 +10,24 @@ You must maximise the ease with which I absorb the information.
 ## The issues page
 
 Everything you show me about an issue goes to one page, not to the chat. The page is a static site at
-`http://127.0.0.1:8489/`, served from `~/.claude/bbva-issues/`; start it with `~/.claude/bbva-issues/serve.sh` if the
-link does not answer. It shows, per Sierra agent, the open tracker issues in a sidebar grouped in buckets, and one card
-for the selected issue, `http://127.0.0.1:8489/#a=<agent>&i=<n>`.
+`http://127.0.0.1:8489/`, served from the pages dir: `$BBVA_ISSUES_DIR` when that variable is set, else
+`~/.claude/bbva-issues/`; start it with `serve.sh` there if the link does not answer. It shows, per Sierra agent, the
+open tracker issues in a sidebar grouped per batch, and one card for the selected issue,
+`http://127.0.0.1:8489/#a=<agent>&i=<n>`.
 
 If the card is not open in app browser, open it for me.
 
 The agents are `openpay` (repo `agents/openpay`, MCP `sierra`) and `cobranzas` (repo `agents/base`, MCP `sierra-base`).
 Everything below lives under `agents/<agent>/`.
 
-- The sidebar and the "Issue as reported" fold under every card are built from `issues/<n>.json`
-  ([tooling.md](./tooling.md)); an issue no card names sits under "No bucket yet".
-- The card, `cards/<n>.html`: one file per issue, the only thing you write for me, and only for the issue you are
-  working. Nobody else writes it.
+- The sidebar and the "Issue as reported" fold under every card are built from `issues/<n>.json` tch branch
+  `stan/<agent>-issues-<mmdd>`, then state lines while there is state to show, then sections, one per workflow step, in
+  workflow order:
 
-A card is a bucket line, then state lines while there is state to show, then sections, one per workflow step, in
-workflow order:
+      <!-- batch: 0917 -->
+      <!-- pr: draft https://github.com/<org>/<repo>/pull/NNN -->
+      <!-- ws: default -->
 
-    <!-- bucket: Pedido de humano -->
-    <!-- pr: draft https://github.com/<org>/<repo>/pull/NNN -->
-    <!-- ws: default -->
     …section HTML, exactly as its template under sections/ renders it…
 
 `pr` is `draft`, `ready` or `merged`, then the link. `ws` is the Studio workspace that holds the edit, `default` once it
@@ -56,32 +54,6 @@ is there, `released` once it is in a release. Update both the moment they change
 
 ## Card sections
 
-### Studio Context
-
-When to use:
-
-- I ask which part of the context teaches, allows or causes some behaviour;
-- step 4 of agent-diagnose (the responsible context);
-- the current state of a block before proposing an edit to it.
-
-Sources:
-
-- block files under `.composer/blocks/` and tool descriptions in code.
-
-When the conversation being diagnosed saw a different version than the files hold, render what the model saw. The
-template [sections/studio-context.html](./sections/studio-context.html) holds the summary row, a block entry per block
-kind and a row per item kind; copy the row, replace its text. What the template cannot hold:
-
-- The summary row exists situations where related context holds a conflict. Left - context that asks for the behaviour
-  the turn needed, Right - context that overpowers it at that turn.
-- One block entry per place, in the order the model reads them. The breadcrumb carries display names only: no sibling
-  ordinals, no type words once an icon carries the type, no predicate icons on the path.
-- Block icons beyond the ones in the template: `ti-list-check` rules, `ti-git-branch` condition, `ti-book` glossary,
-  `ti-gavel` policies, `ti-message-language` response phrasing, `ti-puzzle` component.
-- Highlights carry role A or role B; the role's key is the superscript on the span and the list key in the summary row.
-- Layer 1 of the relevant context ([agent-diagnose.md](./agent/agent-diagnose.md)) by default; layers 2 and 3 only when
-  I ask for them.
-
 ### Issue Analysis (Workflow, Step 1)
 
 What each part holds is in [issues.md](./issues.md). The template is
@@ -101,8 +73,7 @@ Template: [sections/sim-changes.html](./sections/sim-changes.html).
 - Replay shows the replay that with the most relevant failure scenario.
 - Deletion's fold holds one short sentence about the reason it gets deleted.
 - A regression is a simulation the edit did not touch whose pass count fell between the run before the edit and the run
-  after it, same workspace, same replicas. Its row comes after the changed ones and carries no change mark: the count
-  after in the gutter, then the count before, dimmed, linking to the run before. The Expectations mark the one that
+  after it, same workspace, same replicas. Its row comes after the changed ones. The Expectations mark the one that
   fails now with the judge's words, the Replay is one failing run. A count that recovers updates in place.
 
 ### Simulation Replay
@@ -132,6 +103,32 @@ Replay with the "Edit" part. What the template cannot hold:
 
 - The header count is the run this section reports, not a total across attempts.
 - The run before any edit is a plain Simulation Replay; the "Edit" part exists only once something was tried.
+
+### Studio Context
+
+When to use:
+
+- I ask which part of the context teaches, allows or causes some behaviour;
+- step 4 of agent-diagnose (the responsible context);
+- the current state of a block before proposing an edit to it.
+
+Sources:
+
+- block files under `.composer/blocks/` and tool descriptions in code.
+
+When the conversation being diagnosed saw a different version than the files hold, render what the model saw. The
+template [sections/studio-context.html](./sections/studio-context.html) holds the summary row, a block entry per block
+kind and a row per item kind; copy the row, replace its text. What the template cannot hold:
+
+- The summary row exists situations where related context holds a conflict. Left - context that asks for the behaviour
+  the turn needed, Right - context that overpowers it at that turn.
+- One block entry per place, in the order the model reads them. The breadcrumb carries display names only: no sibling
+  ordinals, no type words once an icon carries the type, no predicate icons on the path.
+- Block icons beyond the ones in the template: `ti-list-check` rules, `ti-git-branch` condition, `ti-book` glossary,
+  `ti-gavel` policies, `ti-message-language` response phrasing, `ti-puzzle` component.
+- Highlights carry role A or role B; the role's key is the superscript on the span and the list key in the summary row.
+- Layer 1 of the relevant context ([agent-diagnose.md](./agent/agent-diagnose.md)) by default; layers 2 and 3 only when
+  I ask for them.
 
 ### Studio Context Edit
 

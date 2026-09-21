@@ -40,6 +40,7 @@ functional - stop immediately and inform the user:
 - If I tell you to re-evaluate a card from a section, you must fully re-evaluate that section with my notes and wipe all
   following sections. Earlier assumption mistake invalidates everything that depends on it.
 - Never edit the template unless I explicitly ask you to.
+- I develop the agent and am well aware of its context. Avoid repeating back to me what I already know.
 
 ## My workflow
 
@@ -69,7 +70,6 @@ workflow below.
 4. Understand what changes are needed for the agent (read [agent-design.md](./references/agent/agent-design.md))
 5. Implement and verify (read [agent-design.md](./references/agent/agent-design.md))
 6. Draft a PR (read [pr.md](./references/pr.md))
-7. Draft communications (read [comms.md](./references/comms.md))
 
 ## My preferences
 

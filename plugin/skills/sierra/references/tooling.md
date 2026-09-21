@@ -17,7 +17,7 @@ disk, never from `get_test_results`.
 
 ## Issues
 
-An issue's data lives in `~/.claude/bbva-issues/agents/<agent>/issues/<n>.json`: the
+An issue's data lives in the pages dir ([info.md](./info.md)) at `agents/<agent>/issues/<n>.json`: the
 `get_issue_details` response with its default arguments, saved verbatim, so comments and linked
 calls without conversation transcripts. Read it before calling the tracker. Every call you do
 make, because the file is missing or because something changed the issue, a comment, a status,
