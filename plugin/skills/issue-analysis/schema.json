@@ -1,0 +1,176 @@
+{
+    "type": "object",
+    "description": "The Issue Analysis of one issue: what failed, what should have happened, and which Studio items were involved.",
+    "additionalProperties": false,
+    "required": [
+        "verdict",
+        "failure",
+        "good",
+        "context"
+    ],
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "description": "One short English sentence, the agent as subject, fifteen words or fewer: the one thing a trained representative would have understood here that the agent did not, at the altitude of the fix, with the customer's circumstances removed. Wrong tag: «Conversation was misclassified. wanted: `x`, actual: `y`» with the tags' display names. Transcription or synthesis: «STT failure» or «TTS failure on <what>»."
+        },
+        "failure": {
+            "type": "object",
+            "description": "The failure turn: the reporter's highlighted line, unless an earlier agent turn had to be different for the ask to be met.",
+            "additionalProperties": false,
+            "required": [
+                "logEntryId",
+                "path",
+                "bad",
+                "moved"
+            ],
+            "properties": {
+                "logEntryId": {
+                    "type": "string",
+                    "description": "That turn's logEntryId in details.json; never its text. The highlighted line's own id when the failure is there."
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Where in that turn the failure is: `text`, the spoken line; `tools[k]`, its k-th tool call, counted from 0, the calls the transcript prints right above the turn; `tools[k].<argument>`, one argument of that call."
+                },
+                "bad": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Substrings of what the path points at, the turn's text or the call's name and arguments as the transcript prints them; the whole of it when the failure is an omission."
+                },
+                "moved": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Null when the failure turn is the highlighted line. Otherwise one sentence: why the highlighted line is only the symptom and this earlier turn is where the call went wrong."
+                }
+            }
+        },
+        "good": {
+            "type": "object",
+            "description": "What a trained representative says at the failure turn, and what follows.",
+            "additionalProperties": false,
+            "required": [
+                "text",
+                "then"
+            ],
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The corrected turn in the agent's language and register, the rest of the turn kept as produced."
+                },
+                "then": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "One clause per later turn that changes as a consequence, to the end of the call; empty when none."
+                }
+            }
+        },
+        "context": {
+            "type": "object",
+            "description": "The Studio items involved in the failure turn.",
+            "additionalProperties": false,
+            "required": [
+                "wanted",
+                "won"
+            ],
+            "properties": {
+                "wanted": {
+                    "type": "object",
+                    "description": "The instruction meant to produce the good turn: the one item a trained representative would have been following there.",
+                    "additionalProperties": false,
+                    "required": [
+                        "state",
+                        "path",
+                        "file",
+                        "pointer",
+                        "span",
+                        "present"
+                    ],
+                    "properties": {
+                        "state": {
+                            "type": "string",
+                            "description": "defined: an item tells the agent to do it at this turn, «do X» or «when X, do Y» with X true. tangential: an item mentions the behaviour without telling the agent what to do at the turn. new: no item covers it.",
+                            "enum": [
+                                "defined",
+                                "tangential",
+                                "new"
+                            ]
+                        },
+                        "path": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Display-name path as the outline prints it; null when new."
+                        },
+                        "file": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": ".composer/<file>.json as the outline names it, or the code file for a tool description; null when new."
+                        },
+                        "pointer": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "JSON pointer of the item as the outline prints it; null when new."
+                        },
+                        "span": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Substring of the item that carries the behaviour; null when new."
+                        },
+                        "present": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ],
+                            "description": "Whether the item was in the compiled request at the failure turn; absent means its block was gated and the predicate did not fire. Null when new."
+                        }
+                    }
+                },
+                "won": {
+                    "type": [
+                        "object",
+                        "null"
+                    ],
+                    "description": "The item the bad turn followed: the step it executed, the rule it obeyed, the tool description it answered to. Null when the bad turn followed none and the agent inferred on its own.",
+                    "additionalProperties": false,
+                    "required": [
+                        "path",
+                        "file",
+                        "pointer",
+                        "span"
+                    ],
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Display-name path as the outline prints it."
+                        },
+                        "file": {
+                            "type": "string",
+                            "description": ".composer/<file>.json as the outline names it, or the code file for a tool description."
+                        },
+                        "pointer": {
+                            "type": "string",
+                            "description": "JSON pointer of the item as the outline prints it."
+                        },
+                        "span": {
+                            "type": "string",
+                            "description": "Substring of the item the bad turn followed, as the tree has it; when the tree has moved since the call, the wording the request showed."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

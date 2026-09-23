@@ -1,0 +1,443 @@
+{
+ "type": "object",
+ "description": "The Sim Strategy: the simulation that guards the behaviour the analysis asks for, and what it displaces.",
+ "additionalProperties": false,
+ "required": [
+  "guard",
+  "regressions",
+  "sims",
+  "flags"
+ ],
+ "properties": {
+  "guard": {
+   "type": "object",
+   "description": "The existing simulation whose persona already makes the failure turn's move at the same point of the journey.",
+   "additionalProperties": false,
+   "required": [
+    "existing",
+    "state",
+    "why",
+    "run",
+    "red"
+   ],
+   "properties": {
+    "existing": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Its id, or null when none."
+    },
+    "state": {
+     "type": "string",
+     "description": "observed: its expectations should already catch the failure. blind: they look past it. none: no such simulation.",
+     "enum": [
+      "observed",
+      "blind",
+      "none"
+     ]
+    },
+    "why": {
+     "type": "string",
+     "description": "One sentence."
+    },
+    "run": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Null when nothing ran. Otherwise the run id and one sentence on the shape the conversation took and what that settled."
+    },
+    "red": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "The guard's 5× run on the tree as it is, after you wrote it. Null only when nothing could run.",
+     "additionalProperties": false,
+     "required": [
+      "run",
+      "passed",
+      "total",
+      "why"
+     ],
+     "properties": {
+      "run": {
+       "type": "string",
+       "description": "The run id."
+      },
+      "passed": {
+       "type": "integer"
+      },
+      "total": {
+       "type": "integer"
+      },
+      "why": {
+       "type": "string",
+       "description": "One sentence from the transcripts: the customer's move and how the agent's turn failed it, or what the conversations did instead."
+      }
+     }
+    }
+   }
+  },
+  "regressions": {
+   "type": "object",
+   "description": "The simulations the change could break, and their baseline run.",
+   "additionalProperties": false,
+   "required": [
+    "sims",
+    "run"
+   ],
+   "properties": {
+    "sims": {
+     "type": "array",
+     "description": "The guard left out; at most 240.",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "why"
+      ],
+      "properties": {
+       "id": {
+        "type": "string",
+        "description": "The simulation id."
+       },
+       "why": {
+        "type": "string",
+        "description": "How the change could reach it, one sentence."
+       }
+      }
+     }
+    },
+    "run": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The baseline run id, the list run 5x before any edit; null when nothing could run."
+    }
+   }
+  },
+  "sims": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "description": "One simulation that changes.",
+    "additionalProperties": false,
+    "required": [
+     "action",
+     "file",
+     "id",
+     "name",
+     "group",
+     "gist",
+     "persona",
+     "expectations",
+     "tags",
+     "mechanism",
+     "covered_by"
+    ],
+    "properties": {
+     "action": {
+      "type": "string",
+      "description": "add, modify or delete.",
+      "enum": [
+       "add",
+       "modify",
+       "delete"
+      ]
+     },
+     "file": {
+      "type": "string",
+      "description": "simulations/<file>.tests.ts, relative to the agent directory."
+     },
+     "id": {
+      "type": "string",
+      "description": "The simulation id, existing or new."
+     },
+     "name": {
+      "type": "object",
+      "description": "Its display name.",
+      "additionalProperties": false,
+      "required": [
+       "old",
+       "new"
+      ],
+      "properties": {
+       "old": {
+        "type": [
+         "string",
+         "null"
+        ],
+        "description": "The existing name, or null for a new simulation."
+       },
+       "new": {
+        "type": [
+         "string",
+         "null"
+        ],
+        "description": "The name, or null when unchanged."
+       }
+      }
+     },
+     "group": {
+      "type": "string",
+      "description": "The describe block it sits in; a new simulation joins the existing group of its journey point."
+     },
+     "gist": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "add: what the persona does and what must come of it, one sentence. modify: only when the persona changes. Else null."
+     },
+     "persona": {
+      "type": "object",
+      "description": "The customer from the call, not a paraphrase of the journey.",
+      "additionalProperties": false,
+      "required": [
+       "instructions",
+       "changes",
+       "openingTurns",
+       "mockUserId",
+       "why"
+      ],
+      "properties": {
+       "instructions": {
+        "type": [
+         "string",
+         "null"
+        ],
+        "description": "add: the full persona text. Else null."
+       },
+       "changes": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "description": "One persona line that changes.",
+         "additionalProperties": false,
+         "required": [
+          "old",
+          "new"
+         ],
+         "properties": {
+          "old": {
+           "type": "string",
+           "description": "The line as it is."
+          },
+          "new": {
+           "type": "string",
+           "description": "The line as it becomes."
+          }
+         }
+        },
+        "description": "modify: the persona lines that change; empty otherwise."
+       },
+       "openingTurns": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Opening turns when the call fixes how it starts; empty otherwise."
+       },
+       "mockUserId": {
+        "type": [
+         "string",
+         "null"
+        ],
+        "description": "The mock user the persona needs, or null."
+       },
+       "why": {
+        "type": [
+         "string",
+         "null"
+        ],
+        "description": "modify, when the persona changes: what the persona as it is does that keeps the simulation from reaching or holding the scenario, one sentence. add: why this customer and not an existing persona, one sentence. Else null."
+       }
+      }
+     },
+     "expectations": {
+      "type": "object",
+      "description": "Expected outcomes and observations; an observation states the principle the agent must follow, names no tag, gives no reason.",
+      "additionalProperties": false,
+      "required": [
+       "kept",
+       "reworded",
+       "added",
+       "removed"
+      ],
+      "properties": {
+       "kept": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Expectations kept as they are."
+       },
+       "reworded": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "description": "One reworded expectation.",
+         "additionalProperties": false,
+         "required": [
+          "old",
+          "new"
+         ],
+         "properties": {
+          "old": {
+           "type": "string",
+           "description": "As it is."
+          },
+          "new": {
+           "type": "string",
+           "description": "As it becomes."
+          }
+         }
+        },
+        "description": "Expectations reworded."
+       },
+       "added": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Expectations added."
+       },
+       "removed": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Expectations removed."
+       }
+      }
+     },
+     "tags": {
+      "type": "object",
+      "description": "Tags asserted; a negative tag as !tag; never a tag that exists nowhere.",
+      "additionalProperties": false,
+      "required": [
+       "kept",
+       "added",
+       "removed"
+      ],
+      "properties": {
+       "kept": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Kept."
+       },
+       "added": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Added."
+       },
+       "removed": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Removed."
+       }
+      }
+     },
+     "mechanism": {
+      "type": "string",
+      "description": "What in this persona reproduces the failure turn's condition as the analysis states it."
+     },
+     "covered_by": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "delete: the simulation that covers this scenario and what of it it already observes. Else null."
+     }
+    }
+   },
+   "description": "Only the simulations that change."
+  },
+  "expected_reds": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "description": "A simulation that will turn red by design.",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "why"
+    ],
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Its id."
+     },
+     "why": {
+      "type": "string",
+      "description": "What it asserts that the fix replaces."
+     }
+    }
+   },
+   "description": "Simulations that assert the behaviour the fix replaces; empty when none."
+  },
+  "flags": {
+   "type": "object",
+   "description": "What the engineer decides on.",
+   "additionalProperties": false,
+   "required": [
+    "no_tag",
+    "missing"
+   ],
+   "properties": {
+    "no_tag": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The behaviour has no tag that can see it, so the guard rests on observations alone; say which tag the fix should add."
+    },
+    "fixture": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The persona needs customer data or a mock user the harness does not have; name it."
+    },
+    "multi_sim": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The scenario cannot be guarded by one simulation; say why."
+    },
+    "missing": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Files you needed and did not find; empty when none."
+    },
+    "no_repro": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The guard stayed green on the tree as it is: the issue does not reproduce; say what the conversations did at the failure turn's point."
+    },
+    "wrong_reason": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "After a second try the guard is still red for a reason other than the one the analysis names; say which."
+    }
+   }
+  }
+ }
+}

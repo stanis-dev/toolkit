@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Issues</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.31.0/tabler-icons.min.css">
+<link rel="stylesheet" href="sections.css">
+<link rel="stylesheet" href="page.css">
+</head><body>
+<div class="app">
+<nav class="side"></nav>
+<div class="gut" id="gut" aria-hidden="true"></div>
+<main id="view"><div id="rnav"></div><div id="cardv"></div></main>
+</div>
+<button class="sbtn show" id="show" aria-label="Show sidebar" title="Show sidebar"><i class="ti ti-layout-sidebar-left-expand" aria-hidden="true"></i></button>
+<script src="preact-htm.js"></script>
+<script src="card.js"></script>
+<script>
+(function(){
+  // The sidebar is one Preact component tree over ui (this page's own state) and the store (GET steps); draw() renders
+  // it again and Preact changes only the rows that differ. The card body is card.py's HTML, put in once per card and
+  // again only when the card's file changes; its live parts update themselves from the store.
+  var P=htmPreact, html=P.html, NONE='No batch yet';
+  var esc=Cards.esc, cache=Cards.cache, Store=Cards.store;
+  var ui={agent:null,open:{},lastSel:null,sig:{},pick:false,sel:{},del:null,only:null,views:{},batch:'',edit:null,newb:false,newname:'',newbranch:'',newnote:'',branches:[],picknote:'',pickbusy:false,fpop:false,data:null,err:null,sync:null,syncBusy:false};
+  function money(c){return '$'+(c>=10?c.toFixed(0):c.toFixed(2))}
+  function costOf(a,n){return (Store.get().cost[a]||{})[n]||null}
+  function costTitle(t){return t?money(t.cost)+' over '+t.runs+' run'+(t.runs===1?'':'s')+': '+Object.keys(t.steps).map(function(k){return (PREP[k]||'Resolution')+' '+money(t.steps[k])}).join(', '):''}
+  // One row per issue: whose turn it is (the right-hand mark), how far the resolution got (five marks: review, repro,
+  // fix, regressions, merge) and what is happening now with the pass rate (second line). Until the resolution starts,
+  // and while a prep step reruns, the second line shows the prep steps instead. Sources: GET steps/<agent> "steps" (status files) and "resolve" (stage.py log, runs,
+  // live session).
+  var STAGES=['review','repro','fix','regressions','merge'];
+  var HEALTH={working:'now',holds:'ok',wrong:'bad',writing:'now',reproduces:'ok','does-not-reproduce':'bad','wrong-reason':'bad',
+    applying:'now',solved:'ok',refine:'warn',misguided:'bad',running:'now',found:'warn',fixing:'now',clean:'ok',ready:'ok',merged:'merged'};
+  var WAIT={wrong:1,'does-not-reproduce':1,'wrong-reason':1,refine:1,misguided:1,found:1,ready:1,solved:1};
+  var ICON={review:'ti-eye',repro:'ti-flask',fix:'ti-tool',regressions:'ti-stack-2',merge:'ti-git-merge',misguided:'ti-arrow-back-up',solved:'ti-circle-check',fixing:'ti-repeat',clean:'ti-shield-check'};
+  var LABEL={working:'Reviewing',holds:'Review holds',wrong:'A step is wrong',writing:'Writing repro',reproduces:'Repro is red','does-not-reproduce':'Doesn\'t reproduce',
+    'wrong-reason':'Red for another reason',applying:'Applying fix',solved:'Solved',refine:'Fix needs work',misguided:'Fix misguided',running:'Regression run',
+    fixing:'Fixing regressions',clean:'No regressions',ready:'Ready to merge',merged:'Merged'};
+  var RUNNING={repro:'Running repro',fix:'Testing fix',regressions:'Regression run'};
+  var PREP={setup:'Setup',analysis:'Analysis',strategy:'Sim strategy',context:'Context edit'};
+  function rateOf(r){return r.sims>1?[r.green,r.sims]:[r.passed,r.total]}
+  // The last runs of a stage: earlier values as text, the last one bold and coloured; null when none ran.
+  function rateParts(v,stage){
+    var list=((v.rates||{})[stage]||[]); if(!list.length)return null;
+    var red=stage==='repro', vals=list.map(function(r){var x=rateOf(r);return red?[x[1]-x[0],x[1]]:x}), last=vals[vals.length-1];
+    var cls=last[0]===last[1]?'ok':(last[0]?'warn':'bad');
+    return {pre:(red?'red ':'')+vals.slice(0,-1).map(function(x){return x[0]+' → '}).join(''),cls:cls,val:last[0]+'/'+last[1]};
+  }
+  function rateNode(r,lastOnly){return html`${lastOnly?'':r.pre}<b class=${r.cls}>${r.val}</b>`}
+  var PK=['setup','analysis','strategy','context'], PH={done:'ok',working:'now',failed:'bad'};
+  // Before the resolution starts: one dot each for analysis, strategy, context and resolution (done, running, failed,
+  // hollow when stale: its commit left the branch or an earlier answer is newer), and what comes next.
+  var DOTS=['analysis','strategy','context','resolve'], DOTNAME={analysis:'Analysis',strategy:'Sim strategy',context:'Context edit',resolve:'Resolution'};
+  function prepLine(s,run,bad,queued,stale){queued=queued||[];stale=stale||{};
+    var next=PK.filter(function(k){return s[k]!=='done'})[0];
+    var label=run?PREP[run]+' running':bad?PREP[bad]+' failed':s.resolve==='failed'?'Session failed':s.resolve==='stopped'?'Session stopped':next?(PK.some(function(k){return s[k]})?PREP[next]+' next':''):'Ready to resolve';
+    var marks=DOTS.map(function(k){var q=queued.indexOf(k)>=0&&s[k]!=='working';return html`<i class=${(q?'q':PH[s[k]]||'')+(stale[k]&&!q?' stale':'')} title=${DOTNAME[k]+': '+(q?'queued':s[k]||'not run')+(stale[k]?' · stale: '+stale[k]:'')}></i>`});
+    return html`<span class="l2"><span class="bar prep">${marks}</span>${label?html`<span class=${'stg'+((bad||s.resolve==='failed')&&!run?' bad':next||s.resolve?'':' ok')}>${label}</span>`:null}</span>`;
+  }
+  function rowView(a,i){
+    var S=Store.get(), s=(S.steps[a]||{})[i.num]||{}, v=(S.res[a]||{})[i.num]||{}, st=v.stage, r={who:null,l2:null,kind:''}, stale=((S.stale||{})[a]||{})[i.num]||{};
+    var prepRun=PK.filter(function(k){return s[k]==='working'})[0], prepBad=PK.filter(function(k){return s[k]==='failed'})[0];
+    var ch=(S.chains[a]||{})[i.num], chOn=ch&&ch.state==='working', queued=chOn?ch.steps.slice(ch.steps.indexOf(ch.at)):[];
+    if(chOn&&!prepRun&&PK.indexOf(ch.at)>=0)prepRun=ch.at;
+    var crashed=s.resolve==='failed'&&!v.turn;
+    if(prepRun||chOn||v.turn==='agent')r.kind='working';
+    else if(crashed||(prepBad&&!st&&!v.turn))r.kind='bad';
+    else if(v.turn==='you'||(st&&!v.turn&&WAIT[st.state]))r.kind=st&&st.state==='ready'?'ready':'you';
+    r.who=r.kind==='working'?html`<i class="ti ti-loader-2 spin" title="The agent is working"></i>`:r.kind==='bad'?html`<i class="ti ti-alert-circle bad" title=${crashed?'The resolution session ended with an error':PREP[prepBad]+' failed'}></i>`:(r.kind==='you'||r.kind==='ready')?html`<span class="dot" title="Your turn"></span>`:null;
+    if(prepRun||(!st&&!v.turn)){r.l2=prepLine(s,prepRun,prepBad,queued,stale);return r}
+    var bar=v.bar||{}, cur=st?st.stage:'', bars=STAGES.map(function(k){var h=bar[k]?HEALTH[bar[k]]:'';if(k===cur&&v.live)h='now';return html`<i class=${h} title=${k+(bar[k]?': '+bar[k]:'')}></i>`});
+    var label, icon, cls='', rate=null;
+    if(v.live){label=RUNNING[cur]||'Running sims';icon=ICON[cur]||'ti-player-play';rate=Math.max(0,Math.round((Date.now()-Date.parse(v.live))/60000))+' min'}
+    else if(st){
+      label=st.state==='found'?(function(){var x=((v.rates||{}).regressions||[]).slice(-1)[0];return x?(x.sims-x.green)+' regression'+(x.sims-x.green===1?'':'s'):'Regressions found'})():LABEL[st.state];
+      if(cur==='review'&&st.state==='working')label='Reviewing';
+      var BL={analysis:'Analysis',strategy:'Sim strategy',context:'Context edit'};
+      var blamed=st.step||(BL[st.note]?st.note:''), rerun=blamed&&(v.ended||{})[blamed]>st.t;
+      if(st.state==='wrong')label=(BL[blamed]||'A step')+' is wrong';
+      if(st.state==='misguided'&&BL[blamed])label='Fix misguided · '+BL[blamed];
+      if(rerun&&(st.state==='wrong'||st.state==='misguided')){label=BL[blamed]+' rerun · review again';cls=''}
+      if(cur==='regressions'&&st.state==='running')label='Regression run';
+      icon=ICON[st.state]||ICON[cur]; var h=HEALTH[st.state]; cls=h==='now'||(rerun&&(st.state==='wrong'||st.state==='misguided'))?'':h;
+      if(cur==='regressions'){var fx=rateParts(v,'fix'), rg=rateParts(v,'regressions'), parts=[fx&&fx.cls!=='ok'?rateNode(fx,true):null,rg?rateNode(rg):null].filter(Boolean);
+        rate=parts.length?parts.map(function(x,k){return k?html` · ${x}`:x}):null}
+      else if(cur!=='merge'){var rp=rateParts(v,cur);rate=rp?rateNode(rp):null}
+    } else {label=crashed?'Session failed':s.resolve==='stopped'?'Session stopped':'Resolution started';icon=s.resolve==='stopped'?'ti-player-stop':'ti-player-play';cls=crashed?'bad':''}
+    var stl=Object.keys(stale);
+    r.l2=html`<span class="l2"><span class="bar">${bars}</span>${stl.length?html`<i class="ti ti-history stl" title=${'Stale: '+stl.map(function(k){return DOTNAME[k]+' ('+stale[k]+')'}).join(', ')}></i>`:null}<span class=${'stg '+cls} title=${st&&st.note||''}><i class=${'ti '+icon}></i>${label}</span>${rate?html`<span class="rate">${rate}</span>`:null}</span>`;
+    return r;
+  }
+  function route(){var q={};location.hash.slice(1).split('&').forEach(function(p){var kv=p.split('=');if(kv[0])q[kv[0]]=decodeURIComponent(kv[1]||'')});return q}
+  function href(o){return '#'+Object.keys(o).filter(function(k){return o[k]}).map(function(k){return k+'='+encodeURIComponent(o[k])}).join('&')}
+  function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}}
+  function flag(k){try{return localStorage.getItem(k)==='1'}catch(e){return false}}
+  function hidden(i){return (flag('hideWait')&&(i.state==='BLOCKED'||i.state==='NEEDS_CLARIFICATION'))||(flag('hideTesting')&&i.state==='TESTING')}
+  function only(v){var k=v&&v.kind;return ui.only==='you'?(k==='you'||k==='bad'):k===ui.only}
+  function groups(d){
+    var by={},all=0,shown=0,batch=route().b;
+    d.list.forEach(function(i){if(batch&&i.batch!==batch)return;all++;if(!batch&&hidden(i))return;if(ui.only&&!only(ui.views[i.num]))return;shown++;var b=i.batch||NONE;(by[b]=by[b]||[]).push(i)});
+    Object.keys(d.batches||{}).forEach(function(b){if(!batch||b===batch)by[b]=by[b]||[]});
+    var names=Object.keys(by).filter(function(n){return n!==NONE}).sort(function(a,b){return b.localeCompare(a)});
+    if(by[NONE]) names.push(NONE);
+    return {gs:names.map(function(n){return {name:n,issues:by[n].sort(function(a,b){return b.num-a.num})}}),all:all,shown:shown};
+  }
+  function post(url,body){return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(function(r){return r.ok?null:r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}return j.error||(/<p>Message: ([^<]*)/.exec(t)||[])[1]||('server said '+r.status)})}).catch(function(){return 'server unreachable'})}
+  function stop(e){e.preventDefault();e.stopPropagation()}
+  // The strip under the header: counts of issues that need you, that the agent is working on, and that are ready to
+  // merge; a click narrows the list to them, a second click clears. The tab title carries the need-you count.
+  function Strip(){
+    var c={you:0,working:0,ready:0}; Object.keys(ui.views).forEach(function(n){var k=ui.views[n].kind;if(k==='you'||k==='bad')c.you++;else if(c[k]!==undefined)c[k]++});
+    document.title=(c.you?'('+c.you+') ':'')+'Issues';
+    var pills=[['you',html`<span class="pdot"></span>`,'need you'],['working',html`<i class="ti ti-loader-2"></i>`,'working'],['ready',html`<i class="ti ti-git-merge"></i>`,'ready']];
+    return html`<div class="strip" id="strip">${pills.filter(function(x){return c[x[0]]||ui.only===x[0]}).map(function(x){return html`<button class=${'pill'+(ui.only===x[0]?' on':'')} data-only=${x[0]} onClick=${function(){ui.only=ui.only===x[0]?null:x[0];draw()}}>${x[1]}<b>${c[x[0]]}</b>${' '+x[2]}</button>`})}</div>`;
+  }
+  // The batch's branch line: its setup state (spinner, failed, workspace ready, not set up), the branch, and delete with
+  // an inline confirm. A click on the branch edits it; saving starts batch.py create for that branch.
+  function BatchLine(p){
+    var a=p.a, b=p.b, e=p.e, count=p.count, st=(Store.get().bst[a]||{})[b]||{}, working=st.state==='working';
+    if(ui.del===a+'/'+b)return html`<span class="base del" data-b=${b} onClick=${function(ev){ev.stopPropagation()}}>${'Delete batch '+b+': '+(e.workspace?'workspace '+e.workspace+' and its worktree go, ':'')+count+' issue'+(count===1?'':'s')+' to No batch; the branch stays. '}<button class="rbtn delok" data-b=${b} onClick=${function(ev){stop(ev);ui.del=null;draw();post('batchdel/'+a+'/'+b).then(function(err){if(err)alert(err);delete ui.sig[a];poll1()})}}>delete</button><button class="rbtn delno" onClick=${function(ev){stop(ev);ui.del=null;draw()}}>cancel</button></span>`;
+    if(ui.edit===a+'/'+b)return html`<span class=${'base'+(e.base?'':' unset')} data-b=${b} onClick=${function(ev){ev.stopPropagation()}}><${BaseInput} a=${a} b=${b} e=${e}/></span>`;
+    var ic=working?html`<i class="ti ti-loader-2 bspin" title=${(st.action||'')+' · '+(st.step||'working')} aria-label="working"></i>`:
+      st.state==='failed'?html`<i class="ti ti-alert-circle bfail" title=${(st.action||'')+' failed: '+(st.error||'')} aria-label="failed"></i>`:
+      e.workspace?html`<i class="ti ti-cloud-filled bok" title=${'Workspace '+e.workspace+' · worktree '+(e.worktree||'')} aria-label="set up"></i>`:
+      e.base?html`<i class="ti ti-cloud-off" title="No workspace or worktree yet: click the branch and press Enter to set them up" aria-label="not set up"></i>`:null;
+    return html`<span class=${'base'+(e.base?'':' unset')} data-b=${b} title="Branch of this batch: the issues' worktrees fork from it and merge into it. Click to edit" onClick=${function(ev){ev.stopPropagation();ui.edit=a+'/'+b;draw()}}>${ic}<i class="ti ti-git-branch" aria-hidden="true"></i><span class="bnm">${e.base||'set branch'}</span>${working?null:html`<button class="sbtn bdel" data-b=${b} title="Delete this batch" aria-label=${'Delete batch '+b} onClick=${function(ev){stop(ev);ui.del=a+'/'+b;draw()}}><i class="ti ti-trash" aria-hidden="true"></i></button>`}</span>`;
+  }
+  // The batch's base branch: the issues' worktrees fork from it. Saved to agents/<agent>/batches.json through the server.
+  function BaseInput(p){
+    var a=p.a, b=p.b, e=p.e, cur=e.base||'', ref=P.useRef(null), done=P.useRef(false);
+    P.useEffect(function(){ref.current.focus();ref.current.select()},[]);
+    function finish(save){
+      if(done.current)return; done.current=true; ui.edit=null; var v=ref.current.value.trim();
+      if(!save||!v||(v===cur&&e.workspace)){draw();return}
+      draw(); post('batchbase/'+a+'/'+b,{base:v}).then(function(err){if(err)alert(err);poll1()});
+    }
+    return html`<input class="base-in" ref=${ref} defaultValue=${cur} placeholder="stan/…" spellcheck="false" onKeyDown=${function(ev){if(ev.key==='Enter'){ev.preventDefault();finish(true)}else if(ev.key==='Escape'){finish(false)}}} onBlur=${function(){finish(true)}}/>`;
+  }
+  function Row(p){
+    var a=p.a, i=p.i, q=p.q, on=!!(ui.sel[a]||{})[i.num], v=ui.views[i.num], t=costOf(a,i.num);
+    return html`<a class=${'it'+(i.sev==='MAJOR'?' major':'')+(p.active?' active':'')+(on?' sel':'')+(v.kind==='you'||v.kind==='ready'?' you':'')} data-n=${i.num} title=${t?costTitle(t):undefined} href=${href({a:a,b:q.b,i:i.num})}
+      onClick=${function(e){if(!ui.pick)return;e.preventDefault();var sel=ui.sel[a]=ui.sel[a]||{};if(sel[i.num])delete sel[i.num];else sel[i.num]=true;draw()}}><i class=${'ti pk '+(on?'ti-square-check-filled':'ti-square')} aria-hidden="true"></i><span class="num">${'#'+i.num}</span><span class="t" title=${i.title}>${i.title}</span><span class="who">${v.who}</span>${v.l2}</a>`;
+  }
+  function Group(p){
+    var a=p.a, x=p.x, q=p.q, open=ui.open[a]||{}, d=ui.data;
+    var cost=x.issues.reduce(function(t,i){var k=costOf(a,i.num);return t+(k?k.cost:0)},0), you=x.issues.some(function(i){var k=ui.views[i.num].kind;return k==='you'||k==='bad'});
+    function click(e){
+      if(e.target.closest('a'))return;
+      if(ui.pick){e.preventDefault();var sel=ui.sel[a]=ui.sel[a]||{},nums=x.issues.map(function(i){return i.num}),all=nums.every(function(n){return sel[n]});nums.forEach(function(n){if(all)delete sel[n];else sel[n]=true});draw();return}
+      open[x.name]=!open[x.name];draw();
+    }
+    return html`<div class=${'grp'+(open[x.name]?' open':'')+(x.name===NONE?' none':'')} data-g=${x.name}>
+      <div class="row" onClick=${click}><i class="ti ti-chevron-right" aria-hidden="true"></i><span class="nm">${x.name===NONE?x.name:'Batch '+x.name}${you?html`<span class="pdot" title="An issue here needs you"></span>`:null}${cost?html`<span class="bcost" title="Spent on this batch's issues so far">${money(cost)}</span>`:null}</span>${x.name===NONE||q.b?html`<span class="cnt">${x.issues.length}</span>`:html`<a class="cnt" href=${href({a:a,b:x.name})} title="Review this batch">${x.issues.length}</a>`}${x.name===NONE?null:html`<${BatchLine} a=${a} b=${x.name} e=${(d.batches||{})[x.name]||{}} count=${x.issues.length}/>`}</div>
+      <div class="items">${x.issues.map(function(i){return html`<${Row} key=${i.num} a=${a} i=${i} q=${q} active=${p.cur===i}/>`})}</div></div>`;
+  }
+  // Selection: the list-check button turns the sidebar into a picker; a click on a card toggles it, a click on a batch row
+  // toggles the whole batch. The bar runs the chosen steps on every selected card through the same route the cards' sequence uses.
+  function picked(){var s=ui.sel[ui.agent]||{};return Object.keys(s).map(Number).sort(function(a,b){return b-a})}
+  function pickRun(){
+    var a=ui.agent, steps=Cards.chosenSteps(), nums=picked(), step=steps.map(function(k){return k==='resolve'?'resolution':k}).join(' → ');
+    if(!steps.length){ui.picknote='choose one or more steps';draw();return}
+    var body=JSON.stringify({steps:steps,model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high'});
+    ui.pickbusy=true; ui.picknote='starting '+step+' on '+nums.length+'…'; draw();
+    var started=[], skipped=[];
+    (function next(k){
+      if(k>=nums.length){ui.picknote=(started.length?'started '+step+' on '+started.length:'nothing started')+(skipped.length?' · skipped '+skipped.join(', '):'');ui.pickbusy=false;draw();return}
+      var n=nums[k];
+      fetch('chain/'+a+'/'+n,{method:'POST',headers:{'Content-Type':'application/json'},body:body}).then(function(r){
+        if(r.ok)started.push(n); else return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}skipped.push('#'+n+' ('+(j.error||(r.status===409?'already running or not set up':'server said '+r.status))+')')});
+      }).catch(function(){skipped.push('#'+n+' (server unreachable)')}).then(function(){next(k+1)});
+    })(0);
+  }
+  function PickBar(){
+    var n=picked().length, d=ui.data, names=d?d.list.map(function(i){return i.batch}).filter(function(b,k,arr){return b&&arr.indexOf(b)===k}).sort().reverse():[];
+    return html`<div id="pickbar" class="pickbar" hidden=${!ui.pick}><span class="cnt" id="pickcnt">${n?n+' selected':'none selected'}</span><select class="rsel" id="pickbatch" aria-label="Select a whole batch" title="Add every card of a batch to the selection" value="" onChange=${function(e){var b=e.target.value;e.target.value='';if(!b||!ui.data)return;var sel=ui.sel[ui.agent]=ui.sel[ui.agent]||{};ui.data.list.forEach(function(i){if((i.batch||NONE)===b)sel[i.num]=true});draw()}}><option value="">+ batch…</option>${names.map(function(b){return html`<option value=${b}>${'Batch '+b}</option>`})}<option value=${NONE}>${NONE}</option></select><${Cards.StepToggles} id="picksteps"/><${Cards.ModelSelect} id="pickmodel" k="runModel" def="gpt-5.6-terra" list=${Cards.MODELS} label="Model"/><${Cards.ModelSelect} id="pickeffort" k="runEffort" def="high" list=${Cards.EFFORTS} label="Reasoning effort"/><button class="rbtn" id="pickrun" title="Run the chosen steps on every selected card: on each card one after another, in this order" aria-label="Run on selected" disabled=${!n||ui.pickbusy} onClick=${pickRun}><i class="ti ti-player-play" aria-hidden="true"></i></button><button class="rbtn" id="pickclear" title="Clear the selection" aria-label="Clear selection" onClick=${function(){ui.sel[ui.agent]={};ui.picknote='';draw()}}><i class="ti ti-x" aria-hidden="true"></i></button><div class="note" id="picknote">${ui.picknote}</div></div>`;
+  }
+  // New batch: a name (today's MMDD by default) and an existing branch, offered from GET branches with where each one is
+  // checked out; the server starts batch.py create, and the batch row shows its progress.
+  function newBatch(){
+    ui.newb=!ui.newb; if(!ui.newb){draw();return} ui.newnote='';
+    var t=new Date(); ui.newname=('0'+(t.getMonth()+1)).slice(-2)+('0'+t.getDate()).slice(-2); draw();
+    fetch('branches',{cache:'no-store'}).then(function(r){return r.json()}).then(function(list){ui.branches=list.slice(0,60);draw()}).catch(function(){});
+    var b=document.getElementById('newbranch'); if(b)b.focus();
+  }
+  function NewForm(){
+    return html`<form id="newform" class="newform" hidden=${!ui.newb} onSubmit=${function(ev){ev.preventDefault();var a=ui.agent,b=ui.newname.trim(),br=ui.newbranch.trim();ui.newnote='starting…';draw();
+        post('batchnew/'+a,{batch:b,base:br}).then(function(err){if(err){ui.newnote=err;draw();return}ui.newb=false;ui.open[a]=ui.open[a]||{};ui.open[a][b]=true;draw();poll1()})}}>
+      <input id="newname" aria-label="Batch name, MMDD" placeholder="MMDD" maxlength="4" inputmode="numeric" value=${ui.newname} onInput=${function(e){ui.newname=e.target.value}}/><input id="newbranch" aria-label="Branch" placeholder="existing branch" list="branchlist" spellcheck="false" value=${ui.newbranch} onInput=${function(e){ui.newbranch=e.target.value}}/><datalist id="branchlist">${ui.branches.map(function(x){return html`<option value=${x.name}>${x.at?'checked out at '+x.at:''}</option>`})}</datalist><button class="rbtn" type="submit" title="Create the batch" aria-label="Create the batch"><i class="ti ti-check" aria-hidden="true"></i></button><button class="rbtn" type="button" id="newcancel" title="Cancel" aria-label="Cancel" onClick=${function(){ui.newb=false;draw()}}><i class="ti ti-x" aria-hidden="true"></i></button><div class="note" id="newnote">${ui.newnote}</div></form>`;
+  }
+  // Refresh: the button posts sync/<agent> and follows agents/<agent>/sync.status.json until the run ends: it spins
+  // while working, turns red on failure, and its tooltip says when the last sync ended and what it brought.
+  // New or changed issue files are picked up by the page's own poll below.
+  var syncTimer=null;
+  function fmtHM(s){var d=new Date(s);return isNaN(d)?'':('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)}
+  function syncLook(){
+    var st=ui.sync;
+    if(ui.syncBusy&&!(st&&st.state==='working'))return {cls:' spin',dis:true,title:'Refreshing · starting'};
+    if(!st)return {cls:'',title:'Refresh issues from the tracker'};
+    var secs=st.state==='working'?Math.max(0,Math.round((Date.now()-Date.parse(st.started))/1000)):st.seconds, got=(st.fetched||[]).length;
+    if(st.state==='working')return {cls:' spin',dis:true,title:'Refreshing · '+(st.phase||'working')+' · '+secs+' s'};
+    if(st.state==='failed')return {cls:' failed',title:'Last refresh failed: '+(st.error||'')};
+    return {cls:'',title:'Refresh issues from the tracker\nLast synced '+fmtHM(st.ended)+' · '+(st.issues||0)+' issues in the tracker'+(got?' · fetched '+got+' issue'+(got===1?'':'s'):'')+(st.calls||st.downloaded?' · '+Math.max(st.calls||0,st.downloaded||0)+' calls':'')};
+  }
+  function syncTick(){
+    var a=ui.agent; if(syncTimer){clearTimeout(syncTimer);syncTimer=null}
+    fetch('agents/'+a+'/sync.status.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null}).then(function(st){
+      if(ui.agent!==a)return;
+      ui.sync=st; if(!(st&&st.state==='working'))ui.syncBusy=false; draw(); if(st&&st.state==='working')syncTimer=setTimeout(syncTick,2000);
+    });
+  }
+  function syncClick(){
+    var a=ui.agent; ui.syncBusy=true; draw();
+    fetch('sync/'+a,{method:'POST'}).then(function(r){
+      if(!r.ok&&r.status!==409){ui.syncBusy=false;ui.sync={state:'failed',error:'server said '+r.status};draw();return}
+      if(syncTimer)clearTimeout(syncTimer); syncTimer=setTimeout(syncTick,1500);
+    }).catch(function(){ui.syncBusy=false;ui.sync={state:'failed',error:'server unreachable'};draw()});
+  }
+  function Side(){
+    var a=ui.agent, d=ui.data, q=route(), sk=syncLook(), anyF=flag('hideWait')||flag('hideTesting');
+    var g=d?groups(d):null, cur=d&&q.i?d.issues[+q.i]:null;
+    return html`<div class="hd"><h1><select id="agent" aria-label="Agent" value=${a||'openpay'} onChange=${function(e){ui.only=null;location.hash=href({a:e.target.value})}}><option value="openpay">Openpay</option><option value="cobranzas">Cobranzas</option><option value="hipotecarios">Hipotecarios</option></select><span class="shown" id="shown">${g&&g.shown<g.all&&!ui.only?g.shown+' of '+g.all:''}</span></h1>
+      <div class="fltw" style="display:flex;gap:2px"><button class=${'sbtn'+sk.cls} id="sync" aria-label="Refresh issues from the tracker" title=${sk.title} disabled=${!!sk.dis} onClick=${syncClick}><i class="ti ti-refresh" aria-hidden="true"></i></button><button class="sbtn" id="newb" aria-label="New batch" title="New batch: its own worktree and Studio workspace on an existing branch" onClick=${newBatch}><i class="ti ti-folder-plus" aria-hidden="true"></i></button><button class=${'sbtn'+(ui.pick?' on':'')} id="pick" aria-label="Select cards" title="Select cards to run steps on all of them" aria-pressed=${ui.pick?'true':'false'} onClick=${function(){ui.pick=!ui.pick;if(!ui.pick){ui.picknote='';ui.sel={}}draw()}}><i class="ti ti-list-check" aria-hidden="true"></i></button><button class=${'fbtn'+(anyF?' on':'')} id="fbtn" aria-label="Filters" aria-expanded=${ui.fpop?'true':'false'} onClick=${function(e){e.stopPropagation();ui.fpop=!ui.fpop;draw()}}><i class="ti ti-filter" aria-hidden="true"></i></button><button class="sbtn" id="hide" aria-label="Hide sidebar" title="Hide sidebar"><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>
+      <div class="pop" id="fpop" hidden=${!ui.fpop} onClick=${function(e){e.stopPropagation()}}><label><input type="checkbox" data-f="hideWait" checked=${flag('hideWait')} onChange=${function(e){pref('hideWait',e.target.checked?'1':'0');draw()}}/> Hide waiting <span>blocked, needs clarification</span></label><label><input type="checkbox" data-f="hideTesting" checked=${flag('hideTesting')} onChange=${function(e){pref('hideTesting',e.target.checked?'1':'0');draw()}}/> Hide testing</label></div></div>
+    </div>
+    <${Strip}/><${PickBar}/><${NewForm}/>
+    <div id="tree">${ui.err?html`<div class="err">${'The sidebar failed: '+ui.err}</div>`:!g?null:g.gs.length?g.gs.map(function(x){return html`<${Group} key=${x.name} a=${a} x=${x} q=${q} cur=${cur}/>`}):html`<div class="err">${'No issues found for '+a+'.'}</div>`}</div>`;
+  }
+  var navEl=document.querySelector('nav.side'), drawn=false;
+  function draw(){
+    var d=ui.data, a=ui.agent; if(d){var views=ui.views={};d.list.forEach(function(i){views[i.num]=rowView(a,i)})}
+    navEl.classList.toggle('pick',ui.pick);
+    try{P.render(html`<${Side}/>`,navEl)}catch(e){ui.err=String(e&&e.stack||e);console.error(e)}
+    if(!drawn){drawn=true;Cards.chrome()}
+  }
+  Store.sub(function(){if(ui.data)draw()});
+  function reviewNavigation(i,d,a,batch){
+    if(!batch||!i||i.batch!==batch)return '';
+    var list=d.list.filter(function(x){return x.batch===batch}).sort(function(x,y){return y.num-x.num}), at=list.indexOf(i);
+    var links=(at>0?'<a href="'+href({a:a,b:batch,i:list[at-1].num})+'">← Previous</a>':'')+(at+1<list.length?'<a href="'+href({a:a,b:batch,i:list[at+1].num})+'">Next →</a>':'')+'<a href="'+href({a:a,i:i.num})+'">All issues</a>';
+    return '<div class="review-navigation"><span>Batch '+esc(batch)+' · '+(at+1)+' of '+list.length+'</span><nav aria-label="Review cards">'+links+'</nav></div>';
+  }
+  // The card on screen: its body goes in when the card changes or its file does, never on a mere status change.
+  var rnav=document.getElementById('rnav'), cardv=document.getElementById('cardv'), shown={body:null,nav:null};
+  function bodyKey(a,i){return i?a+'\u0001'+JSON.stringify(i):''}
+  function showCard(d,q,a,cur){
+    var key=cur?a+'/'+cur.num:'', moved=key!==ui.lastView; if(moved)saveView();
+    var nav=cur?reviewNavigation(cur,d,a,q.b):''; if(nav!==shown.nav){rnav.innerHTML=nav;shown.nav=nav}
+    var body=bodyKey(a,cur);
+    if(body!==shown.body){
+      var y=window.scrollY, fi=moved?0:focusIndex();
+      Cards.unmount(cardv); cardv.innerHTML=cur?Cards.card(cur):''; shown.body=body;
+      if(cur){Cards.norm(cardv,cur);Cards.applyFolds(cardv,a,cur.num);Cards.badges(cardv)}
+      if(!moved){window.scrollTo({top:y});setFocus(fi,true)}
+    }
+    if(moved){ui.lastView=key;var sv=loadView(key)||{};window.scrollTo({top:sv.y||0});setFocus(sv.focus,true);if(cur)Cards.restoreDrawer(cur,sv.drawer);else Cards.closeDrawers()}
+  }
+  function refresh(){
+    if(!location.hash&&pref('last')){location.replace(pref('last'));return}
+    var q=route(), a=['openpay','cobranzas','hipotecarios'].indexOf(q.a)>=0?q.a:'openpay';
+    if(location.hash)pref('last',location.hash);
+    if(a!==ui.agent){ui.agent=a;ui.data=null;syncTick()}
+    var open=ui.open[a]=ui.open[a]||{};
+    Cards.load(a).then(function(d){
+      if(ui.agent!==a)return; ui.data=d; ui.err=null;
+      var cur=q.i?d.issues[+q.i]:null;
+      if(q.b&&(!cur||cur.batch!==q.b)){var first=d.list.filter(function(i){return i.batch===q.b}).sort(function(x,y){return y.num-x.num})[0];if(first){location.replace(href({a:a,b:q.b,i:first.num}));return}}
+      draw();
+      var g=groups(d), curG=null;
+      if(q.b&&ui.batch!==q.b)g.gs.forEach(function(x){open[x.name]=true});ui.batch=q.b||'';
+      g.gs.forEach(function(x){if(cur&&x.issues.indexOf(cur)>=0)curG=x});
+      var key=cur?a+'/'+cur.num:''; if(cur&&key!==ui.lastSel&&curG)open[curG.name]=true; ui.lastSel=key;
+      draw(); showCard(d,q,a,cur);
+    }).catch(function(e){ui.err=String(e&&e.stack||e);draw()});
+  }
+  document.addEventListener('click',function(){if(ui.fpop){ui.fpop=false;draw()}});
+  document.getElementById('view').addEventListener('toggle',function(e){var q=route();if(q.i)Cards.foldToggle(cardv,ui.agent,q.i,e.target)},true);
+  // Hot reload: every 2 s one GET steps/<agent> brings the step states and a signature of the issue and card files;
+  // a moved signature reloads the agent's files, any change updates the store and so the rows and bars that show it.
+  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
+  function poll1(){
+    var a=ui.agent;
+    return fetch('steps/'+a,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+      if(!j||a!==ui.agent)return; var sig=JSON.stringify(j);
+      if(!(a in ui.sig)||ui.sig[a]!==sig){var old=a in ui.sig?JSON.parse(ui.sig[a]):{};ui.sig[a]=sig;var files=old.sig!==j.sig||JSON.stringify(old.batches)!==JSON.stringify(j.batches);if(files)delete cache[a];apply(a,j);if(files)refresh()}
+    }).catch(function(){});
+  }
+  function poll(){poll1().then(function(){setTimeout(poll,2000)})}
+  var a0=['openpay','cobranzas','hipotecarios'].indexOf(route().a)>=0?route().a:'openpay';
+  fetch('steps/'+a0,{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){ui.sig[a0]=JSON.stringify(j);apply(a0,j)}).catch(function(){}).then(function(){refresh();setTimeout(poll,2000)});
+  // Per card, what I left on screen: page scroll, the focused section, the open drawer with its scroll, filter, open
+  // parts and unsent draft. Saved as it changes and when I leave the card; restored when I come back, reloads included.
+  // Folds keep their own record (Cards.applyFolds).
+  function loadView(k){try{return JSON.parse(localStorage.getItem('view:'+k)||'null')}catch(e){return null}}
+  function saveView(){var k=ui.lastView;if(!k)return;try{localStorage.setItem('view:'+k,JSON.stringify({y:window.scrollY,focus:focusIndex(),drawer:Cards.drawerState()}))}catch(e){}}
+  var saveT=null; function saveSoon(){if(saveT)clearTimeout(saveT);saveT=setTimeout(function(){saveT=null;saveView()},250)}
+  ['scroll','input','click','toggle'].forEach(function(t){document.addEventListener(t,saveSoon,true)});
+  window.addEventListener('pagehide',saveView);
+  // Sections for the z keys: the card's top-level folds, one of them focused.
+  function sections(){var all=Array.prototype.slice.call(document.querySelectorAll('#view details.part, #view details.secw, #view details.card.rep'));return all.filter(function(d){return !all.some(function(o){return o!==d&&o.contains(d)})})}
+  function focusIndex(){var l=sections();for(var k=0;k<l.length;k++)if(l[k].classList.contains('kf'))return k;return null}
+  function setFocus(k,quiet){var l=sections();l.forEach(function(d){d.classList.remove('kf')});if(k==null||!l.length)return;k=Math.max(0,Math.min(l.length-1,k));l[k].classList.add('kf');if(!quiet)l[k].querySelector(':scope>summary').scrollIntoView({block:'nearest'})}
+  function firstVisible(){var l=sections();for(var k=0;k<l.length;k++)if(l[k].getBoundingClientRect().bottom>60)return k;return 0}
+  // Keys, after my LazyVim setup: H/L and [b/]b move between cards as between buffers, n/N to the next card that needs
+  // me, j/k Ctrl-d/Ctrl-u gg/G scroll (the open drawer when there is one), zj/zk za zo zc zR zM work the sections as
+  // folds, Space e the sidebar, ? this list. Ctrl-h/j/k/l stay with Ghostty's splits.
+  var HELP=[['H  [b','previous card'],['L  ]b','next card'],['n  N','next / previous card that needs you'],['j  k','scroll down / up'],['Ctrl-d  Ctrl-u','half a page down / up'],['gg  G','top / bottom'],
+    ['zj  zk','next / previous section'],['za','toggle the section'],['zo  zc','open / close the section'],['zR  zM','open / close every section'],['Space e','show / hide the sidebar'],['Esc','close the drawer, this list'],['?','this list']];
+  function help(){var h=document.getElementById('keyhelp');if(h){h.remove();return}
+    h=document.createElement('div');h.id='keyhelp';h.setAttribute('role','dialog');h.setAttribute('aria-label','Keys');
+    h.innerHTML='<b>Keys</b>'+HELP.map(function(x){return '<div><kbd>'+esc(x[0])+'</kbd><span>'+esc(x[1])+'</span></div>'}).join('');document.body.appendChild(h)}
+  function cards(){var l=Array.prototype.slice.call(document.querySelectorAll('#tree a.it')).filter(function(x){return x.offsetParent!==null});return l.length?l:Array.prototype.slice.call(document.querySelectorAll('#tree a.it'))}
+  function go(step,test){var l=test?Array.prototype.slice.call(document.querySelectorAll('#tree a.it')):cards();if(!l.length)return;var at=-1;l.forEach(function(x,k){if(x.classList.contains('active'))at=k});
+    for(var n=1;n<=l.length;n++){var k=at<0?(step>0?n-1:l.length-n):((at+step*n)%l.length+l.length)%l.length;if(!test||test(l[k])){location.hash=l[k].getAttribute('href');return}}}
+  function needsYou(x){var v=ui.views[x.dataset.n];return v&&(v.kind==='you'||v.kind==='bad')}
+  function scroller(){var t=document.querySelector('aside.sess:not(.beside) .tl')||document.querySelector('aside.sess .tl');return t||null}
+  function scrollBy(dy){var t=scroller();if(t)t.scrollBy({top:dy});else window.scrollBy({top:dy})}
+  function scrollTo(end){var t=scroller();if(t)t.scrollTop=end?t.scrollHeight:0;else window.scrollTo({top:end?document.body.scrollHeight:0})}
+  var pend='', pendT=null;
+  document.addEventListener('keydown',function(e){
+    var t=e.target, tag=(t.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea'||tag==='select'||t.isContentEditable||e.metaKey||e.altKey)return;
+    var k=e.key; if(e.ctrlKey){if(k!=='d'&&k!=='u')return;k='C-'+k}
+    if(k==='Escape'){var h=document.getElementById('keyhelp');if(h)h.remove();pend='';return}
+    if(k==='Shift')return;
+    var seq=pend+k; pend=''; if(pendT){clearTimeout(pendT);pendT=null}
+    var sec=function(){var f=focusIndex();if(f==null){f=firstVisible();setFocus(f)}return sections()[f]};
+    var act={'H':function(){go(-1)},'[b':function(){go(-1)},'L':function(){go(1)},']b':function(){go(1)},
+      'n':function(){go(1,needsYou)},'N':function(){go(-1,needsYou)},
+      'j':function(){scrollBy(60)},'k':function(){scrollBy(-60)},'C-d':function(){scrollBy(innerHeight/2)},'C-u':function(){scrollBy(-innerHeight/2)},
+      'gg':function(){scrollTo(false)},'G':function(){scrollTo(true)},
+      'zj':function(){var f=focusIndex();setFocus(f==null?firstVisible():f+1)},'zk':function(){var f=focusIndex();setFocus(f==null?firstVisible():f-1)},
+      'za':function(){var d=sec();if(d)d.open=!d.open},'zo':function(){var d=sec();if(d)d.open=true},'zc':function(){var d=sec();if(d)d.open=false},
+      'zR':function(){sections().forEach(function(d){d.open=true})},'zM':function(){sections().forEach(function(d){d.open=false})},
+      ' e':function(){document.getElementById(document.querySelector('.app').classList.contains('nosb')?'show':'hide').click()},'?':help};
+    if(act[seq]){e.preventDefault();act[seq]();saveSoon();return}
+    if(Object.keys(act).some(function(x){return x.length>seq.length&&x.indexOf(seq)===0})){e.preventDefault();pend=seq;pendT=setTimeout(function(){pend=''},1000)}
+  });
+  window.addEventListener('hashchange',refresh);
+})();
+</script>
+</body></html>

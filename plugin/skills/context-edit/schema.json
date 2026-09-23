@@ -1,0 +1,272 @@
+{
+ "type": "object",
+ "description": "The Studio Context Edit: why the wanted instruction did not produce the good turn, and the wording change that would.",
+ "additionalProperties": false,
+ "required": [
+  "cause",
+  "saw",
+  "edit",
+  "alternatives",
+  "flags"
+ ],
+ "properties": {
+  "cause": {
+   "type": "string",
+   "description": "missing: the wanted state is new. gated: the item exists behind a predicate that did not fire. overpowered: the item that won outweighed it. ambiguous: the item is present and does not decide the turn, the tangential case included. tool: a tool description or its placement drove the call. indicator: a progress indicator steered the turn. code: the cause is in agent code.",
+   "enum": [
+    "missing",
+    "gated",
+    "overpowered",
+    "ambiguous",
+    "tool",
+    "indicator",
+    "code"
+   ]
+  },
+  "saw": {
+   "type": "object",
+   "description": "What the model saw at the failure turn.",
+   "additionalProperties": false,
+   "required": [
+    "trace",
+    "section"
+   ],
+   "properties": {
+    "trace": {
+     "type": "string",
+     "description": "traces/<seq>.trace of the failure turn."
+    },
+    "section": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The prompt section the wanted item rendered in, or null when absent."
+    }
+   }
+  },
+  "also": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "description": "One more item the card must show, from the scenario or the general context, when the cause sits there.",
+    "additionalProperties": false,
+    "required": [
+     "path",
+     "file",
+     "pointer",
+     "role",
+     "span"
+    ],
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Display-name path."
+     },
+     "file": {
+      "type": "string",
+      "description": ".composer/blocks/<file>.json."
+     },
+     "pointer": {
+      "type": "string",
+      "description": "JSON pointer as the outline prints it."
+     },
+     "role": {
+      "type": "string",
+      "description": "A for the wanted side, B for the winning side.",
+      "enum": [
+       "A",
+       "B"
+      ]
+     },
+     "span": {
+      "type": "string",
+      "description": "Substring of the item."
+     }
+    }
+   },
+   "description": "Empty in the common case: the card's Studio Context is built from the analysis."
+  },
+  "tool": {
+   "type": "object",
+   "description": "A tool description that took part.",
+   "additionalProperties": false,
+   "required": [
+    "name",
+    "file",
+    "text",
+    "why"
+   ],
+   "properties": {
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The tool name, or null when no tool took part."
+    },
+    "file": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "path.ts:line of the description."
+    },
+    "text": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The description sentence that took part, verbatim."
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "One sentence."
+    }
+   }
+  },
+  "edit": {
+   "type": "object",
+   "description": "The wording change: an instruction that changes the task definition, not the symptom.",
+   "additionalProperties": false,
+   "required": [
+    "file",
+    "pointer",
+    "path",
+    "old",
+    "new",
+    "scope",
+    "ripple"
+   ],
+   "properties": {
+    "file": {
+     "type": "string",
+     "description": ".composer/blocks/<file>.json."
+    },
+    "pointer": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "JSON pointer of the item edited; null for a new item."
+    },
+    "path": {
+     "type": "string",
+     "description": "Display-name path."
+    },
+    "old": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The item text as it is, or null for a new item."
+    },
+    "new": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The item text as it becomes, or null for a removal."
+    },
+    "after": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Pointer of the item the new one follows, when old is null."
+    },
+    "scope": {
+     "type": "string",
+     "description": "pattern when the instruction covers a class of situations, situation when it covers one.",
+     "enum": [
+      "pattern",
+      "situation"
+     ]
+    },
+    "ripple": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "What the change gives force to or makes redundant, one sentence, or null."
+    }
+   }
+  },
+  "alternatives": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "description": "A competing edit with a larger ripple.",
+    "additionalProperties": false,
+    "required": [
+     "path",
+     "new",
+     "why"
+    ],
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Display-name path."
+     },
+     "new": {
+      "type": "string",
+      "description": "The text as it would become."
+     },
+     "why": {
+      "type": "string",
+      "description": "One sentence."
+     }
+    }
+   },
+   "description": "Empty when no edit competes."
+  },
+  "flags": {
+   "type": "object",
+   "description": "What the engineer decides on.",
+   "additionalProperties": false,
+   "required": [
+    "missing"
+   ],
+   "properties": {
+    "tree_moved": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The item reads differently in the tree than in the request the call saw; give both readings, the edit targets the tree."
+    },
+    "code": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The change is in agent code, a tool description or a predicate; name the file and the string."
+    },
+    "sync": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": ".composer carries an unfinished pull or conflict markers; say what blocks.py reported."
+    },
+    "missing": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Files you needed and did not find; empty when none."
+    },
+    "push": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The edit did not land in the workspace: lint failed, or the diff after the second pull is not empty; what it reported."
+    }
+   }
+  }
+ }
+}
