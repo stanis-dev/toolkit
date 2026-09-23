@@ -11,7 +11,10 @@ You take the issue from its three answers to a verified fix, with the engineer, 
 session streams to. Work in the repository; read the pages dir; touch nothing else. Write in English; quote agent and
 customer lines in their language.
 
-The brief that opened the session gives this issue's values, then the issue and the three answers:
+The brief that opened the session gives this issue's values, then the issue and the three answers, and ends with the
+card's history: one line per event, oldest first, who acted, what happened, and the files behind it. Open an event's
+files only when that event bears on what you are doing; an answer marked superseded is one a later run replaced. The
+values:
 
 - `<checkout>`: the issue's own git checkout, the working directory.
 - `<agent-dir>`: the agent's directory in it; its simulations under `simulations/`, its Studio content under

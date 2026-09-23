@@ -29,6 +29,7 @@ For `context`:
   5. the compiled request at the failure turn the analysis names, as for `analysis`.
 For `resolve`, the opening message of the interactive session: where everything lives, the issue, and the three
 step answers in full; the analysis must exist, the other two are marked when missing.
+Every step's brief ends with the card's history as cardlog.py indexes it, when the card has one.
 With --batch, the batch driver's opening message: the batch's values, then per card its state, branch, guard,
 regression list and every run of it (the strategy's before the fix, the resolution's), each with its time, the main
 commit its workspace held then (main's merges reach every workspace as they land) and per-simulation counts; then
@@ -50,6 +51,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import blocks  # noqa: E402
+import cardlog  # noqa: E402
 
 AGENT_DIR = {"cobranzas": "agents/base", "openpay": "agents/openpay", "hipotecarios": "agents/hipotecarios"}
 
@@ -447,14 +449,16 @@ def main(argv):
     k = int(opts.get("--calls") or 3)
     base = os.path.join(pages, "agents", agent)
     iss = load(os.path.join(base, "issues", f"{n}.json"))
+    history = cardlog.index(pages, agent, n)
+    history = "\n" + history if history else ""
     if step == "strategy":
-        sys.stdout.write(strategy_brief(agent, n, base, repo, iss))
+        sys.stdout.write(strategy_brief(agent, n, base, repo, iss) + history)
         return
     if step == "context":
-        sys.stdout.write(context_brief(agent, n, base, repo, iss))
+        sys.stdout.write(context_brief(agent, n, base, repo, iss) + history)
         return
     if step == "resolve":
-        sys.stdout.write(resolve_brief(agent, n, base, repo, iss))
+        sys.stdout.write(resolve_brief(agent, n, base, repo, iss) + history)
         return
     if step != "analysis":
         fail(f"unknown step {step}")
@@ -476,7 +480,7 @@ def main(argv):
     if calls:
         req, err = request_at_reported(base, iss, calls[0])
         parts.append("# Request at the reported turn\n\n" + (req if req else f"(unavailable: {err})\n"))
-    sys.stdout.write("\n".join(parts))
+    sys.stdout.write("\n".join(parts) + history)
 
 
 def run_text(agent, n, base, repo, step):

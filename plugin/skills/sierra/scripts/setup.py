@@ -202,6 +202,12 @@ class Setup:
             self.status.pop("step", None)
             self.status.update(ended=now(), seconds=int(time.time() - self.t0))
             write_json(self.status_path, self.status)
+            import cardlog
+            st = self.status
+            cardlog.add(self.pages, self.agent, self.n, "setup",
+                        f"worktree {st.get('worktree')} on {st.get('branch')} off {st.get('base') or 'its existing branch'}, "
+                        f"workspace {st.get('name')}" if st["state"] == "done" else "failed: " + str(st.get("error")),
+                        ["git:" + st["commit"]] if st.get("commit") else [])
         return 0 if self.status["state"] == "done" else 1
 
 

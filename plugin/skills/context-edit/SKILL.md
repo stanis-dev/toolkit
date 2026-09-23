@@ -34,6 +34,9 @@ You work from the brief that follows this text. It holds, in this order:
 - The compiled request the model saw at the failure turn: its trace path, its system parts and its tool schemas. The
   request's conversation messages are the call's transcript up to that turn.
 - The lane: the values the Apply section names.
+- The card's history, when it has one: one line per event, oldest first, who acted, what happened, and the files
+  behind it. Open an event's files only when that event bears on your task; an answer marked superseded is one a later
+  run replaced.
 
 Read from disk only for the request of another turn, from the call's cache path: the `GOALSDK_RESPOND` row of that turn
 in `debug.log` names its `traces/<seq>.trace`, and `traces[0].llm_chat.raw_request` there is the request; and for a

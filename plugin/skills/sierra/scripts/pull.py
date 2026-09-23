@@ -5,13 +5,13 @@
 
 Runs `ghostwriter pull` in the worktree's agent directory, then commits as base each changed or new Studio file whose
 content is a version origin/main has had (main's merges reach every workspace as they land). Everything else the pull
-changed stays uncommitted: the card's work. Prints the files taken as base and the files left as the card's. Exit 1
-when the pull fails. Use it for every pull in an issue's worktree, in place of `ghostwriter pull`."""
+changed stays uncommitted: the card's work. Prints the files taken as base and the files left as the card's; what was
+taken as base is one event of the card's history (cardlog.py). Exit 1 when the pull fails. Use it for every pull in an issue's worktree, in place of `ghostwriter pull`."""
 import os, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import stepgit
+import cardlog, stepgit
 from setup import AGENT_DIR
 
 
@@ -31,6 +31,11 @@ def main(argv):
     base = stepgit.absorb_main(wt, composer_rel)
     left = [p for p in stepgit.dirty(wt) if p.startswith(composer_rel + "/")]
     print("taken as base, from main: " + (", ".join(base) if base else "nothing"))
+    pages = cardlog.pages_dir()
+    n = cardlog.card_of(pages, agent, worktree=wt)
+    if base and n:
+        cardlog.add(pages, agent, n, "pull", "took main's changes as base: " + ", ".join(os.path.basename(p) for p in base),
+                    ["git:" + stepgit.git(wt, "rev-parse", "--short", "HEAD").strip()])
     print("the card's work, uncommitted: " + (", ".join(left) if left else "nothing"))
     return 0
 

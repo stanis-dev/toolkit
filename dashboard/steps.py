@@ -307,10 +307,10 @@ def rule(agent, n, side, gap=False):
         msg = (f"The engineer ruled for {step} on:\n{points}\n"
                "The answer stands on those points. Do not raise them again; review the rest as usual.")
         live = host_call(agent, n, {'cmd': 'state'})
-        out = host_call(agent, n, {'cmd': 'send', 'message': msg, 'mode': 'follow_up' if live.get('streaming') else 'prompt'}) if 'error' not in live else live
+        out = host_call(agent, n, {'cmd': 'send', 'message': msg, 'mode': 'follow_up' if live.get('streaming') else 'prompt', 'by': 'ruling'}) if 'error' not in live else live
     note = 'for ' + ('the resolution agent' if side == 'resolver' else step) + ('; skill gap' if gap else '')
     subprocess.run([sys.executable, os.path.join(SCRIPTS, 'stage.py'), agent, n, 'review', 'ruled', '--step', step,
-                    '--note', note, '--pages', os.getcwd()], capture_output=True)
+                    '--note', note, '--by', 'engineer', '--pages', os.getcwd()], capture_output=True)
     if gap:
         path = os.path.join('agents', agent, 'skill-gaps.json')
         gaps = load_json(path, [])
@@ -342,7 +342,7 @@ def notify_rerun(agent, n, ran):
     st = host_call(agent, n, {'cmd': 'state'})
     if 'error' in st:
         return st
-    return host_call(agent, n, {'cmd': 'send', 'message': rerun_note(agent, n, ran), 'mode': 'follow_up' if st.get('streaming') else 'prompt'})
+    return host_call(agent, n, {'cmd': 'send', 'message': rerun_note(agent, n, ran), 'mode': 'follow_up' if st.get('streaming') else 'prompt', 'by': 'rerun'})
 
 
 def stale_states(agent):

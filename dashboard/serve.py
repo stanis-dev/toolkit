@@ -16,7 +16,7 @@ workspace, both named <prefix>-<n>; status in agents/<agent>/setup/<n>.status.js
 refuses (409) until it is there.
 POST /reset/<agent>/<n> archives every step's answer (analysis, strategy, context, resolve) and the card to the steps'
 history/ folders with the sidebar's stage history, drops the step status files and leaves the card with its state comments
-only; it stops a live resolution session and moves the worktree's uncommitted tracked changes to a git stash, while the
+only, and records it in the card's history (cardlog.py), which stays; it stops a live resolution session and moves the worktree's uncommitted tracked changes to a git stash, while the
 branch and workspace stay. Refused (409) while analysis, strategy, context or a sequence of that issue is running.
 POST /kill/<agent>/<n>/<step> sends SIGTERM to the run that status file names; run.py marks it failed («stopped from the page»),
 which /steps reports as stopped, as it does a resolution session ended with /stop or whose host is gone.
@@ -78,7 +78,7 @@ import steps
 from steps import (ORDER, STEPS, SCRIPTS, REPO, alive, now, write_json, load_json, settle, card_batch, batches_path, load_batches,
                    batch_base, repo_of, spawn_proc, start_step, status_path)
 sys.path.insert(0, SCRIPTS)
-import ledger
+import cardlog, ledger
 
 A = '(openpay|cobranzas|hipotecarios)'
 GOLDEN = re.compile(r'^/(golden|drafts)/' + A + r'/(\d+)\.json$')
@@ -579,7 +579,7 @@ class H(SimpleHTTPRequestHandler):
                 if alive(int(host.get('pid') or 0)):
                     self.reply(409, {'error': 'the resolution session did not stop'}); return
             stamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H%M%SZ')
-            archived = []
+            archived, kept = [], []
             wt, sg = repo_of(agent, n), steps.stepgit()
             left = sg.dirty(wt) if wt and sg else []
             if left:
@@ -590,6 +590,7 @@ class H(SimpleHTTPRequestHandler):
                 text = open(card, encoding='utf-8').read()
                 hist = os.path.join(base, 'analysis', 'history'); os.makedirs(hist, exist_ok=True)
                 shutil.copy(card, os.path.join(hist, n + '.' + stamp + '.card.html')); archived.append('card')
+                kept.append(os.path.join('analysis', 'history', n + '.' + stamp + '.card.html'))
                 head = re.match(r'(?:\s*<!--.*?-->\n?)*', text, re.S).group(0)
                 with open(card + '.tmp', 'w', encoding='utf-8') as f:
                     f.write(head)
@@ -601,6 +602,7 @@ class H(SimpleHTTPRequestHandler):
                         hist = os.path.join(base, step, 'history'); os.makedirs(hist, exist_ok=True)
                         when = datetime.fromtimestamp(os.path.getmtime(p), timezone.utc).strftime('%Y-%m-%dT%H%M%SZ')
                         shutil.move(p, os.path.join(hist, n + '.' + when + '.' + ext)); archived.append(step)
+                        kept.append(os.path.join(step, 'history', n + '.' + when + '.' + ext))
                 p = os.path.join(base, step, n + '.status.json')
                 if os.path.exists(p):
                     os.remove(p)
@@ -609,6 +611,9 @@ class H(SimpleHTTPRequestHandler):
                 if os.path.exists(p):
                     hist = os.path.join(base, 'resolve', 'history'); os.makedirs(hist, exist_ok=True)
                     shutil.move(p, os.path.join(hist, n + '.' + stamp + '.' + ext)); archived.append('resolve ' + ext.split('.')[0])
+                    kept.append(os.path.join('resolve', 'history', n + '.' + stamp + '.' + ext))
+            cardlog.add(os.getcwd(), agent, n, 'engineer', 'reset the card: ' + (', '.join(archived) or 'nothing to archive')
+                        + '; answers so far are history', kept)
             self.reply(200, {'archived': archived}); return
         k = KILL.match(self.path)
         if k:

@@ -18,6 +18,8 @@ card.py.
 Progress lives in `agents/<agent>/<step>/<n>.status.json`, which the issues page polls: state working, done or
 failed, with times, the repo commit, token usage, how long the model has been silent and the error tail. Run files sit
 in `<step>/runs/<n>/`: prompt.md (the whole message sent), system.md (the system prompt), out.jsonl (every pi event, deltas coalesced), err.log.
+When the run ends, done or failed, those files and the answer are copied to `<step>/runs/<n>/<start stamp>/`, which later
+runs leave alone, and the run is one event of the card's history (cardlog.py) pointing there.
 A SIGTERM from the page's stop button ends pi and everything it started, and marks the run stopped.
 
 The repo is the issue's worktree. Git is left alone: the card's work stays uncommitted there until the resolution
@@ -301,6 +303,24 @@ def tail(path, n=12):
     return "\n".join(lines[-n:])[-1500:]
 
 
+def keep_run(runs, started, feedback, answer_path=None):
+    """This run's files, and its answer when it has one, copied to runs/<n>/<start stamp>/: the card's history points
+    there. The copied paths."""
+    dest = base = os.path.join(runs, started.replace(":", ""))
+    k = 1
+    while os.path.exists(dest):  # two runs started within one second
+        k += 1
+        dest = f"{base}-{k}"
+    os.makedirs(dest)
+    kept = []
+    for f in ("answer.json", "feedback.md", "prompt.md", "out.jsonl", "err.log"):
+        src = answer_path if f == "answer.json" else os.path.join(runs, f)
+        if src and os.path.exists(src) and (f != "feedback.md" or feedback):
+            shutil.copy(src, os.path.join(dest, f))
+            kept.append(os.path.join(dest, f))
+    return kept
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -343,12 +363,27 @@ def main(argv):
         import ledger
         ledger.add(pages, agent, n, ledger.entry(status["ended"], step, status, status["usage"]))
 
+    def history(what, answer=None):
+        sys.path.insert(0, HERE)
+        import cardlog
+        try:
+            kept = keep_run(runs, started, feedback, answer_path if answer is not None else None)
+        except OSError:
+            kept = []
+        head = {"resolver": "the resolution agent's feedback", "engineer": "the engineer's feedback",
+                "ruling": "the engineer's ruling"}[opts.get("--from") or "engineer"]
+        first = next((l.strip() for l in feedback.splitlines() if l.strip()), "")[:80]
+        cardlog.add(pages, agent, n, step, (f"rerun on {head} («{first}»): " if feedback else "") + what,
+                    [cardlog.rel(pages, agent, k) for k in kept if not k.endswith(("prompt.md", "err.log"))],
+                    answer=answer is not None)
+
     def fail(msg):
         with lock:
             status.update(state="failed", ended=now(), seconds=round(time.time() - t0), error=msg,
                           usage=usage_of(os.path.join(runs, "out.jsonl")))
             write_json(status_path, status)
             record()
+        history("failed: " + msg)
         sys.exit(1)
 
     def on_term(signum, frame):  # the page's stop button sends SIGTERM to this process
@@ -526,6 +561,9 @@ def main(argv):
             status.update(state="done", ended=now(), seconds=round(time.time() - t0), usage=usage_of(os.path.join(runs, "out.jsonl")))
             write_json(status_path, status)
             record()
+        sys.path.insert(0, HERE)
+        import cardlog
+        history(cardlog.summary(step, answer), answer)
     except SystemExit:
         raise
     except Exception as ex:

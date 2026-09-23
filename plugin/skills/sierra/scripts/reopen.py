@@ -57,7 +57,8 @@ def main(argv):
     os.replace(path + ".tmp", path)
     first = next((l.strip("# ").strip() for l in evidence.splitlines() if l.strip()), "")[:160]
     subprocess.run([sys.executable, os.path.join(HERE, "stage.py"), agent, n, "review", "reopened",
-                    "--note", f"batch {batch}: {first}", "--pages", pages], check=True)
+                    "--note", f"batch {batch}: {first}", "--by", "batch-driver",
+                    "--ref", f"resolve/{n}.reopen.json#{len(log) - 1}", "--pages", pages], check=True)
     state = call(server, f"/chat/{agent}/{n}/state")
     if "error" in state:
         print("the issues page's server did not answer: " + state["error"]); return 1
@@ -72,7 +73,8 @@ def main(argv):
         else:
             print("the card's session did not come up within a minute"); return 1
     busy = call(server, f"/chat/{agent}/{n}/state").get("streaming")
-    out = call(server, f"/chat/{agent}/{n}/send", {"message": message(batch, evidence), "mode": "follow_up" if busy else "prompt"})
+    out = call(server, f"/chat/{agent}/{n}/send", {"message": message(batch, evidence), "mode": "follow_up" if busy else "prompt",
+                                                   "by": "reopen"})
     if "error" in out:
         print("sending the evidence failed: " + out["error"]); return 1
     print(f"{agent} {n}: reopened by batch {batch}; the evidence went to its resolution session")

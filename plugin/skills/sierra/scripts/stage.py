@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record where an issue's resolution stands, for the issues page's sidebar.
 
-  stage.py <agent> <n> <stage> <state> [--step <step>] [--note "one line"] [--pages <dir>]
+  stage.py <agent> <n> <stage> <state> [--step <step>] [--note "one line"] [--by <who>] [--ref <path>] [--pages <dir>]
 
 Stages and their states, in order:
   review       working holds wrong contested ruled reopened
@@ -16,9 +16,13 @@ written by the issues page with --step and --note. review reopened is reopen.py 
 batch's check found.
 
 Appends {"t", "stage", "state", "step", "note"} to <pages>/agents/<agent>/resolve/<n>.stage.json (a JSON list) and refuses a
-stage or state outside the table. The pages dir defaults to ~/.claude/bbva-issues."""
+stage or state outside the table, and the same as one event of the card's history (cardlog.py), by --by (default
+resolve) with --ref as its pointer. The pages dir defaults to ~/.claude/bbva-issues."""
 import json, os, sys
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cardlog
 
 STAGES = {
     "review": ("working", "holds", "wrong", "contested", "ruled", "reopened"),
@@ -59,6 +63,9 @@ def main(argv):
     with open(path + ".tmp", "w", encoding="utf-8") as f:
         json.dump(log, f, ensure_ascii=False, indent=1)
     os.replace(path + ".tmp", path)
+    note = opts.get("--note")
+    cardlog.add(pages, agent, n, opts.get("--by") or "resolve", f"{stage} {state}" + (f" ({step})" if step else "")
+                + (f": {note}" if note else ""), [opts.get("--ref")], t=log[-1]["t"])
     print(f"{agent} {n}: {stage} {state}" + (f" ({step})" if step else ""))
 
 

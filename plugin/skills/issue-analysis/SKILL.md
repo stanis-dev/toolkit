@@ -30,6 +30,9 @@ You work from the brief that follows this text. It holds, in this order:
   `tools[k]`. The call's tags close the transcript.
 - The compiled request the model saw at the reported turn: its trace path, its system parts and its tool schemas. The
   request's conversation messages are the call's transcript up to that turn.
+- The card's history, when it has one: one line per event, oldest first, who acted, what happened, and the files
+  behind it. Open an event's files only when that event bears on your task; an answer marked superseded is one a later
+  run replaced.
 
 Everything you need is in the brief. Read from disk only for the request of a turn other than the reported one, from the
 pages dir, `$BBVA_ISSUES_DIR` when set, else `~/.claude/bbva-issues/`, under `agents/<agent>/conversations/<id>/`: the

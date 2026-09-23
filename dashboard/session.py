@@ -11,10 +11,13 @@ in the batch's worktree, everything under agents/<agent>/driver/ in place of res
 Starts pi in the issue's worktree with the step's brief (brief.py --step resolve) as the first prompt; with --ask the
 issue-resolution skill text follows the brief in that prompt. --resume starts pi on the session file of the last
 session instead (--continue in its session dir), with no new prompt. Writes, under agents/<agent>/resolve/:
-runs/<n>/out.jsonl (pi's events, results capped, the server streams it to the page), <n>.status.json (state, pid of
+runs/<n>/out.jsonl (pi's events, results capped, the server streams it to the page; a link to out.<start stamp>.jsonl,
+the session's own log, which a later session leaves alone), <n>.status.json (state, pid of
 this process, usage, whose turn it is as "turn", an in-flight sim run as "simrun"), <n>.runs.json (pass counts of every
-`sierra … test` the session ran) and, when pi ends, the ticket's ledger entry. Listens on the Unix socket runs/<n>/sock
-for one JSON line per connection: {"cmd": "send", "message", "mode"?}, {"cmd": "abort"}, {"cmd": "ui", "id", …},
+`sierra … test` the session ran) and, when pi ends, the ticket's ledger entry. A resolution session's start, the
+engineer's messages (a send without "by", or by engineer), the resolution instructions and each sim run's counts are events
+of the card's history (cardlog.py), pointing into its log. Listens on the Unix socket runs/<n>/sock
+for one JSON line per connection: {"cmd": "send", "message", "mode"?, "by"?}, {"cmd": "abort"}, {"cmd": "ui", "id", …},
 {"cmd": "ask"}, {"cmd": "stop"}, {"cmd": "state"}; replies with one JSON line, {"error": …} when refused. A start that
 fails before pi runs leaves its reason in runs/<n>/start.err and exits 2."""
 import json, os, re, shutil, signal, socket, subprocess, sys, threading
@@ -51,6 +54,7 @@ class Host:
         self.streaming = self.stopping = self.ended = False
         self.live = None
         self.proc = None
+        self.lines = 0
 
     def skill(self):
         """The kind's skill text without its frontmatter, kept in ask.md."""
@@ -82,9 +86,19 @@ class Host:
                 os.replace(self.session_dir, self.session_dir + '.' + stamp)
             shutil.rmtree(self.session_dir, ignore_errors=True)
             os.makedirs(self.session_dir)
-            if os.path.exists(self.log_path) and os.path.getsize(self.log_path):  # the session before keeps its log
-                os.replace(self.log_path, os.path.join(self.runs, 'out.' + stamp + '.jsonl'))
-        before = [usage_of_log(os.path.join(self.runs, f)) for f in sorted(os.listdir(self.runs)) if re.fullmatch(r'out\.\d{8}T\d{6}Z\.jsonl', f)]
+            if os.path.islink(self.log_path):
+                os.remove(self.log_path)
+            elif os.path.exists(self.log_path) and os.path.getsize(self.log_path):  # the session before keeps its log
+                was = datetime.fromtimestamp(os.path.getmtime(self.log_path), timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+                os.replace(self.log_path, os.path.join(self.runs, 'out.' + was + '.jsonl'))
+            own = 'out.' + stamp + '.jsonl'
+            open(os.path.join(self.runs, own), 'a').close()
+            if os.path.lexists(self.log_path):
+                os.remove(self.log_path)
+            os.symlink(own, self.log_path)
+        current = os.path.realpath(self.log_path)
+        before = [usage_of_log(os.path.join(self.runs, f)) for f in sorted(os.listdir(self.runs))
+                  if re.fullmatch(r'out\.\d{8}T\d{6}Z\.jsonl', f) and os.path.realpath(os.path.join(self.runs, f)) != current]
         if resume and os.path.exists(self.log_path):
             before.append(usage_of_log(self.log_path))
         self.usage = {k: 0 for k in USAGE}
@@ -103,6 +117,18 @@ class Host:
             return None
         return {k: round(self.before[k] + self.usage[k], 6) if k == 'cost' else self.before[k] + self.usage[k] for k in USAGE}
 
+    def ref(self, line=None):
+        """Where this session's log is, as the card's history points to it: the file the link names, at line."""
+        name = os.path.basename(os.path.realpath(self.log_path))
+        return os.path.join(self.folder, 'runs', self.n, name) + (f'@L{line}' if line else '')
+
+    def history(self, who, what, refs=()):
+        if self.kind != 'resolve':
+            return
+        sys.path.insert(0, steps.SCRIPTS)
+        import cardlog
+        cardlog.add(os.getcwd(), self.agent, self.n, who, what, refs)
+
     def write_status(self, **kw):
         with self.lock:
             self.status.update(kw)
@@ -115,6 +141,9 @@ class Host:
         if resume:
             cmd.append('--continue')
         open(os.path.join(self.runs, 'system.md'), 'w', encoding='utf-8').write(self.system)
+        if os.path.exists(self.log_path):
+            with open(self.log_path, 'rb') as f:
+                self.lines = sum(1 for _ in f)
         self.log = open(self.log_path, 'a', encoding='utf-8')
         self.err = open(os.path.join(self.runs, 'err.log'), 'a' if resume else 'w')
         self.proc = subprocess.Popen(cmd, cwd=self.repo, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.err,
@@ -127,13 +156,19 @@ class Host:
         threading.Thread(target=self.reader, daemon=True).start()
         if resume:
             self.emit({'type': 'resumed'})
+            self.history('session', 'resolution session resumed', [self.ref(self.lines)])
         else:
-            self.send({'type': 'prompt', 'message': self.opening})
+            at = self.send({'type': 'prompt', 'message': self.opening})
+            self.history('session', 'resolution session started, its brief' + (' and the resolution instructions' if self.ask_at else '')
+                         + ' as the first prompt', [self.ref(at)])
 
     def emit(self, ev):
+        """Writes one event to the log; its line number."""
         ev['t'] = now()
         with self.llock:
             self.log.write(json.dumps(ev, ensure_ascii=False) + '\n'); self.log.flush()
+            self.lines += 1
+            return self.lines
 
     def reader(self):
         for raw in self.proc.stdout:
@@ -173,6 +208,8 @@ class Host:
                           state='done' if rc == 0 else 'failed', ended=now(),
                           error=None if rc == 0 else 'stopped from the page' if self.stopping else f'pi exit {rc}',
                           seconds=round((datetime.now(timezone.utc) - started).total_seconds()))
+        if rc and not self.stopping:
+            self.history('session', f'resolution session ended: pi exit {rc}', [self.ref(self.lines)])
         if self.kind == 'resolve':
             sys.path.insert(0, steps.SCRIPTS)
             import ledger
@@ -205,6 +242,11 @@ class Host:
             counts.update(t=now(), stage=stages[-1]['stage'] if stages else None, file=live['out'])
             path = os.path.join(self.base, self.n + '.runs.json')
             write_json(path, load_json(path, []) + [counts])
+            sys.path.insert(0, steps.SCRIPTS)
+            import cardlog
+            self.history('sims', f"{os.path.basename(live['out'])}: {counts['passed']}/{counts['total']} runs passed, "
+                         f"{counts['green']}/{counts['sims']} sims green" + (f" ({counts['stage']})" if counts.get('stage') else ''),
+                         [cardlog.rel(os.getcwd(), self.agent, os.path.join(self.repo, live['out']))])
 
     def send(self, cmd):
         if self.proc is None or self.proc.poll() is not None:
@@ -212,7 +254,7 @@ class Host:
         with self.wlock:
             self.proc.stdin.write(json.dumps(cmd, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
         if cmd.get('type') in ('prompt', 'steer', 'follow_up'):
-            self.emit({'type': 'sent', 'mode': cmd['type'], 'text': cmd.get('message', '')})
+            return self.emit({'type': 'sent', 'mode': cmd['type'], 'text': cmd.get('message', '')})
         elif cmd.get('type') == 'extension_ui_response':
             self.emit({'type': 'ui_answer', 'id': cmd.get('id'), 'answer': {k: v for k, v in cmd.items() if k not in ('type', 'id')}})
 
@@ -234,7 +276,10 @@ class Host:
                 raise Refused('bad mode')
             if not self.streaming:
                 mode = 'prompt'
-            self.send({'type': mode, 'message': text})
+            at = self.send({'type': mode, 'message': text})
+            if (req.get('by') or 'engineer') == 'engineer':
+                first = next((l.strip() for l in text.splitlines() if l.strip()), '')
+                self.history('engineer', f'message: «{first[:160]}»' + (' (more lines)' if text.strip() != first else ''), [self.ref(at)])
             return {'mode': mode}
         if what == 'abort':
             self.send({'type': 'abort'}); return {}
@@ -245,8 +290,9 @@ class Host:
         if what == 'ask':
             if self.status.get('asked'):
                 raise Refused('resolution already sent')
-            self.send({'type': 'follow_up' if self.streaming else 'prompt', 'message': self.skill()})
-            self.write_status(asked=now()); return {}
+            at = self.send({'type': 'follow_up' if self.streaming else 'prompt', 'message': self.skill()})
+            self.write_status(asked=now())
+            self.history('engineer', 'sent the resolution instructions', [self.ref(at)]); return {}
         if what == 'stop':
             self.stop(); return {}
         raise Refused('unknown command')

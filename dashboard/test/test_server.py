@@ -268,6 +268,8 @@ class SessionHost(Lab):
         until(lambda: len(self.load('agents', AG, 'resolve', '297.runs.json')) == runs + 1)
         last = self.load('agents', AG, 'resolve', '297.runs.json')[-1]
         self.assertEqual((last['passed'], last['total'], last['green'], last['sims'], last['file']), (8, 10, 1, 2, 'sim.json'))
+        sims = [e for e in map(json.loads, open(self.path('agents', AG, 'log', '297.jsonl'))) if e['who'] == 'sims']
+        self.assertTrue(sims[-1]['what'].startswith('sim.json: 8/10 runs passed, 1/2 sims green'), sims[-1]['what'])
         until(lambda: not get('/steps/' + AG)['resolve']['297'].get('live'))
         post(f'/chat/{AG}/297/stop')
 
@@ -280,6 +282,30 @@ class SessionHost(Lab):
         s.close()
         post(f'/chat/{AG}/300/stop')
         until(lambda: not get(f'/chat/{AG}/300/state')['running'])
+
+    def test_history_points_into_the_session_log(self):
+        runs, log = self.path('agents', AG, 'resolve', 'runs', '300'), self.path('agents', AG, 'log', '300.jsonl')
+        before = len(open(log).readlines()) if os.path.exists(log) else 0
+        for rnd in range(2):
+            post(f'/chat/{AG}/300/start', {'model': 'gpt-5.6-terra', 'effort': 'low'})
+            until(lambda: get(f'/chat/{AG}/300/state')['running'])
+            self.assertTrue(os.path.islink(os.path.join(runs, 'out.jsonl')))
+            post(f'/chat/{AG}/300/send', {'message': f'round {rnd}\nmore'})
+            post(f'/chat/{AG}/300/send', {'message': 'the steps reran', 'by': 'rerun'})
+            post(f'/chat/{AG}/300/stop')
+            until(lambda: not get(f'/chat/{AG}/300/state')['running'])
+            time.sleep(1.1)  # the next session's log is named by its start second
+        ev = [json.loads(l) for l in open(log)][before:]
+        self.assertEqual([(e['who'], e['what']) for e in ev], [
+            ('session', 'resolution session started, its brief as the first prompt'), ('engineer', 'message: «round 0» (more lines)'),
+            ('session', 'resolution session started, its brief as the first prompt'), ('engineer', 'message: «round 1» (more lines)')])
+        self.assertNotEqual(ev[1]['refs'][0].split('@')[0], ev[3]['refs'][0].split('@')[0])
+        for e, text in zip(ev, ('', 'round 0\nmore', '', 'round 1\nmore')):
+            path, line = e['refs'][0].split('@L')
+            sent = json.loads(open(self.path('agents', AG, path)).read().splitlines()[int(line) - 1])
+            self.assertEqual(sent['type'], 'sent')
+            if text:
+                self.assertEqual(sent['text'], text)
 
     def test_start_refused(self):
         steps = self.module('steps')

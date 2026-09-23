@@ -33,6 +33,9 @@ You work from the brief that follows this text. It holds, in this order:
   customer), `logEntryId`, text; under a line, `[obs]` is an observation activated after it and `tools[k]` the k-th tool
   call of the agent turn printed right after. The call's tags close it.
 - The lane: the values the Run section below names.
+- The card's history, when it has one: one line per event, oldest first, who acted, what happened, and the files
+  behind it. Open an event's files only when that event bears on your task; an answer marked superseded is one a later
+  run replaced.
 
 Read from disk the simulation files you need, `<agent-dir>/simulations/<file>`, and whatever else the run below
 needs. Call no tool that reaches the tracker or Studio.

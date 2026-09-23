@@ -1,8 +1,8 @@
 """Checks of the staging run.py and stepgit.py, the real scripts, on a made-up issue 900 in a throwaway git worktree,
 with the stand-in pi (json mode), a stand-in sierra CLI, the stand-in brief and a card.py that renders nothing:
 steps leaving git alone, a rerun on the tree as it is, context refused on a wrong binding, main's changes a pull brings
-committed as base, --feedback continuing the kept session or running fresh, the schema retry on both paths, and the context brief's
-lane section. python3 -m unittest test_steps (from test/), or run.sh."""
+committed as base, --feedback continuing the kept session or running fresh, the schema retry on both paths, the context brief's
+lane section, and the card's history: each run, stage entry and pull as an event whose files stay, the briefs' index. python3 -m unittest test_steps (from test/), or run.sh."""
 import json, os, shutil, subprocess, sys, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -171,6 +171,63 @@ class Steps(unittest.TestCase):
         calls = self.pi_calls()[2:]
         self.assertEqual([c['cont'] for c in calls], [True, True])
         self.assertIn('$.ok: expected boolean', calls[1]['message'])
+
+    def history(self):
+        return [json.loads(l) for l in open(os.path.join(self.run_dir, 'agents', AG, 'log', N + '.jsonl'))]
+
+    def test_each_run_is_an_event_with_its_own_files(self):
+        self.run_step('strategy', replies=['{"ok": true, "n": 1}'])
+        self.run_step('strategy', replies=['{"ok": true, "n": 2}'], feedback='The guard misses the second question.')
+        self.bind('https://studio.example.invalid/workspace/batch-0922')
+        self.run_step('context')
+        ev = self.history()
+        self.assertEqual([e['who'] for e in ev], ['strategy', 'strategy', 'context'])
+        self.assertIn("rerun on the engineer's feedback («The guard misses the second question.»)", ev[1]['what'])
+        self.assertTrue(ev[2]['what'].startswith('failed: '), ev[2]['what'])
+        base = os.path.join(self.run_dir, 'agents', AG)
+        answers = [json.load(open(os.path.join(base, next(r for r in e['refs'] if r.endswith('answer.json'))))) for e in ev[:2]]
+        self.assertEqual([a['n'] for a in answers], [1, 2])
+        self.assertTrue(any(r.endswith('feedback.md') for r in ev[1]['refs']))
+        self.assertFalse(any(r.endswith('feedback.md') for r in ev[0]['refs']))
+        for r in sum((e['refs'] for e in ev), []):
+            self.assertTrue(os.path.exists(os.path.join(base, r)), r)
+        sys.path.insert(0, self.scripts)
+        import cardlog
+        lines = cardlog.index(self.run_dir, AG, N).splitlines()
+        self.assertIn('superseded', lines[-3])
+        self.assertNotIn('superseded', lines[-2])
+
+    def test_stage_and_pull_are_events(self):
+        stage = [sys.executable, os.path.join(self.scripts, 'stage.py'), AG, N]
+        subprocess.run(stage + ['review', 'wrong', '--step', 'strategy', '--note', 'guard misses it', '--by', 'engineer', '--pages', self.run_dir], check=True, capture_output=True)
+        self.git('checkout', '-q', '-b', 'side')
+        open(os.path.join(self.wt, BLOCK), 'w').write('{"from": "the workspace"}')
+        self.git('commit', '-q', '-am', 'Main moved')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        self.git('checkout', '-q', '-')
+        out = subprocess.run([sys.executable, os.path.join(self.scripts, 'pull.py'), AG, self.wt], capture_output=True, text=True,
+                             env=dict(self.env, BBVA_ISSUES_DIR=self.run_dir))
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        ev = self.history()
+        self.assertEqual([(e['who'], e['what']) for e in ev], [('engineer', 'review wrong (strategy): guard misses it'),
+                                                             ('pull', "took main's changes as base: b.json")])
+        self.assertEqual(ev[1]['refs'], ['git:' + self.git('rev-parse', '--short', 'HEAD')])
+        stages = json.load(open(os.path.join(self.run_dir, 'agents', AG, 'resolve', N + '.stage.json')))
+        self.assertEqual(stages[-1]['t'], ev[0]['t'])
+
+    def test_briefs_end_with_the_history(self):
+        sys.path.insert(0, self.scripts)
+        import cardlog
+        for k in range(35):
+            cardlog.add(self.run_dir, AG, N, 'engineer' if k % 2 else 'strategy', f'event {k}', [f'strategy/runs/{N}/x{k}/answer.json'])
+        os.makedirs(os.path.join(self.wt, 'agents', 'hipotecarios', '.composer', 'blocks'), exist_ok=True)
+        out = subprocess.run([sys.executable, os.path.join(SCRIPTS, 'brief.py'), AG, N, '--step', 'context', '--pages', self.run_dir, '--repo', self.wt],
+                             capture_output=True, text=True, env=self.env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        hist = out.stdout[out.stdout.index('# Card history · hipotecarios 900'):].splitlines()
+        self.assertTrue(hist[4].startswith('earlier: strategy ×3, engineer ×2'), hist[4])
+        self.assertEqual(len([l for l in hist if ' event ' in l and not l.startswith('earlier')]), 30)
+        self.assertTrue(hist[-1].endswith(f'event 34 → strategy/runs/{N}/x34/answer.json'), hist[-1])
 
     def test_context_brief_carries_the_lane(self):
         os.makedirs(os.path.join(self.wt, 'agents', 'hipotecarios', '.composer', 'blocks'), exist_ok=True)
