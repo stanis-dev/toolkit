@@ -19,9 +19,9 @@ The brief that opened the session gives this issue's values, then the issue and 
   folder for this session's run files.
 - `<agent>`, `<n>`: the agent and the issue number.
 - `<baseline>`: the Sim Strategy's regression run, the file it wrote with its list run 5× before any edit.
-- `<batch-branch>`, `<batch-workspace>`, `<batch-worktree>`: the batch's branch, its Studio workspace and the worktree
-  that has the branch checked out and Ghostwriter bound to that workspace; `<batch-agent-dir>`, the agent's directory in
-  that worktree, its CLI at `<batch-agent-dir>/node_modules/.bin/sierra`.
+- `<batch>`: the batch's MMDD; `<batch-branch>`, `<batch-workspace>`, `<batch-worktree>`: the batch's branch, its
+  Studio workspace and the worktree that has the branch checked out and Ghostwriter bound to that workspace;
+  `<batch-agent-dir>`, the agent's directory in that worktree, its CLI at `<batch-agent-dir>/node_modules/.bin/sierra`.
 - `<pages>`: the pages dir; the card `cards/<n>.html`, the issue `issues/<n>.json`, the linked calls under
   `conversations/<id>/` (details.json, debug.log, traces/), the answers `analysis/<n>.json`, `strategy/<n>.json`,
   `context/<n>.json`.
@@ -30,7 +30,7 @@ The strategy step wrote the guard and ran it red, the context step applied the e
 each committed its change on the issue's branch. The engineer can rerun a step with feedback: the branch goes back to
 where that step started, the step and those after it commit again, and a message tells you which steps reran and their
 new commits. Re-read those answers, say what differs, and review them again.
-- `<scripts>`: brief.py, card.py, blocks.py, runset.py, sync.py.
+- `<scripts>`: brief.py, card.py, blocks.py, runset.py, sync.py, batchmerge.py.
 - `<references>`: the workflow's reference, issues.md, sims/, tooling.md.
 
 The page shows where the issue stands from one command, which you run at each change of stage or verdict:
@@ -99,10 +99,10 @@ and code files, and the Studio items the edit changed. Then, each with the engin
 
 1. The guard and the edit are committed already. Commit what you changed since in `<checkout>`, one commit per
    concern, with no attribution line.
-2. Pull the batch workspace into `<batch-worktree>` with that worktree's CLI and `-C <batch-agent-dir>`. When the pull
-   changes tracked files, the workspace holds Studio changes the branch does not: report them and stop.
-3. Merge the issue's branch there: `git -C <batch-worktree> merge <the issue's branch>`. A conflict: report it and stop.
-4. Push the merged Studio content to `<batch-workspace>` from `<batch-worktree>`, lint, push, pull and the diff check as
-   tooling.md, Studio content, says.
+2. Merge into the batch with one command: `python3 <scripts>/batchmerge.py <agent> <batch> <the issue's branch>`. It
+   waits for any other merge into the batch, pulls `<batch-workspace>`, merges, pushes the merged Studio content back
+   and checks it. Exit 0: merged and synced. Exit 2: the batch workspace holds Studio changes the batch branch never
+   had. Exit 3: a merge conflict, aborted. Exit 4: the workspace does not hold the merge. On any exit but 0, report what
+   it printed and stop. Run no pull, merge or push in `<batch-worktree>` yourself.
 
 Push the branch nowhere.

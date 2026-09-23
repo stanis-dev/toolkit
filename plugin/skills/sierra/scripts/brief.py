@@ -555,6 +555,7 @@ def resolve_brief(agent, n, base, repo, iss):
              f"- `<runs>`: `{os.path.join(base, 'resolve', 'runs', str(n))}`\n"
              f"- `<agent>`: `{agent}`; `<n>`: `{n}`\n"
              f"- `<baseline>`: " + (f"`{baseline}`" if os.path.exists(baseline) else f"none: the Sim Strategy wrote no `{baseline}`, so there is nothing to compare regressions against") + "\n"
+             f"- `<batch>`: " + (f"`{batch}`" if batch else "none: the card is in no batch") + "\n"
              f"- `<batch-branch>`: " + (f"`{entry['base']}`" if entry.get("base") else ("none: the card is in no batch" if not batch else f"none: batch {batch} has no branch")) + "\n"
              f"- `<batch-workspace>`: " + (f"`{entry['workspace']}`" if entry.get("workspace") else unset) + "\n"
              f"- `<batch-worktree>`: " + (f"`{batch_wt}`" if batch_wt else unset) + "\n"
