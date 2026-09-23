@@ -4,7 +4,7 @@
   stage.py <agent> <n> <stage> <state> [--step <step>] [--note "one line"] [--pages <dir>]
 
 Stages and their states, in order:
-  review       working holds wrong contested ruled
+  review       working holds wrong contested ruled reopened
   repro        writing reproduces does-not-reproduce wrong-reason
   fix          applying solved refine misguided
   regressions  running found fixing clean
@@ -12,7 +12,8 @@ Stages and their states, in order:
 
 review wrong, review contested and fix misguided need --step, the step to blame: analysis, strategy or context. review
 contested is the resolution holding points the rerun step disputed; review ruled is the engineer's ruling on them,
-written by the issues page with --step and --note.
+written by the issues page with --step and --note. review reopened is reopen.py sending the card back with what its
+batch's check found.
 
 Appends {"t", "stage", "state", "step", "note"} to <pages>/agents/<agent>/resolve/<n>.stage.json (a JSON list) and refuses a
 stage or state outside the table. The pages dir defaults to ~/.claude/bbva-issues."""
@@ -20,7 +21,7 @@ import json, os, sys
 from datetime import datetime, timezone
 
 STAGES = {
-    "review": ("working", "holds", "wrong", "contested", "ruled"),
+    "review": ("working", "holds", "wrong", "contested", "ruled", "reopened"),
     "repro": ("writing", "reproduces", "does-not-reproduce", "wrong-reason"),
     "fix": ("applying", "solved", "refine", "misguided"),
     "regressions": ("running", "found", "fixing", "clean"),

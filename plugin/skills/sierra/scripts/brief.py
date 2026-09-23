@@ -2,6 +2,7 @@
 
 Usage:
   brief.py <agent> <n> [--step analysis|strategy|context|resolve] [--pages <dir>] [--repo <dir>] [--calls <k>]
+  brief.py <agent> --batch <batch> [--pages <dir>] [--repo <dir>]
 
 Static first, so a prompt cache shares the prefix across issues of one agent. For `analysis` (the default):
   1. the agent's Studio content as blocks.py prints it, path, text and JSON pointer per item, render order;
@@ -28,6 +29,10 @@ For `context`:
   5. the compiled request at the failure turn the analysis names, as for `analysis`.
 For `resolve`, the opening message of the interactive session: where everything lives, the issue, and the three
 step answers in full; the analysis must exist, the other two are marked when missing.
+With --batch, the batch driver's opening message: the batch's values, then per card its state, branch, guard,
+regression list and every run of it (the strategy's before the fix, the resolution's), each with its time, the main
+commit its workspace held then (main's merges reach every workspace as they land) and per-simulation counts; then
+main's merges since the oldest of those runs.
 Everything comes from the pages dir ($BBVA_ISSUES_DIR, else ~/.claude/bbva-issues) except the tree and the
 simulation files, read from the repository given by --repo, the working directory by default.
 """
@@ -417,6 +422,10 @@ def call_of_analysis(base, iss, analysis):
 def main(argv):
     if len(argv) < 2:
         fail(__doc__)
+    if argv[1] == "--batch":
+        opts = dict(zip(argv[1::2], argv[2::2]))
+        sys.stdout.write(batch_brief(argv[0], opts["--batch"], os.path.join(pages_dir(opts.get("--pages")), "agents", argv[0])))
+        return
     agent, n = argv[0], argv[1]
     opts = dict(zip(argv[2::2], argv[3::2]))
     step = opts.get("--step") or "analysis"
@@ -571,6 +580,90 @@ def resolve_brief(agent, n, base, repo, iss):
             parts.append(f"# {title} · {agent} {n}\n\n`{path}`, modified {mtime}\n\n```json\n" + json.dumps(load(path), ensure_ascii=False, indent=1) + "\n```\n")
         else:
             parts.append(f"# {title} · {agent} {n}\n\n(not run yet: `{path}` is missing)\n")
+    return "\n".join(parts)
+
+
+def git_out(repo, *args):
+    r = subprocess.run(["git", "-C", repo] + list(args), capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def per_sim(path):
+    """name -> "passed/total" from a `sierra test --json` file."""
+    try:
+        tests = json.load(open(path, encoding="utf-8")).get("tests") or []
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return {t.get("name"): f"{t.get('passed') or 0}/{t.get('total') or 0}" for t in tests}
+
+
+def batch_brief(agent, batch, base):
+    batches = load(os.path.join(base, "batches.json")) if os.path.exists(os.path.join(base, "batches.json")) else {}
+    entry = batches.get(batch)
+    if not entry or not entry.get("worktree") or not os.path.isdir(entry["worktree"]):
+        fail(f"batch {batch} has no worktree: set it up first")
+    wt = entry["worktree"]
+    scripts = os.path.dirname(os.path.abspath(__file__))
+    git_out(wt, "fetch", "-q", "origin", "main")
+    main_ws = load(os.path.join(base, "driver", f"{batch}.main.json")) if os.path.exists(os.path.join(base, "driver", f"{batch}.main.json")) else {}
+    pr = subprocess.run(["gh", "pr", "list", "--head", entry.get("base", ""), "--state", "open", "--json", "number,isDraft,url", "-q", ".[0]"],
+                        cwd=wt, capture_output=True, text=True).stdout.strip()
+    none_main = "none yet: run mainws.py to make it"
+    parts = [f"# Batch · {agent} {batch}\n\nThe values the skill text names.\n\n"
+             f"- `<agent>`: `{agent}`; `<batch>`: `{batch}`\n"
+             f"- `<batch-branch>`: `{entry.get('base')}`\n"
+             f"- `<batch-worktree>`: `{wt}`\n"
+             f"- `<batch-workspace>`: `{entry.get('workspace')}`\n"
+             f"- `<main-worktree>`: " + (f"`{main_ws['worktree']}`" if main_ws.get("worktree") else none_main) + "\n"
+             f"- `<main-workspace>`: " + (f"`{main_ws['workspace']}`" if main_ws.get("workspace") else none_main) + "\n"
+             f"- `<pr>`: " + (pr or "none yet") + "\n"
+             f"- the batch holds origin/main: " + ("yes" if subprocess.run(["git", "-C", wt, "merge-base", "--is-ancestor", "origin/main", "HEAD"]).returncode == 0 else "no") + "\n"
+             f"- check runs go in `{os.path.join(base, 'batches', batch, 'check')}`\n"
+             f"- `<pages>`: `{base}`\n"
+             f"- `<scripts>`: `{scripts}`\n"
+             f"- `<references>`: `{os.path.abspath(os.path.join(scripts, '..', 'references'))}`\n"]
+    oldest = None
+    for f in sorted(os.listdir(os.path.join(base, "cards"))):
+        n = f[:-5] if f.endswith(".html") else ""
+        if not n.isdigit():
+            continue
+        m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(os.path.join(base, "cards", f), encoding="utf-8").read(400))
+        if not m or m.group(1) != batch:
+            continue
+        iss = load(os.path.join(base, "issues", f"{n}.json")) if os.path.exists(os.path.join(base, "issues", f"{n}.json")) else {}
+        setup = load(os.path.join(base, "setup", f"{n}.status.json")) if os.path.exists(os.path.join(base, "setup", f"{n}.status.json")) else {}
+        stage = load(os.path.join(base, "resolve", f"{n}.stage.json")) if os.path.exists(os.path.join(base, "resolve", f"{n}.stage.json")) else []
+        strat = load(os.path.join(base, "strategy", f"{n}.json")) if os.path.exists(os.path.join(base, "strategy", f"{n}.json")) else {}
+        guard = strat.get("guard") or {}
+        gid = next((x.get("id") for x in strat.get("sims") or [] if x.get("action") != "delete"), None) or guard.get("existing")
+        last = stage[-1] if stage else {}
+        lines = [f"## #{n} · {(iss.get('issue') or {}).get('name', '')}",
+                 f"- state: " + (f"{last.get('stage')} {last.get('state')}" + (f" ({last['note']})" if last.get("note") else "") if last else "no resolution yet"),
+                 f"- branch: `{setup.get('branch')}`, worktree `{setup.get('worktree')}`",
+                 f"- guard: " + (f"`{gid}`" if gid else "none"),
+                 "- regression list: " + (", ".join(f"`{x['id']}`" for x in (strat.get("regressions") or {}).get("sims") or []) or "none")]
+        runs = []
+        red = guard.get("red") or {}
+        sst = load(os.path.join(base, "strategy", f"{n}.status.json")) if os.path.exists(os.path.join(base, "strategy", f"{n}.status.json")) else {}
+        if red.get("total"):
+            runs.append((sst.get("ended") or "", "strategy guard, before the fix", f"{red.get('passed')}/{red['total']} · run {red.get('run')}", {}))
+        bl = os.path.join(base, "strategy", "runs", n, "regressions.json")
+        if os.path.exists(bl):
+            runs.append((sst.get("ended") or "", "strategy regression baseline, before the fix", f"`{bl}`", per_sim(bl)))
+        rr = load(os.path.join(base, "resolve", f"{n}.runs.json")) if os.path.exists(os.path.join(base, "resolve", f"{n}.runs.json")) else []
+        for r in rr:
+            runs.append((r.get("t") or "", f"resolution, stage {r.get('stage')}", f"{r.get('passed')}/{r.get('total')} over {r.get('sims')} sims · run {r.get('run')} · `{r.get('file')}`", per_sim(r.get("file") or "")))
+        for t, what, head, sims in runs:
+            at = git_out(wt, "rev-list", "-1", "--first-parent", f"--before={t}", "origin/main") if t else ""
+            if at and (oldest is None or t < oldest[0]):
+                oldest = (t, at)
+            lines.append(f"- run {t} · {what} · main at {at[:8] or '?'} · {head}")
+            for name, c in sims.items():
+                lines.append(f"  - {c} {name}")
+        parts.append("\n".join(lines) + "\n")
+    if oldest:
+        log = git_out(wt, "log", "--first-parent", "--format=%h %cI %s", f"{oldest[1]}..origin/main")
+        parts.append("# Main since the oldest card run\n\n" + (log or "(nothing merged since)") + "\n")
     return "\n".join(parts)
 
 
