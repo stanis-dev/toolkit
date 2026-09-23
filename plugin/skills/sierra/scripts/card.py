@@ -19,7 +19,8 @@ comments. `--out -` prints the section instead.
 counts stay empty; runs fill them later, except the guard's own 5× run before any edit, shown as its repro line. `oc` renders the Studio Context and the Studio Context Edit sections
 (sections/studio-context.html, studio-context-edit.html) from the context-edit skill's JSON,
 `agents/<agent>/context/<n>.json`: the context is the analysis's two items plus the answer's `also` items and `tool`,
-the edit is its `edit`; item text, numbering and gates come from the block files in the repo.
+the edit is its `edit`; item text, numbering and gates come from the block files in the repo, an item the analysis
+marked with the text that holds its marks: the edit's old text, the tree's, or the commit the context step started from.
 `rs` renders the Resolution section from the issue-resolution skill's report, `agents/<agent>/resolve/<n>.md`:
 headings, paragraphs, lists and code blocks, nothing more. `--repo` is the repository root, the working directory by
 default.
@@ -31,6 +32,7 @@ import html
 import json
 import os
 import re
+import subprocess
 import sys
 
 TOOL_ICON = {"user": "ti-user", "assistant": "ti-robot"}
@@ -634,12 +636,19 @@ KIND_ICON = {"section": "ti-folder", "journey": "ti-route", "component": "ti-puz
              "response_phrasing": "ti-message-language"}
 
 
-def block_rows(repo, agent, file):
-    """All outline rows of one block file: list of (names, ords, ptr, text), plus the file's kind."""
+def block_rows(repo, agent, file, at=None):
+    """All outline rows of one block file: list of (names, ords, ptr, text), plus the file's kind. With at, the file as
+    that commit has it."""
     path = os.path.join(repo, AGENT_DIR.get(agent, agent), file)
-    if not os.path.exists(path):
+    if at:
+        r = subprocess.run(["git", "-C", repo, "show", f"{at}:{os.path.join(AGENT_DIR.get(agent, agent), file)}"], capture_output=True, text=True)
+        if r.returncode:
+            fail(f"missing {file} at {at}")
+        d = json.loads(r.stdout)
+    elif not os.path.exists(path):
         fail(f"missing {path}")
-    d = _blocks.load(path)
+    else:
+        d = _blocks.load(path)
     if "/components/" in path.replace(os.sep, "/"):
         top, kind = os.path.basename(os.path.dirname(path)), "component"
     else:
@@ -830,25 +839,49 @@ def context_of_analysis(analysis):
     return out
 
 
-def render_oc(agent, n, ctx, pages, repo, state="proposed"):
+def before_edit(repo, agent, entry, target, edit, at):
+    """The item's text as the turn had it: the first of the edit's old text (when the edit is on this item), the tree's text
+    and the text at commit at that holds every span of the entry; the tree's when none does."""
+    spans = [x for x in entry.get("spans") or [] if x]
+    if not spans:
+        return target
+    def holds(t):
+        t = " ".join((t or "").split())
+        return all(" ".join(x.split()) in t for x in spans)
+    texts = []
+    ep = edit.get("pointer") or ""
+    if edit.get("file") == entry["file"] and edit.get("old") and ep and (target[2] == ep or target[2][len(ep):] in (".value", ".item", ".text") and target[2].startswith(ep)):
+        texts.append(edit["old"])
+    texts.append(target[3])
+    if at:
+        try:
+            texts.append(find_row(block_rows(repo, agent, entry["file"], at)[0], entry["pointer"])[3])
+        except SystemExit:
+            pass
+    return next((t for t in texts if holds(t)), target[3])
+
+
+def render_oc(agent, n, ctx, pages, repo, state="proposed", at=None):
     """(Studio Context html, Studio Context Edit html) from {context: [{file, pointer, role, spans, note}], tool,
-    edit, cause}. Entries of one list of items share a section; the on item is marked in its role's colour, its
+    edit, cause}. The Studio Context's items are the tree's, each on item's text the one before_edit finds. Entries of one list of items share a section; the on item is marked in its role's colour, its
     neighbours are dim and elided, the rest of the list is a count."""
     sections = []
     groups = []
+    edit0 = ctx.get("edit") or {}
     for entry in ctx.get("context", []):
         rows, kind = block_rows(repo, agent, entry["file"])
         target = find_row(rows, entry["pointer"])
         role = (entry.get("role") or "A").lower()
         spans = [(x, role) for x in entry.get("spans") or []]
+        text = before_edit(repo, agent, entry, target, edit0, at)
         g = next((g for g in groups if g["file"] == entry["file"] and target in siblings(g["rows"], g["target"])), None)
         if g:
             g["spans"][target[2]] = g["spans"].get(target[2], []) + spans
-            g["on"][target[2]] = elided(target[3], g["spans"][target[2]], role)
+            g["on"][target[2]] = elided(text, g["spans"][target[2]], role)
             g["notes"] += [entry["note"]] if entry.get("note") else []
             continue
         groups.append({"file": entry["file"], "rows": rows, "kind": kind, "target": target,
-                       "spans": {target[2]: spans}, "on": {target[2]: elided(target[3], spans, role)},
+                       "spans": {target[2]: spans}, "on": {target[2]: elided(text, spans, role)},
                        "notes": [entry["note"]] if entry.get("note") else []})
     for g in groups:
         rows, target = g["rows"], g["target"]
@@ -966,6 +999,16 @@ def write_out(out, pages, agent, n, pieces):
     print(card)
 
 
+def pre_edit(repo, base, n):
+    """The commit the context step started from, the tree before its edit, when the repository still has it."""
+    try:
+        at = json.load(open(os.path.join(base, "context", f"{n}.status.json"), encoding="utf-8")).get("commit")
+    except (OSError, ValueError):
+        return None
+    ok = at and subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{at}^{{commit}}"], capture_output=True).returncode == 0
+    return at if ok else None
+
+
 def main(argv):
     if len(argv) < 3 or argv[0] not in ("ia", "ss", "oc", "rs"):
         fail(__doc__)
@@ -998,7 +1041,7 @@ def main(argv):
         entries += [{"file": a["file"], "pointer": a["pointer"], "role": a.get("role") or "A",
                      "spans": [a["span"]] if a.get("span") else []} for a in ctx.get("also") or [] if a.get("file") and a.get("pointer")]
         context, edit = render_oc(agent, n, {"context": entries, "tool": ctx.get("tool"), "edit": ctx.get("edit"), "cause": ctx.get("cause")},
-                                  pages, repo, opts.get("--state") or "proposed")
+                                  pages, repo, opts.get("--state") or "proposed", pre_edit(repo, base, n))
         pieces = ([("oc ctx", context)] if entries or (ctx.get("tool") or {}).get("name") else []) + ([("oc edit", edit)] if edit else [])
     write_out(opts.get("--out"), pages, agent, n, pieces)
 
