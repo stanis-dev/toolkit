@@ -273,7 +273,7 @@
     }
     return html`<button class=${'rbtn rstb'+(st.armed?' arm':'')} title=${st.title||T} aria-label="Reset every step" disabled=${!!st.busy} onClick=${click}><${Icon} n="ti-rotate-clockwise"/></button>`}
   function TopBar(p){var i=p.i;if(!i.agent)return null;
-    return html`<${SetupLane} i=${i}/><${Models}/><${BatchSelect} i=${i}/><${RunStrip} i=${i} step="analysis"/><${Chain} i=${i}/><${Cost} i=${i}/><${Reset} i=${i}/>`}
+    return html`<${SetupLane} i=${i}/><${Models}/><${BatchSelect} i=${i}/><${RunStrip} i=${i} step="analysis"/><${Chain} i=${i}/><${Cost} i=${i}/><button class="rbtn hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/></button><${Reset} i=${i}/>`}
   // Drawers: one aside at a time on the right (the context may sit beside the transcript), each a component in a host
   // element of its own; toggle, close and state as before, state being what the card's view memory keeps.
   function Drawer(){var host=null;return {
@@ -346,7 +346,7 @@
     function toggle(i,conv,entry,fromTranscript,restore){
       var k=i.agent+'/'+i.num+'/'+conv;
       if(dw.box()&&cur===k){if(entry&&data&&data.turn!==entry){api.load(entry);return}close();return}
-      close(); if(!fromTranscript){Transcript.close();Session.close()} cur=k; beside=!!fromTranscript; want=restore||null;
+      close(); if(!fromTranscript){Transcript.close();Session.close();History.close()} cur=k; beside=!!fromTranscript; want=restore||null;
       if(beside)document.body.classList.add('ctx-beside');
       dw.open(html`<${Panel} i=${i} conv=${conv} entry=${entry} q=${restore&&restore.q}/>`);
     }
@@ -392,7 +392,7 @@
         <div class="hd2">${hd===null?html`<span class="err">${d.error}</span>`:hd}</div><div class="tl"><div class="ia"><div class="part"><div class="body" onClick=${function(ev){var a=ev.target.closest('a.tl');if(!a)return;ev.preventDefault();Context.toggle(i,conv,a.dataset.e,true)}} dangerouslySetInnerHTML=${{__html:d&&!d.error?rowsOf(d,s[0].an,call):''}}></div></div></div></div></aside>`;
     }
     function toggle(i,conv,restore){
-      var k=i.agent+'/'+i.num+'/'+conv; if(dw.box()&&cur===k){close();return} close(); Session.close(); Context.close(); cur=k; want=restore||null;
+      var k=i.agent+'/'+i.num+'/'+conv; if(dw.box()&&cur===k){close();return} close(); Session.close(); Context.close(); History.close(); cur=k; want=restore||null;
       dw.open(html`<${Panel} i=${i} conv=${conv}/>`);
     }
     return {toggle:toggle,close:close,state:state};
@@ -579,8 +579,41 @@
         ${chat?html`<form class="comp" onSubmit=${function(e){e.preventDefault();send()}}><textarea rows="3" ref=${ta} placeholder="Message the agent · Enter sends, Shift+Enter for a new line" onKeyDown=${function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}></textarea><div class="cbtns"><button type="submit" class="rbtn send" title="Send now; while the agent runs it is delivered before its next model call">send</button><button type="button" class="rbtn later" title="Deliver when the agent finishes" onClick=${function(){send('follow_up')}}>after this</button>${drv?null:html`<button type="button" class="rbtn askb" title="Send the resolution instructions: review the answers, guard red, apply, guard green, report" disabled=${sent||note[0]==='sending'||!(st&&st.state==='working')} onClick=${function(){note[1]('sending');post(agent,num,'ask').then(function(r){if(r.ok)note[1]('sent');else{note[1](null);errText(r).then(function(t){alertRow('server said '+r.status+' '+t)})}}).catch(function(){note[1](null)})}}>${sent||note[0]==='sent'?'resolution sent':'resolution'}</button>`}<span class="sp"></span><button type="button" class="rbtn kbtn abort" title="Interrupt the current turn" onClick=${function(){post(agent,num,'abort',null,step)}}>interrupt</button></div></form>`:null}
         <details class="ans" hidden=${!ans}><summary>Answer</summary><pre>${ans||''}</pre></details><details class="errl" hidden=${!tail}><summary>stderr</summary><pre>${tail}</pre></details></aside>`;
     }
-    function toggle(agent,num,step,keep,restore){step=step||'analysis';var k=agent+'/'+num+'/'+step; if(dw.box()&&cur===k){if(!keep)close();return} close(); cur=k; want=restore||null;
+    function toggle(agent,num,step,keep,restore){step=step||'analysis';var k=agent+'/'+num+'/'+step; if(dw.box()&&cur===k){if(!keep)close();return} close(); History.close(); cur=k; want=restore||null;
       dw.open(html`<${Panel} agent=${agent} num=${num} step=${step}/>`)}
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
+    return {toggle:toggle,close:close,state:state};
+  })();
+  // History drawer: the card's events as the agents' briefs index them (agents/<agent>/log/<n>.jsonl), newest first, read
+  // again every 3 s while open; each pointer opens its file, git: commits show as text.
+  var History=(function(){
+    var dw=Drawer(), cur=null, want=null;
+    var ICON={engineer:'ti-user',session:'ti-message',resolve:'ti-robot',analysis:'ti-file-search',strategy:'ti-flask',context:'ti-pencil',
+      sims:'ti-player-play',setup:'ti-settings',pull:'ti-download',batchmerge:'ti-git-merge','batch-driver':'ti-route'};
+    function close(){dw.close();cur=null;want=null}
+    function state(){var box=dw.box();if(!box)return null;return want||{scroll:box.querySelector('.tl').scrollTop}}
+    function refNode(agent,r){
+      if(/^git:/.test(r))return html`<code title="Commit in the issue's worktree">${r}</code>`;
+      var m=/^(.*?)(?:@L(\d+))?$/.exec(r), path=m[1], line=m[2];
+      return html`<a href=${path.charAt(0)==='/'?'file://'+path:'agents/'+agent+'/'+path} target="_blank" rel="noopener" title=${r}>${path.split('/').slice(-2).join('/')+(line?' · line '+line:'')}</a>`;
+    }
+    function Panel(p){
+      var agent=p.agent, num=p.num, s=useState(null), box=useRef(null);
+      useEffect(function(){var live=true,timer=null,last=null;
+        function tick(){fetch('agents/'+agent+'/log/'+num+'.jsonl',{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).catch(function(){return null}).then(function(t){
+          if(!live)return; if(t!==null&&t!==last){last=t;s[1](t.split('\n').filter(Boolean).map(function(l){try{return JSON.parse(l)}catch(e){return null}}).filter(Boolean))}
+          timer=setTimeout(tick,3000)})}
+        tick(); return function(){live=false;clearTimeout(timer)}},[]);
+      useLayoutEffect(function(){if(s[0]&&want){box.current.querySelector('.tl').scrollTop=want.scroll||0;want=null}},[s[0]]);
+      var ev=(s[0]||[]).slice().sort(function(a,b){return (a.t||'')<(b.t||'')?-1:1}), lastAns={};
+      ev.forEach(function(e,k){if(e.answer)lastAns[e.who]=k});
+      var rows=ev.map(function(e,k){return {e:e,old:e.answer&&lastAns[e.who]!==k}}).reverse();
+      return html`<aside class="sess hist" role="dialog" aria-label="Card history" ref=${box}><header><span class="ttl">${'#'+num+' · history'}</span><span class="st"></span><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
+        <div class="hd2">${s[0]===null?'loading…':ev.length?ev.length+' events · newest first · what the agents\' briefs index':'no history yet'}</div>
+        <div class="tl">${rows.map(function(x){var e=x.e;return html`<div class=${'ev'+(x.old?' old':'')}><span class="t" title=${e.t}>${String(e.t||'').slice(5,16).replace('T',' ')}</span><i class=${'ti '+(ICON[e.who]||'ti-point')} title=${e.who}></i><div class="b"><b>${e.who}</b> ${e.what}${x.old?html` <small>superseded</small>`:null}${(e.refs||[]).length?html`<div class="refs">${e.refs.map(function(r){return refNode(agent,r)})}</div>`:null}</div></div>`})}</div></aside>`;
+    }
+    function toggle(agent,num,restore){var k=agent+'/'+num; if(dw.box()&&cur===k){close();return} closeDrawers(); cur=k; want=restore||null;
+      dw.open(html`<${Panel} agent=${agent} num=${num}/>`)}
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
     return {toggle:toggle,close:close,state:state};
   })();
@@ -648,10 +681,11 @@
   });
   }
   // The open drawer of the card on screen, and back: which drawer, its scroll, filter, open parts and unsent draft.
-  function drawerState(){var s=Session.state();if(s)return {kind:'session',s:s};var t=Transcript.state();if(t)return {kind:'transcript',s:t,ctx:Context.state()};var c=Context.state();return c?{kind:'context',s:c}:null}
-  function closeDrawers(){Session.close();Transcript.close();Context.close()}
+  function drawerState(){var s=Session.state();if(s)return {kind:'session',s:s};var h=History.state();if(h)return {kind:'history',s:h};var t=Transcript.state();if(t)return {kind:'transcript',s:t,ctx:Context.state()};var c=Context.state();return c?{kind:'context',s:c}:null}
+  function closeDrawers(){Session.close();Transcript.close();Context.close();History.close()}
   function restoreDrawer(i,d){closeDrawers();if(!d||!d.s)return;
     if(d.kind==='session')Session.toggle(i.agent,i.num,d.s.step,false,d.s);
+    else if(d.kind==='history')History.toggle(i.agent,i.num,d.s);
     else if(d.kind==='transcript'){Transcript.toggle(i,d.s.conv,d.s);if(d.ctx)Context.toggle(i,d.ctx.conv,d.ctx.entry,true,d.ctx)}
     else if(d.kind==='context')Context.toggle(i,d.s.conv,d.s.entry,false,d.s)}
   window.Cards={StepToggles:StepToggles,ModelSelect:ModelSelect,MODELS:MODELS,EFFORTS:EFFORTS,chosenSteps:chosenSteps,drawerState:drawerState,closeDrawers:closeDrawers,restoreDrawer:restoreDrawer,

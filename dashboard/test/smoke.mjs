@@ -3,7 +3,7 @@
 // hipotecarios 304 and its Prompt fold, nothing rebuilt on poll, and a server restart under the open page with a live
 // stand-in session. Usage: node smoke.mjs <base url> <lab dir>
 import { launch } from './cdp.mjs';
-import { utimesSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { utimesSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const [BASE, RUN] = process.argv.slice(2);
@@ -185,6 +185,28 @@ try {
     eq(log.map(r => [r.step, r.feedback]), [['context', 'The edit is too broad.']], 'run.py got the feedback');
     await P.eval(`${strip('resolution')}.querySelector('.kbtn').click()`);
     await P.waitFor(`/^(done|failed)$/.test(document.querySelector('aside.sess header .st').textContent)`, 10000, 'session ended');
+  });
+
+  await check('history drawer: newest first, superseded, pointers', async () => {
+    const log = join(RUN, 'agents', A, 'log');
+    mkdirSync(log, { recursive: true });
+    writeFileSync(join(log, '304.jsonl'), [
+      { t: '2026-09-23T09:00:00Z', who: 'context', what: 'overpowered: edit Cierre › 3', refs: ['context/runs/304/2026-09-23T085800Z/answer.json'], answer: true },
+      { t: '2026-09-23T09:05:00Z', who: 'engineer', what: 'message: «go ahead»', refs: ['resolve/runs/304/out.jsonl@L12'] },
+      { t: '2026-09-23T09:10:00Z', who: 'context', what: 'rerun: overpowered: edit Cierre › 3 · feedback accepted', refs: ['context/runs/304/2026-09-23T090800Z/answer.json', 'git:abc1234'], answer: true },
+    ].map(e => JSON.stringify(e)).join('\n') + '\n');
+    await P.goto(`${BASE}/index.html#a=${A}&i=304`); await card(304);
+    await P.eval(`document.querySelector('.hstb').click()`);
+    await P.waitFor(`document.querySelectorAll('aside.sess.hist .ev').length===3`, 5000, 'three events');
+    const h = await P.eval(`(${function () {
+      const ev = [...document.querySelectorAll('aside.sess.hist .ev')];
+      return { who: ev.map(e => e.querySelector('b').textContent), old: ev.map(e => e.classList.contains('old')),
+        href: ev[1].querySelector('.refs a').getAttribute('href'), line: ev[1].querySelector('.refs a').textContent, git: ev[0].querySelector('.refs code').textContent };
+    }})()`);
+    eq(h.who, ['context', 'engineer', 'context'], 'newest first'); eq(h.old, [false, false, true], 'the earlier answer superseded');
+    eq([h.href, h.line, h.git], [`agents/${A}/resolve/runs/304/out.jsonl`, '304/out.jsonl · line 12', 'git:abc1234'], 'pointers');
+    await P.eval(`document.querySelector('.hstb').click()`);
+    await P.waitFor(`!document.querySelector('aside.sess.hist')`, 3000, 'closed on a second click');
   });
 
   await check('no page errors', async () => {
