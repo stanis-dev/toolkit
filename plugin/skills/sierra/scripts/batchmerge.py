@@ -5,39 +5,21 @@
 
 In the batch worktree from agents/<agent>/batches.json, one merge at a time (a lock under batches/):
 1. Refused while the worktree has uncommitted tracked changes other than setup's copies and the SDK's generated files.
-2. Ghostwriter pull. A tracked file the pull changes to a version the batch branch had before is the workspace running
-   behind the branch (a merge not yet pushed): it is restored from the branch. A version the branch never had, or a
-   new Studio file, is a Studio edit: printed, restored from the branch, exit 2, nothing merged.
-3. git merge of the issue branch; a conflict is aborted, exit 3.
-4. Lint, push --replace, pull; a tracked file the last pull changes means the workspace does not hold the branch: exit 4.
-Every command's output goes to stdout. The branch is pushed nowhere."""
-import fcntl, json, os, subprocess, sys, time
+2. When main has moved, origin/main is merged into the batch first, as mainsync.py does: two simulations added at the
+   same place are both kept; any other conflict is aborted, exit 5, nothing merged.
+3. Ghostwriter pull. A tracked file the pull changes to a version the batch branch has had (main's included) is the
+   workspace running behind or ahead of the branch: it is restored from the branch. A version the branch never had,
+   or a new Studio file, is a Studio edit: printed, restored from the branch, exit 2, the issue not merged.
+4. git merge of the issue branch; a conflict is aborted, exit 3.
+5. Lint, push --replace, pull; a tracked file the last pull changes means the workspace does not hold the branch: exit 4.
+Every command's output goes to stdout. The branch is pushed to no git remote."""
+import fcntl, json, os, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import stepgit
+from mainsync import merge_main, pull_and_sort, push_and_check, run
 from setup import AGENT_DIR
-
-
-def run(argv):
-    print("$ " + " ".join(argv), flush=True)
-    r = subprocess.run(argv, capture_output=True, text=True, stdin=subprocess.DEVNULL)
-    out = (r.stdout + r.stderr).strip()
-    if out:
-        print(out, flush=True)
-    return r.returncode, out
-
-
-def studio(wt, composer_rel):
-    """Tracked changed paths under the agent's .composer, and untracked files there."""
-    changed = [p for p in stepgit.dirty(wt) if p.startswith(composer_rel + "/")]
-    new = sorted(p for p in stepgit.untracked(wt) if p.startswith(composer_rel + "/") and not stepgit.setup_copy(p))
-    return changed, new
-
-
-def known_blobs(wt, path):
-    out = stepgit.git(wt, "log", "-m", "--full-history", "--no-abbrev", "--raw", "--format=", "HEAD", "--", path)
-    return {f for line in out.splitlines() if line.startswith(":") for f in line.split()[2:4]}
 
 
 def main(argv):
@@ -73,46 +55,25 @@ def main(argv):
     if why:
         print("batch " + why); return 1
 
-    code, _ = run([sierra, "-C", agent_dir, "ghostwriter", "pull"])
+    code, what = merge_main(wt)
     if code:
-        return 1
-    changed, new = studio(wt, composer_rel)
-    edits = []
-    for p in changed:
-        blob = stepgit.git(wt, "hash-object", "--", p).strip()
-        if blob in known_blobs(wt, p):
-            print(f"{p}: the workspace holds an older version of the branch's file; restored from the branch")
-        else:
-            edits.append(p)
-    if edits or new:
-        print("The batch workspace has Studio changes the batch branch never had:")
-        for p in edits:
-            print(stepgit.git(wt, "diff", "--", p))
-        for p in new:
-            print("new file " + p)
-    if changed:
-        stepgit.git(wt, "checkout", "--", *changed)
-    for p in new:
-        os.remove(os.path.join(wt, p))
-    if edits or new:
-        print("Nothing merged; the worktree is back on the branch's content.")
-        return 2
+        print("merging origin/main into the batch conflicts in " + what + ": aborted, nothing merged"); return 5
+    print(what)
+
+    code = pull_and_sort(wt, sierra, agent_dir, composer_rel)
+    if code:
+        if code == 2:
+            print("Nothing merged; the worktree is back on the branch's content.")
+        return code
 
     code, _ = run(["git", "-C", wt] + stepgit.NO_HOOKS + ["merge", "--no-edit", branch])
     if code:
         run(["git", "-C", wt, "merge", "--abort"])
         print("merge conflict: aborted, nothing merged"); return 3
 
-    for cmd in (["lint"], ["push", "--replace", "-y"], ["pull"]):
-        code, _ = run([sierra, "-C", agent_dir, "ghostwriter"] + cmd)
-        if code:
-            print(f"ghostwriter {cmd[0]} failed; the merge stays, the workspace may not hold it"); return 4
-    changed, new = studio(wt, composer_rel)
-    if changed or new:
-        for p in changed:
-            print(stepgit.git(wt, "diff", "--", p))
-        print("after the push, the batch workspace still differs from the branch: " + ", ".join(changed + new))
-        return 4
+    code = push_and_check(wt, sierra, agent_dir, composer_rel)
+    if code:
+        return code
     print("merged " + branch + " at " + stepgit.git(wt, "rev-parse", "--short", "HEAD").strip()
           + "; the batch workspace holds the branch's Studio content")
     return 0
