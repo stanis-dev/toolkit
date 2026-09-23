@@ -35,9 +35,10 @@ new commits. Re-read those answers, say what differs, and review them again.
 
 The page shows where the issue stands from one command, which you run at each change of stage or verdict:
 `python3 <scripts>/stage.py <agent> <n> <stage> <state>`. Stages and their states, in order: `review` working, holds,
-wrong; `repro` writing, reproduces, does-not-reproduce, wrong-reason; `fix` applying, solved, refine, misguided;
+wrong, contested; `repro` writing, reproduces, does-not-reproduce, wrong-reason; `fix` applying, solved, refine, misguided;
 `regressions` running, found, fixing, clean; `merge` ready, merged. `review wrong` and `fix misguided` take `--step`,
-the step at fault (analysis, strategy or context), and `--note`, one line on what it got wrong.
+the step at fault (analysis, strategy or context), and `--note`, one line on what it got wrong and the skill passage
+or the turn it rests on, quoted. `review contested` takes `--step` and `--note` too, as below.
 
 ## 1. Review
 
@@ -57,6 +58,13 @@ Read the three answers against the card and the linked call. Say, one line each:
 
 If one of these does not hold, name the step at fault (analysis, strategy or context), which check failed, why, and what
 that step should have said. Then stop: the engineer reruns the step or overrules you.
+
+The rerun step weighs your points against its own skill and may dispute some: its answer's `feedback` holds a verdict
+per point, with the passage or turn it rests on. Read each disputed point against the same skill text and evidence.
+Concede a point its basis settles; hold one it does not, with the passage or turn that shows why. This reply is your
+last word on those points. If you concede them all, review the new answer as usual. If you hold any, run
+`stage.py <agent> <n> review contested --step <step> --note "<each held point: why, with its basis>"` and stop: the
+engineer rules. A ruling for the step settles its points: do not raise them again.
 
 If everything holds - continue to #2.
 

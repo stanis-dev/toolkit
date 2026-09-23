@@ -2,7 +2,7 @@
 
 Usage:
   run.py <agent> <n> [analysis|strategy|context] [--pages <dir>] [--repo <dir>] [--model <id>] [--effort <level>]
-         [--feedback <text>]
+         [--feedback <text> [--from resolver|engineer|ruling]]
 
 `analysis` runs the issue-analysis skill and writes `agents/<agent>/analysis/<n>.json`; `strategy` runs the sim-strategy
 skill on that answer and writes `agents/<agent>/strategy/<n>.json`; `context` runs the context-edit skill and writes
@@ -27,6 +27,8 @@ context have written their answer, what they changed goes in one commit with the
 as status "step_commit". pi's session is kept in runs/<n>/session/; a fresh run moves the previous one aside to
 session.<stamp>/. --feedback continues that session (-c) with one message, the feedback and that the tree was rewound;
 without a session it runs fresh with the feedback under a heading at the end of the prompt. feedback.md keeps the text.
+--from says whose it is, engineer by default: a claim the step weighs (the answer's `feedback` field, required non-null
+then), or a ruling, which it applies (every point accepted).
 """
 import json
 import os
@@ -187,6 +189,18 @@ def parse_answer(text):
     raise ValueError("no JSON object in the reply")
 
 
+def feedback_errors(answer, feedback, source):
+    """`feedback` is filled exactly when the run carries feedback, and a ruling's points are all accepted."""
+    fb = answer.get("feedback") if isinstance(answer, dict) else None
+    if feedback and not fb:
+        return ["$.feedback: the run carries feedback; weigh it as feedback.md says and fill feedback"]
+    if not feedback and fb:
+        return ["$.feedback: the run carries no feedback; it is null"]
+    if fb and source == "ruling" and (fb.get("verdict") != "accepted" or any(p.get("verdict") != "accepted" for p in fb.get("points") or [])):
+        return ["$.feedback: a ruling settles its points; apply it and accept every point"]
+    return []
+
+
 def violations(value, schema, path="$"):
     """What in value breaks the schema: the subset of JSON Schema the step schemas use (type incl. lists with null,
     required, properties, additionalProperties false, enum, items)."""
@@ -297,6 +311,8 @@ def main(argv):
     step = rest.pop(0) if rest and not rest[0].startswith("--") else "analysis"
     opts = dict(zip(rest[::2], rest[1::2]))
     feedback = (opts.get("--feedback") or "").strip()
+    if opts.get("--from") not in (None, "resolver", "engineer", "ruling"):
+        sys.exit("--from is resolver, engineer or ruling")
     if step not in STEPS:
         sys.exit(f"unknown step {step}")
     s = STEPS[step]
@@ -391,11 +407,14 @@ def main(argv):
         # the skill text opens the message; its schema.json, the documents it links and the brief follow, so nothing is on disk
         prompt = (f"{body}\n\n# schema.json\n\n```json\n{json.dumps(schema, ensure_ascii=False, indent=1)}"
                   f"\n```{linked_docs(s['skill'], body)}\n\n# Brief · {agent} {n}\n\n{brief.stdout}")
+        head = {"resolver": "Feedback from the resolution agent", "engineer": "Feedback from the engineer",
+                "ruling": "The engineer's ruling"}[opts.get("--from") or "engineer"]
+        weigh = "Apply it: a ruling settles its points. " if opts.get("--from") == "ruling" else "Weigh it as feedback.md says. "
         if continued:
-            prompt = (f"Feedback from the engineer on your answer:\n\n{feedback}\n\n{where} Do the step again with the feedback, "
-                      "on the tree as it is now, and return only the JSON object schema.json describes.")
+            prompt = (f"{head} on your answer:\n\n{feedback}\n\n{where} {weigh}Do the step again on the tree as it is now, "
+                      "and return only the JSON object schema.json describes.")
         elif feedback:
-            prompt += f"\n\n# Feedback on the previous run\n\n{feedback}\n\n{where}\n"
+            prompt += f"\n\n# {head} on the previous run\n\n{feedback}\n\n{where} {weigh.strip()}\n"
         open(os.path.join(runs, "prompt.md"), "w", encoding="utf-8").write(prompt)
         system = ("You run one step of an unattended issue workflow. The user message carries the whole task: instructions, "
                   "the output schema and the data.")
@@ -498,7 +517,8 @@ def main(argv):
                     fail("no reply text: " + tail(os.path.join(runs, "err.log")))
                 try:
                     candidate = parse_answer(final["text"])
-                    errors = violations(candidate, schema) or span_errors(step, candidate, agent, repo, base, n)
+                    errors = (violations(candidate, schema) or ("feedback" in (schema.get("properties") or {}) and feedback_errors(candidate, feedback, opts.get("--from")))
+                              or span_errors(step, candidate, agent, repo, base, n))
                 except ValueError as ex:
                     candidate, errors = None, [str(ex)]
                 if not errors:

@@ -88,3 +88,6 @@ copied: the card reads the text, the customer turn before it, the reported line 
 `failure.bad`, `context.wanted.span`, `context.won.span`, is an exact substring of the turn or item it marks, copied
 so the card can mark it; the runner checks each one against its source and sends a miss back. The words the good turn
 adds are the diff against the failure turn, computed on the card, so they are not listed.
+
+When the run carries feedback on your previous answer, weigh it as [feedback.md](../sierra/references/feedback.md) says
+and fill `feedback`.

@@ -112,3 +112,6 @@ simulation and as changes for a modified one; the card shows a modification as t
 Pass counts outside `guard.red` are not yours: the resolution's runs fill them later. `sims` holds only the simulations that change; a `modify`
 with nothing in `changes`, `reworded`, `added` and `removed` is not a modification, leave it out. A flag is `null` when
 it does not apply, otherwise one sentence with its proof.
+
+When the run carries feedback on your previous answer, weigh it as [feedback.md](../sierra/references/feedback.md) says
+and fill `feedback`.

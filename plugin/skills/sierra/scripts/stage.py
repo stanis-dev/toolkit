@@ -4,13 +4,15 @@
   stage.py <agent> <n> <stage> <state> [--step <step>] [--note "one line"] [--pages <dir>]
 
 Stages and their states, in order:
-  review       working holds wrong
+  review       working holds wrong contested ruled
   repro        writing reproduces does-not-reproduce wrong-reason
   fix          applying solved refine misguided
   regressions  running found fixing clean
   merge        ready merged
 
-review wrong and fix misguided need --step, the step to blame: analysis, strategy or context.
+review wrong, review contested and fix misguided need --step, the step to blame: analysis, strategy or context. review
+contested is the resolution holding points the rerun step disputed; review ruled is the engineer's ruling on them,
+written by the issues page with --step and --note.
 
 Appends {"t", "stage", "state", "step", "note"} to <pages>/agents/<agent>/resolve/<n>.stage.json (a JSON list) and refuses a
 stage or state outside the table. The pages dir defaults to ~/.claude/bbva-issues."""
@@ -18,14 +20,14 @@ import json, os, sys
 from datetime import datetime, timezone
 
 STAGES = {
-    "review": ("working", "holds", "wrong"),
+    "review": ("working", "holds", "wrong", "contested", "ruled"),
     "repro": ("writing", "reproduces", "does-not-reproduce", "wrong-reason"),
     "fix": ("applying", "solved", "refine", "misguided"),
     "regressions": ("running", "found", "fixing", "clean"),
     "merge": ("ready", "merged"),
 }
 AGENTS = ("cobranzas", "openpay", "hipotecarios")
-BLAME = {("review", "wrong"), ("fix", "misguided")}
+BLAME = {("review", "wrong"), ("review", "contested"), ("review", "ruled"), ("fix", "misguided")}
 BLAMED = ("analysis", "strategy", "context")
 
 

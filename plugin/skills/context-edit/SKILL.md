@@ -95,3 +95,6 @@ them; item text is copied only where it is marked or edited, the card reads the 
 exact substring of the item it marks; the runner checks it and sends a miss back. `also` is empty in the common case:
 the card's Studio Context part is built from the analysis, the wanted item as role A and the item that won as role B. A
 flag is `null` when it does not apply, otherwise one sentence with its proof.
+
+When the run carries feedback on your previous answer, weigh it as [feedback.md](../sierra/references/feedback.md) says
+and fill `feedback`.
