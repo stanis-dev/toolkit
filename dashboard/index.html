@@ -95,7 +95,9 @@
   function href(o){return '#'+Object.keys(o).filter(function(k){return o[k]}).map(function(k){return k+'='+encodeURIComponent(o[k])}).join('&')}
   function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}}
   function flag(k){try{return localStorage.getItem(k)==='1'}catch(e){return false}}
-  function hidden(i){return (flag('hideWait')&&(i.state==='BLOCKED'||i.state==='NEEDS_CLARIFICATION'))||(flag('hideTesting')&&i.state==='TESTING')}
+  function resState(i){var v=(Store.get().res[ui.agent]||{})[i.num];return v&&v.stage&&v.stage.state}
+  function hidden(i){var r=resState(i);return (flag('hideWait')&&(i.state==='BLOCKED'||i.state==='NEEDS_CLARIFICATION'))||(flag('hideTesting')&&i.state==='TESTING')
+    ||(flag('hideMerged')&&r==='merged')||(flag('hideNoRepro')&&r==='does-not-reproduce')}
   function only(v){var k=v&&v.kind;return ui.only==='you'?(k==='you'||k==='bad'):k===ui.only}
   function groups(d){
     var by={},all=0,shown=0,batch=route().b;
@@ -218,11 +220,11 @@
     }).catch(function(){ui.syncBusy=false;ui.sync={state:'failed',error:'server unreachable'};draw()});
   }
   function Side(){
-    var a=ui.agent, d=ui.data, q=route(), sk=syncLook(), anyF=flag('hideWait')||flag('hideTesting');
+    var a=ui.agent, d=ui.data, q=route(), sk=syncLook(), anyF=flag('hideWait')||flag('hideTesting')||flag('hideMerged')||flag('hideNoRepro');
     var g=d?groups(d):null, cur=d&&q.i?d.issues[+q.i]:null;
     return html`<div class="hd"><h1><select id="agent" aria-label="Agent" value=${a||'openpay'} onChange=${function(e){ui.only=null;location.hash=href({a:e.target.value})}}><option value="openpay">Openpay</option><option value="cobranzas">Cobranzas</option><option value="hipotecarios">Hipotecarios</option></select><span class="shown" id="shown">${g&&g.shown<g.all&&!ui.only?g.shown+' of '+g.all:''}</span></h1>
       <div class="fltw" style="display:flex;gap:2px"><button class=${'sbtn'+sk.cls} id="sync" aria-label="Refresh issues from the tracker" title=${sk.title} disabled=${!!sk.dis} onClick=${syncClick}><i class="ti ti-refresh" aria-hidden="true"></i></button><button class="sbtn" id="newb" aria-label="New batch" title="New batch: its own worktree and Studio workspace on an existing branch" onClick=${newBatch}><i class="ti ti-folder-plus" aria-hidden="true"></i></button><button class=${'sbtn'+(ui.pick?' on':'')} id="pick" aria-label="Select cards" title="Select cards to run steps on all of them" aria-pressed=${ui.pick?'true':'false'} onClick=${function(){ui.pick=!ui.pick;if(!ui.pick){ui.picknote='';ui.sel={}}draw()}}><i class="ti ti-list-check" aria-hidden="true"></i></button><button class=${'fbtn'+(anyF?' on':'')} id="fbtn" aria-label="Filters" aria-expanded=${ui.fpop?'true':'false'} onClick=${function(e){e.stopPropagation();ui.fpop=!ui.fpop;draw()}}><i class="ti ti-filter" aria-hidden="true"></i></button><button class="sbtn" id="hide" aria-label="Hide sidebar" title="Hide sidebar"><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>
-      <div class="pop" id="fpop" hidden=${!ui.fpop} onClick=${function(e){e.stopPropagation()}}><label><input type="checkbox" data-f="hideWait" checked=${flag('hideWait')} onChange=${function(e){pref('hideWait',e.target.checked?'1':'0');draw()}}/> Hide waiting <span>blocked, needs clarification</span></label><label><input type="checkbox" data-f="hideTesting" checked=${flag('hideTesting')} onChange=${function(e){pref('hideTesting',e.target.checked?'1':'0');draw()}}/> Hide testing</label></div></div>
+      <div class="pop" id="fpop" hidden=${!ui.fpop} onClick=${function(e){e.stopPropagation()}}><label><input type="checkbox" data-f="hideWait" checked=${flag('hideWait')} onChange=${function(e){pref('hideWait',e.target.checked?'1':'0');draw()}}/> Hide waiting <span>blocked, needs clarification</span></label><label><input type="checkbox" data-f="hideTesting" checked=${flag('hideTesting')} onChange=${function(e){pref('hideTesting',e.target.checked?'1':'0');draw()}}/> Hide testing</label><label><input type="checkbox" data-f="hideMerged" checked=${flag('hideMerged')} onChange=${function(e){pref('hideMerged',e.target.checked?'1':'0');draw()}}/> Hide merged</label><label><input type="checkbox" data-f="hideNoRepro" checked=${flag('hideNoRepro')} onChange=${function(e){pref('hideNoRepro',e.target.checked?'1':'0');draw()}}/> Hide doesn't reproduce</label></div></div>
     </div>
     <${Strip}/><${PickBar}/><${NewForm}/>
     <div id="tree">${ui.err?html`<div class="err">${'The sidebar failed: '+ui.err}</div>`:!g?null:g.gs.length?g.gs.map(function(x){return html`<${Group} key=${x.name} a=${a} x=${x} q=${q} cur=${cur}/>`}):html`<div class="err">${'No issues found for '+a+'.'}</div>`}</div>`;

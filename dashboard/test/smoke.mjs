@@ -49,6 +49,17 @@ try {
     eq(s.strip, '1 ready', 'strip'); ok(s.branch, 'batch branch shown'); ok(/^\$/.test(s.cost), 'batch cost shown: ' + s.cost);
   });
 
+  await check('filters: hide merged, then show again', async () => {
+    const rows = () => P.eval(`[...document.querySelectorAll('#tree a.it')].map(a => a.dataset.n).join(' ')`);
+    const all = await rows();
+    await P.eval(`document.querySelector('#fpop input[data-f="hideMerged"]').click()`);
+    await P.waitFor(`!document.querySelector('#tree a.it[data-n="297"]')`, 3000, 'merged rows hidden');
+    const some = await rows();
+    ok(!/\b(296|297|300|304)\b/.test(some) && /\b301\b/.test(some), 'merged rows hidden, the rest kept: ' + some);
+    await P.eval(`document.querySelector('#fpop input[data-f="hideMerged"]').click()`);
+    await P.waitFor(`document.querySelectorAll('#tree a.it').length === ${all.split(' ').length}`, 3000, 'rows back');
+  });
+
   await check('session panel: recorded out.jsonl of 304 and its Prompt fold', async () => {
     await P.eval(`${strip('resolution')}.querySelector('.sbtn2').click()`);
     await P.waitFor(`document.querySelectorAll('aside.sess .tl > *').length>20`, 8000, 'timeline rows');
