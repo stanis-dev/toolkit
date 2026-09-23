@@ -34,10 +34,10 @@ state in agents/<agent>/chain/<n>.json, and in /steps as "chains".
 POST /run/<agent>/<n>/<step> (analysis, strategy or context) starts the sierra skill's run.py for that issue and step, detached,
 in the issue's worktree; the card's button calls it and then polls agents/<agent>/<step>/<n>.status.json. A runner's own
 stdout and stderr land in serve.log next to this file (setup.py's in its run.log, which it fills on purpose).
-A step is refused (409, the reason) while another of the three runs for that issue or while the worktree has uncommitted
-changes (run.py first rewinds the branch to where the step started; stepgit.py). Both routes take {feedback}: /run with
-it starts a one-step sequence, /chain gives it to the first step; when such a sequence ends and the issue's resolution
-session is live, the session is told which steps reran, their new commits, and to review them again.
+A step is refused (409, the reason) while another of the three runs for that issue; steps leave git alone, the card's
+work stays uncommitted until merge. Both routes take {feedback}: /run with it starts a one-step sequence, /chain gives it
+to the first step; when such a sequence ends and the issue's resolution session is live, the session is told which
+steps reran, where their new answers are, and to review them again.
 
 The resolution step is interactive: pi in RPC mode, one per issue, hosted by session.py in a process of its own, so
 sessions and sequences outlive this server. POST /chat/<agent>/<n>/start {model, effort, ask?, resume?} starts the host
@@ -49,7 +49,7 @@ resolution itself, once; the status file's "asked" says whether it went. The oth
 its socket, runs/<n>/sock.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
-"stale": {"<n>": {"<step>": why}} (answers whose step commit left the branch or whose input answer is newer)}: the page polls it once
+"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
 stage (resolve/<n>.stage.json), the last three pass counts per stage (resolve/<n>.runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files

@@ -1,7 +1,7 @@
 """Checks of the staging run.py and stepgit.py, the real scripts, on a made-up issue 900 in a throwaway git worktree,
 with the stand-in pi (json mode), a stand-in sierra CLI, the stand-in brief and a card.py that renders nothing:
-the commit per step, the rewind per step and its refusal on a wrong binding, the workspace push only when Studio content changed,
---feedback continuing the kept session or running fresh, the schema retry on both paths, and the context brief's
+steps leaving git alone, a rerun on the tree as it is, context refused on a wrong binding, main's changes a pull brings
+committed as base, --feedback continuing the kept session or running fresh, the schema retry on both paths, and the context brief's
 lane section. python3 -m unittest test_steps (from test/), or run.sh."""
 import json, os, shutil, subprocess, sys, unittest
 
@@ -85,70 +85,50 @@ class Steps(unittest.TestCase):
     def pi_calls(self):
         return [r for r in self.log('pi') if r.get('mode') == 'json']
 
-    def subjects(self):
-        return self.git('log', '--format=%s|%(trailers:key=Step,valueonly,separator=)', '--reverse', self.fork + '..HEAD').splitlines()
+    def changes(self):
+        return sorted(l.strip() for l in self.git('status', '--porcelain').splitlines() if '/build/' not in l)
 
-    def test_commit_per_step(self):
+    def test_steps_leave_git_alone(self):
         self.assertEqual(self.run_step('analysis')['state'], 'done')
-        st = self.run_step('strategy', [[SIM, 'sim 2\n'], ['agents/hipotecarios/simulations/new.tests.ts', 'guard\n'], [LOCK, 'lock 2\n']])
+        st = self.run_step('strategy', [[SIM, 'sim 2\n'], ['agents/hipotecarios/simulations/new.tests.ts', 'guard\n']])
         self.assertEqual(st['state'], 'done', st.get('error'))
-        self.assertEqual(sorted(st['step_commit']['files']), ['agents/hipotecarios/simulations/new.tests.ts', SIM])
-        self.assertEqual(self.git('status', '--porcelain', '--untracked-files=no'), 'M ' + LOCK)
         st = self.run_step('context', [[BLOCK, '{"v": 2}\n']])
-        self.assertEqual(st['step_commit']['files'], [BLOCK])
-        self.assertEqual(self.subjects(), ['Sim strategy for hip-900|strategy 900', 'Context edit for hip-900|context 900'])
-        self.assertNotIn('Co-Authored', self.git('log', '-2', '--format=%B'))
-        self.assertIsNone(self.status('analysis')['step_commit'])
-
-    def test_no_change_no_commit(self):
-        st = self.run_step('strategy')
-        self.assertEqual((st['state'], st['step_commit']), ('done', None))
-        self.assertEqual(self.subjects(), [])
-
-    def test_rewind_per_step(self):
-        self.run_step('strategy', [[SIM, 'sim 2\n']])
-        self.run_step('context', [[BLOCK, '{"v": 2}\n']])
-        open(os.path.join(self.wt, 'fix.txt'), 'w').write('resolution work\n')
-        self.git('add', 'fix.txt'); self.git('commit', '-q', '-m', 'Resolution fix')
-        st = self.run_step('context', [[BLOCK, '{"v": 3}\n']])
-        self.assertEqual([d['subject'] for d in st['rewind']['dropped']], ['Resolution fix', 'Context edit for hip-900'])
-        self.assertTrue(st['rewind']['pushed'])
-        self.assertEqual(self.subjects(), ['Sim strategy for hip-900|strategy 900', 'Context edit for hip-900|context 900'])
-        self.assertFalse(os.path.exists(os.path.join(self.wt, 'fix.txt')))
-        before = len(self.log('sierra'))
-        st = self.run_step('strategy', [[SIM, 'sim 3\n']])
-        self.assertEqual([d['step'] for d in st['rewind']['dropped']], ['context', 'strategy'])
-        self.assertEqual(self.subjects(), ['Sim strategy for hip-900|strategy 900'])
-        self.assertEqual([r['args'][-1] for r in self.log('sierra')[before:]], ['pull', 'lint', 'push', 'pull'])
-        self.assertEqual(open(os.path.join(self.wt, BLOCK)).read(), '{"v": 1}\n')
-        self.assertEqual(self.git('status', '--porcelain', '--untracked-files=no'), '')
-        st = self.run_step('analysis')
-        self.assertEqual([d['step'] for d in st['rewind']['dropped']], ['strategy'])
+        self.assertEqual(st['state'], 'done', st.get('error'))
         self.assertEqual(self.git('rev-parse', '--short', 'HEAD'), self.fork)
-        self.assertIsNone(self.run_step('analysis')['rewind'])
-
-    def test_push_only_when_studio_content_changed(self):
-        self.run_step('strategy', [[SIM, 'sim 2\n']])
-        st = self.run_step('strategy', [[SIM, 'sim 3\n']])
-        self.assertEqual((len(st['rewind']['dropped']), st['rewind']['push'], st['rewind']['pushed']), (1, False, False))
+        self.assertEqual(self.changes(), ['?? agents/hipotecarios/simulations/new.tests.ts', 'M ' + BLOCK, 'M ' + SIM])
+        self.assertNotIn('step_commit', st)
         self.assertEqual(self.log('sierra'), [])
-        self.run_step('strategy', [[SIM, 'sim 4\n'], [BLOCK, '{"v": 9}\n']])
-        st = self.run_step('strategy')
-        self.assertTrue(st['rewind']['pushed'])
-        self.assertEqual(len(self.log('sierra')), 4)
 
-    def test_refusals(self):
-        open(os.path.join(self.wt, LOCK), 'w').write('lock 3\n')
+    def test_rerun_works_on_the_tree_as_it_is(self):
+        self.run_step('strategy', [[SIM, 'sim 2\n']])
         self.run_step('context', [[BLOCK, '{"v": 2}\n']])
+        st = self.run_step('strategy', [[SIM, 'sim 3\n']])
+        self.assertEqual(st['state'], 'done', st.get('error'))
+        self.assertEqual(open(os.path.join(self.wt, BLOCK)).read(), '{"v": 2}\n')
+        self.assertEqual(open(os.path.join(self.wt, SIM)).read(), 'sim 3\n')
+        self.assertEqual(self.git('rev-parse', '--short', 'HEAD'), self.fork)
+
+    def test_context_needs_the_issue_binding(self):
         self.bind('https://studio.example.invalid/workspace/batch-0922')
-        head = self.git('rev-parse', 'HEAD')
         st = self.run_step('context')
         self.assertEqual(st['state'], 'failed')
         self.assertIn('not the issue workspace ' + WS, st['error'])
-        self.assertEqual(self.git('rev-parse', 'HEAD'), head)
-        self.bind(WS)
-        st = self.run_step('context', STANDIN_SIERRA_FAIL='lint')
-        self.assertIn('rewound, but the workspace push failed: ghostwriter lint failed', st['error'])
+        self.assertEqual(self.run_step('strategy')['state'], 'done')
+
+    def test_pull_takes_main_as_base(self):
+        self.git('checkout', '-q', '-b', 'side')
+        open(os.path.join(self.wt, BLOCK), 'w').write('{"v": 5}\n')
+        self.git('commit', '-q', '-am', 'Main moved')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        self.git('checkout', '-q', '-')
+        open(os.path.join(self.wt, BLOCK), 'w').write('{"v": 5}\n')
+        open(os.path.join(self.wt, 'agents/hipotecarios/.composer/blocks/c.json'), 'w').write('{"card": 1}\n')
+        open(os.path.join(self.wt, SIM), 'w').write('sim 2\n')
+        out = subprocess.run([sys.executable, '-c', 'import sys, stepgit; print(stepgit.absorb_main(sys.argv[1], sys.argv[2]))',
+                              self.wt, 'agents/hipotecarios/.composer'], cwd=self.scripts, env=self.env, capture_output=True, text=True)
+        self.assertEqual(out.stdout.strip(), repr([BLOCK]), out.stderr)
+        self.assertEqual(self.git('log', '-1', '--format=%s'), "Main's changes that reached the workspace")
+        self.assertEqual(self.changes(), ['?? agents/hipotecarios/.composer/blocks/c.json', 'M ' + SIM])
 
     def test_feedback_continues_the_session(self):
         self.run_step('strategy', [[SIM, 'sim 2\n']])
@@ -157,8 +137,7 @@ class Steps(unittest.TestCase):
         call = self.pi_calls()[-1]
         self.assertTrue(call['cont'])
         self.assertIn('The guard misses the second question.', call['stdin'])
-        self.assertIn('rewound to where this step started: ', call['stdin'])
-        self.assertIn('Sim strategy for hip-900 dropped', call['stdin'])
+        self.assertIn("holds the card's work so far, uncommitted", call['stdin'])
         runs = os.path.join(self.run_dir, 'agents', AG, 'strategy', 'runs', N)
         self.assertEqual(open(os.path.join(runs, 'feedback.md')).read(), 'The guard misses the second question.\n')
         self.assertTrue(open(os.path.join(runs, 'prompt.md')).read().startswith('Feedback from the engineer'))

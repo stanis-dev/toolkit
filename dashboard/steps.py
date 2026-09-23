@@ -178,7 +178,7 @@ def start_driver(agent, batch, model=None, effort=None, resume=False):
 
 
 def stepgit():
-    """The scripts' stepgit module, or None with scripts that predate step commits and rewinds."""
+    """The scripts' stepgit module, or None with scripts that predate it."""
     if SCRIPTS not in sys.path:
         sys.path.insert(0, SCRIPTS)
     try:
@@ -195,8 +195,7 @@ PREP = ('analysis', 'strategy', 'context')
 
 
 def prep_refusal(agent, n, step, repo):
-    """Why step cannot start now: another of the three answers is running (the rewind would pull the tree from under
-    it). None when it can."""
+    """Why step cannot start now: another of the three answers is running in the same tree. None when it can."""
     for other in PREP:
         if other != step and settle(status_path(agent, n, other)).get('state') == 'working':
             return other + ' is running: wait for it or stop it'
@@ -321,22 +320,15 @@ def rule(agent, n, side, gap=False):
 
 
 def rerun_note(agent, n, ran):
-    """What the resolution session is told when steps it blamed were rerun: each step's outcome and new commit, what
-    the rewind dropped, and to review them again."""
+    """What the resolution session is told when steps it blamed were rerun: each step's outcome, its new answer, and to
+    review them again."""
     lines = ['The engineer reran ' + ', '.join(ran) + ' with feedback.']
-    for k, step in enumerate(ran):
+    for step in ran:
         st = settle(status_path(agent, n, step))
-        rw = st.get('rewind') or {}
-        if k == 0 and rw.get('dropped'):
-            lines.append('The branch was rewound first, dropping ' + '; '.join(d['short'] + ' ' + d['subject'] for d in rw['dropped'])
-                         + ('; the issue workspace was pushed to match.' if rw.get('pushed') else '.'))
-        c = st.get('step_commit')
         if st.get('state') != 'done':
             lines.append(f"{step}: {st.get('state') or 'not run'}" + (f" ({st['error']})" if st.get('error') else '') + '.')
-        elif c:
-            lines.append(f"{step}: new commit {c['short']} {c['subject']}.")
         else:
-            lines.append(f"{step}: done, no files changed" + ('' if step == 'analysis' else ', no commit') + '.')
+            lines.append(f"{step}: done, new answer in {os.path.join('agents', agent, step, n + '.json')}.")
         lines += feedback_lines(agent, n, step)
     disputed = any('disputed' in l.split(' · ')[0] for step in ran for l in feedback_lines(agent, n, step)[1:])
     lines.append('Weigh each disputed point: concede it, or hold it with review contested, as your skill says; then review them again.'
@@ -353,33 +345,8 @@ def notify_rerun(agent, n, ran):
     return host_call(agent, n, {'cmd': 'send', 'message': rerun_note(agent, n, ran), 'mode': 'follow_up' if st.get('streaming') else 'prompt'})
 
 
-HEADS = {}  # (worktree, commit) -> (reflog stamp, on the branch)
-
-
-def head_stamp(wt):
-    """The mtime of the worktree's HEAD reflog: it moves with every commit, reset and checkout."""
-    g = os.path.join(wt, '.git')
-    try:
-        if os.path.isfile(g):
-            g = open(g).read().split('gitdir:', 1)[1].strip()
-        return os.stat(os.path.join(g, 'logs', 'HEAD')).st_mtime_ns
-    except (OSError, IndexError):
-        return None
-
-
-def on_branch(wt, commit):
-    key, stamp = (wt, commit), head_stamp(wt)
-    hit = HEADS.get(key)
-    if hit and hit[0] == stamp and stamp is not None:
-        return hit[1]
-    r = subprocess.run(['git', '-C', wt, 'merge-base', '--is-ancestor', commit, 'HEAD'], capture_output=True)
-    HEADS[key] = (stamp, r.returncode == 0)
-    return r.returncode == 0
-
-
 def stale_states(agent):
-    """{n: {step: why}} for answers that no longer match the branch: their step commit was dropped (a rewind, or the
-    branch moved), or an earlier step's answer is newer than theirs."""
+    """{n: {step: why}} for answers an earlier step's newer answer has overtaken."""
     out = {}
     base = os.path.join('agents', agent)
     for f in os.listdir(os.path.join(base, 'setup')) if os.path.isdir(os.path.join(base, 'setup')) else []:
@@ -387,7 +354,6 @@ def stale_states(agent):
         if not m:
             continue
         n = m.group(1)
-        wt = repo_of(agent, n)
         times = {}
         for step in PREP:
             try:
@@ -398,11 +364,8 @@ def stale_states(agent):
             st = load_json(status_path(agent, n, step), {})
             if step not in times or st.get('state') == 'working':
                 continue
-            c = (st.get('step_commit') or {}).get('hash')
             newer = [e for e in PREP[:k] if times.get(e, 0) > times[step]]
-            if c and wt and not on_branch(wt, c):
-                out.setdefault(n, {})[step] = 'its commit ' + c[:9] + ' is no longer on the branch'
-            elif newer:
+            if newer:
                 out.setdefault(n, {})[step] = newer[-1] + ' is newer'
     return out
 

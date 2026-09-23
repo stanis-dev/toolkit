@@ -47,16 +47,15 @@ The server restarts itself when serve.py, steps.py or a script it imports change
 in flight finish and re-executes in place on the same listening socket, so no connection is refused. Sessions and
 sequences keep running; open event streams reconnect. Editing serve.py is enough, no restart by hand.
 
-Reruns: the prep steps (analysis, strategy, context) run on the issue's worktree, and strategy and context each leave
-one commit there with the trailer `Step: <step> <n>`. Before a prep step runs, `scripts/stepgit.py` moves the issue
-branch back to the commit before that step's commit and the later steps' commits, and pushes the tree's Studio content
-to the issue workspace when a dropped commit touched `.composer/`. It refuses, and the run answers 409 naming them,
-when tracked files are uncommitted (setup's `.composer/pnpm-lock.yaml` and `.composer/.gitignore` aside) or when
-another prep step of the issue is running. `/run` and `/chain` take `feedback`: a rerun continues the step's pi
+Reruns: the prep steps (analysis, strategy, context) run on the issue's worktree and leave git alone: the card's work
+stays uncommitted until the resolution commits it at merge, so HEAD is the branch before the card's work. A rerun
+works on the tree as it is; the analysis reads the Studio content as HEAD has it. A pull in the worktree goes through
+`scripts/pull.py`, which commits as base what main's merges brought. A step answers 409 while another prep step of
+the issue is running. `/run` and `/chain` take `feedback`: a rerun continues the step's pi
 session with it, or runs fresh with it at the end of the prompt; in a sequence only the first step gets it. A `/run`
 with feedback runs as a one-step sequence. When a sequence with feedback ends, `chain.py` tells the live resolution
-session which steps reran and their new commits. `/steps` carries `stale`: {<n>: {<step>: why}} for answers whose
-commit left the branch or that are older than an earlier step's; the card's chips and the sidebar dots mark them. The
+session which steps reran and where their new answers are. `/steps` carries `stale`: {<n>: {<step>: why}} for answers
+older than an earlier step's; the card's chips and the sidebar dots mark them. The
 resolution panel's «Rerun step» control is prefilled from the latest `review wrong` / `fix misguided` stage entry.
 
 Resume: when a resolution session ended and its pi session file is still there, the card's resolution strip shows a
@@ -73,7 +72,7 @@ resume button; pi starts again with `--continue` on that session and the timelin
     agents/<agent>/<step>/history/    previous answers and cards, stamped.
     agents/<agent>/<step>/runs/<n>/   system.md, prompt.md, out.jsonl (pi events), err.log; setup keeps run.log.
                                       prep steps also keep session/ (pi's session; older ones session.<stamp>/),
-                                      feedback.md (a rerun's feedback) and rewind.log (the workspace push's output).
+                                      and feedback.md (a rerun's feedback).
     agents/<agent>/resolve/runs/<n>/  the session: brief.md, ask.md, system.md, out.jsonl, session/ (pi's session file),
                                       sock (while it runs), host.log, start.err (why the last start failed).
     agents/<agent>/chain/<n>.json     the last sequence: steps, the one at, state, pid; <n>.stop asks it to stop.

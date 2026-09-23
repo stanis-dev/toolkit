@@ -327,7 +327,7 @@ class Reruns(Lab):
         out = self.path('agents', AG, 'resolve', 'runs', '304', 'out.jsonl')
         sent = until(lambda: [e for e in map(json.loads, open(out)) if e.get('type') == 'sent' and 'reran' in e['text']])
         self.assertEqual(sent[0]['text'], 'The engineer reran strategy, context with feedback.\n'
-                         'strategy: new commit fffffff stand-in strategy for 304.\ncontext: new commit fffffff stand-in context for 304.\nReview them again.')
+                         f'strategy: done, new answer in agents/{AG}/strategy/304.json.\ncontext: done, new answer in agents/{AG}/context/304.json.\nReview them again.')
         post(f'/chat/{AG}/304/stop')
 
     def test_run_with_feedback_is_a_one_step_sequence(self):
@@ -339,20 +339,12 @@ class Reruns(Lab):
 
     def test_stale_answers(self):
         a = f'agents/{AG}'
-        open(os.path.join(self.wt('300'), 'sim.ts'), 'w').write('guard\n')
-        self.git('300', 'add', 'sim.ts'); self.git('300', 'commit', '-q', '-m', 'Sim strategy for hip-300', '-m', 'Step: strategy 300')
-        commit = self.git('300', 'rev-parse', 'HEAD')
-        st = self.load(a, 'strategy', '300.status.json')
-        self.write(f'{a}/strategy/300.status.json', dict(st, step_commit={'hash': commit, 'short': commit[:7], 'subject': 'x'}))
         for step, age in (('analysis', 30), ('strategy', 20), ('context', 10)):
             p = self.path(a, step, '300.json')
             os.utime(p, (time.time() - age, time.time() - age))
         self.assertNotIn('300', get('/steps/' + AG)['stale'])
-        self.git('300', 'reset', '-q', '--hard', 'HEAD^')
-        self.assertEqual(get('/steps/' + AG)['stale']['300'], {'strategy': f'its commit {commit[:9]} is no longer on the branch'})
         os.utime(self.path(a, 'analysis', '300.json'))
-        self.assertEqual(get('/steps/' + AG)['stale']['300'], {'strategy': f'its commit {commit[:9]} is no longer on the branch',
-                                                               'context': 'analysis is newer'})
+        self.assertEqual(get('/steps/' + AG)['stale']['300'], {'strategy': 'analysis is newer', 'context': 'analysis is newer'})
 
 
 @unittest.skipIf(lab.RERUNS, 'the scripts have stepgit.py')

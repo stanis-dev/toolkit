@@ -169,7 +169,7 @@ try {
     await P.eval(`document.querySelector('aside.sess .rrw .rrgo').click()`);
     await P.waitFor(`document.querySelector('aside.sess .rrw .rrm.done')`, 5000, 'rerun started');
     await P.waitFor(`/The engineer reran context with feedback/.test(document.querySelector('aside.sess .tl').textContent)`, 15000, 'the session is told');
-    ok(await P.eval(`/new commit fffffff stand-in context for 297/.test(document.querySelector('aside.sess .tl').textContent)`), 'with the new commit');
+    ok(await P.eval(`/context: done, new answer in agents\\/[a-z]+\\/context\\/297\\.json/.test(document.querySelector('aside.sess .tl').textContent)`), 'with the new answer');
     const log = readFileSync(join(RUN, 'standin.log'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.who === 'run.py' && r.n === '297');
     eq(log.map(r => [r.step, r.feedback]), [['context', 'The edit is too broad.']], 'run.py got the feedback');
     await P.eval(`${strip('resolution')}.querySelector('.kbtn').click()`);

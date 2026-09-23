@@ -49,7 +49,7 @@
   function rateNode(r,lastOnly){return html`${lastOnly?'':r.pre}<b class=${r.cls}>${r.val}</b>`}
   var PK=['setup','analysis','strategy','context'], PH={done:'ok',working:'now',failed:'bad'};
   // Before the resolution starts: one dot each for analysis, strategy, context and resolution (done, running, failed,
-  // hollow when stale: its commit left the branch or an earlier answer is newer), and what comes next.
+  // hollow when stale: an earlier answer is newer), and what comes next.
   var DOTS=['analysis','strategy','context','resolve'], DOTNAME={analysis:'Analysis',strategy:'Sim strategy',context:'Context edit',resolve:'Resolution'};
   function prepLine(s,run,bad,queued,stale){queued=queued||[];stale=stale||{};
     var next=PK.filter(function(k){return s[k]!=='done'})[0];
