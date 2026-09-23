@@ -182,7 +182,7 @@ def prep_refusal(agent, n, step, repo):
         return str(ex)
 
 
-def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False, feedback=None):
+def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False, feedback=None, source=None):
     """Start one step of one issue: setup.py, run.py for the three answers, or the resolution's host. None when
     started, else why not."""
     model, effort = str(model or 'gpt-5.6-terra'), str(effort or 'high')
@@ -209,7 +209,7 @@ def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False,
         return why
     return spawn_proc(status_path(agent, n, step), None,
                       [os.path.join(SCRIPTS, 'run.py'), agent, n, step, '--pages', os.getcwd(), '--repo', repo, '--model', model, '--effort', effort]
-                      + (['--feedback', feedback] if feedback else []), cwd=repo)[0]
+                      + (['--feedback', feedback] if feedback else []) + (['--from', source] if feedback and source else []), cwd=repo)[0]
 
 
 def host_call(agent, n, req, timeout=15):
@@ -235,6 +235,69 @@ def host_call(agent, n, req, timeout=15):
         s.close()
 
 
+SOURCES = ('resolver', 'engineer', 'ruling')
+
+
+def feedback_lines(agent, n, step):
+    """How a rerun step weighed its feedback, from its answer's `feedback`: the verdict, then each point."""
+    fb = load_json(os.path.join('agents', agent, step, n + '.json'), {}).get('feedback') or {}
+    if not fb.get('verdict'):
+        return []
+    out = [f"{step} answered the feedback: {fb['verdict']}."]
+    for p in fb.get('points') or []:
+        out.append(f"  {p.get('verdict')} · {p.get('claim')}")
+        if p.get('verdict') == 'disputed':
+            out.append(f"      why: {p.get('why')}")
+            if p.get('basis'):
+                out.append(f"      basis: {p['basis']}")
+    return out
+
+
+def contest(agent, n):
+    """The open disagreement: the latest review contested entry when no ruling came after it, with the rerun step's
+    disputed points. {} when none."""
+    log = load_json(os.path.join('agents', agent, 'resolve', n + '.stage.json'), [])
+    last = next((e for e in reversed(log) if e.get('stage') == 'review' and e.get('state') in ('contested', 'ruled')), None)
+    if not last or last['state'] != 'contested' or last.get('step') not in PREP:
+        return {}
+    fb = load_json(os.path.join('agents', agent, last['step'], n + '.json'), {}).get('feedback') or {}
+    return {'step': last['step'], 'held': last.get('note'), 't': last.get('t'),
+            'disputed': [p for p in fb.get('points') or [] if p.get('verdict') == 'disputed']}
+
+
+def rule(agent, n, side, gap=False):
+    """The engineer's ruling on the open disagreement. For the resolver: the step reruns with the ruling, which it
+    applies. For the step: the live resolution session is told the answer stands on those points. Either way stage.py
+    records review ruled, and a skill gap is appended to agents/<agent>/skill-gaps.json. (state, None) or (None, why not)."""
+    c = contest(agent, n)
+    if not c:
+        return None, 'no open disagreement'
+    if side not in ('resolver', 'step'):
+        return None, 'rule for resolver or step'
+    step, points = c['step'], '\n'.join('- ' + (p.get('claim') or '') for p in c['disputed'])
+    if side == 'resolver':
+        st = settle(status_path(agent, n, step))
+        feedback = (f"On the points you disputed, the resolution agent is right:\n{points}\n\n"
+                    f"The resolution agent's reply to your dispute: {c.get('held') or ''}")
+        out, err = start_chain(agent, n, [step], st.get('model'), st.get('effort'), feedback=feedback, source='ruling')
+        if err:
+            return None, err
+    else:
+        msg = (f"The engineer ruled for {step} on:\n{points}\n"
+               "The answer stands on those points. Do not raise them again; review the rest as usual.")
+        live = host_call(agent, n, {'cmd': 'state'})
+        out = host_call(agent, n, {'cmd': 'send', 'message': msg, 'mode': 'follow_up' if live.get('streaming') else 'prompt'}) if 'error' not in live else live
+    note = 'for ' + ('the resolution agent' if side == 'resolver' else step) + ('; skill gap' if gap else '')
+    subprocess.run([sys.executable, os.path.join(SCRIPTS, 'stage.py'), agent, n, 'review', 'ruled', '--step', step,
+                    '--note', note, '--pages', os.getcwd()], capture_output=True)
+    if gap:
+        path = os.path.join('agents', agent, 'skill-gaps.json')
+        gaps = load_json(path, [])
+        gaps.append({'t': now(), 'n': n, 'step': step, 'disputed': c['disputed'], 'held': c.get('held'), 'for': side})
+        write_json(path, gaps)
+    return out, None
+
+
 def rerun_note(agent, n, ran):
     """What the resolution session is told when steps it blamed were rerun: each step's outcome and new commit, what
     the rewind dropped, and to review them again."""
@@ -252,7 +315,10 @@ def rerun_note(agent, n, ran):
             lines.append(f"{step}: new commit {c['short']} {c['subject']}.")
         else:
             lines.append(f"{step}: done, no files changed" + ('' if step == 'analysis' else ', no commit') + '.')
-    lines.append('Review them again.')
+        lines += feedback_lines(agent, n, step)
+    disputed = any('disputed' in l.split(' · ')[0] for step in ran for l in feedback_lines(agent, n, step)[1:])
+    lines.append('Weigh each disputed point: concede it, or hold it with review contested, as your skill says; then review them again.'
+                 if disputed else 'Review them again.')
     return '\n'.join(lines)
 
 
@@ -369,7 +435,7 @@ def chain_state(agent, n):
     return st
 
 
-def start_chain(agent, n, steps, model, effort, wait=10, feedback=None):
+def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=None):
     """Start chain.py for one issue and wait until it has written its state: (state, None) or (None, why not). The
     first step is checked here as run.py would refuse it; feedback goes to that step."""
     if chain_state(agent, n).get('state') == 'working':
@@ -392,6 +458,8 @@ def start_chain(agent, n, steps, model, effort, wait=10, feedback=None):
         argv += ['--effort', str(effort)]
     if feedback:
         argv += ['--feedback', str(feedback)]
+        if source in SOURCES:
+            argv += ['--from', source]
     err, p = spawn_proc(chain_path(agent, n), os.path.join('agents', agent, 'chain', 'runs', n + '.log'), argv, cwd=os.getcwd())
     if err:
         return None, 'a sequence is already running'

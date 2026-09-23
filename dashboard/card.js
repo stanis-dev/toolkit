@@ -168,16 +168,17 @@
   function Rerun(p){
     var agent=p.agent, num=p.num, fixed=p.step, pre=p.prefill||null;
     var sel=useState(fixed||(pre&&pre.step)||'analysis'), fb=useState(pre&&pre.note||''), touched=useRef(false), msg=useState(null);
+    var src=useState(null), from=src[0]||(pre&&pre.note&&fb[0]===pre.note?'resolver':'ruling');
     useEffect(function(){if(pre&&!touched.current){if(!fixed&&pre.step)sel[1](pre.step);fb[1](pre.note||'')}},[pre&&pre.step,pre&&pre.note]);
     var step=fixed||sel[0];
     function go(later){
       var steps=later?PREP_STEPS.slice(PREP_STEPS.indexOf(step)):[step], text=fb[0].trim();
       msg[1]({cls:'working',text:'starting '+steps.map(function(k){return STEP_SHORT[k]}).join(' → ')});
-      postJSON(later?'chain/'+agent+'/'+num:'run/'+agent+'/'+num+'/'+step,Object.assign(later?{steps:steps}:{},runOpts(),text?{feedback:text}:{})).then(function(r){
+      postJSON(later?'chain/'+agent+'/'+num:'run/'+agent+'/'+num+'/'+step,Object.assign(later?{steps:steps}:{},runOpts(),text?{feedback:text,from:from}:{})).then(function(r){
         if(r.ok){msg[1]({cls:'done',text:'started '+steps.map(function(k){return STEP_SHORT[k]}).join(' → ')});return}
         return errText(r).then(function(t){msg[1]({cls:'failed',text:t})})}).catch(function(){msg[1]({cls:'failed',text:'server unreachable'})});
     }
-    return html`<div class="rrn">${fixed?html`<div class="rrh">${'Rerun '+STEP_LABEL[fixed]}</div>`:html`<label class="rrh">Rerun step <select class="rrs" aria-label="Step to rerun" value=${sel[0]} onChange=${function(e){touched.current=true;sel[1](e.target.value)}}>${PREP_STEPS.map(function(k){return html`<option value=${k}>${STEP_LABEL[k]}</option>`})}</select></label>`}<textarea class="rrf" rows="3" placeholder="Feedback for the step: what its answer got wrong" value=${fb[0]} onInput=${function(e){touched.current=true;fb[1](e.target.value)}}></textarea><div class="rrb"><button type="button" class="rbtn rrgo" title="Rerun this step with the feedback; the branch goes back to where it started" onClick=${function(){go(false)}}>rerun</button><button type="button" class="rbtn rrall" title="Rerun this step with the feedback, then the steps after it" disabled=${step==='context'} onClick=${function(){go(true)}}>rerun + later steps</button></div>${msg[0]?html`<div class=${'rrm '+msg[0].cls}>${msg[0].text}</div>`:null}</div>`;
+    return html`<div class="rrn">${fixed?html`<div class="rrh">${'Rerun '+STEP_LABEL[fixed]}</div>`:html`<label class="rrh">Rerun step <select class="rrs" aria-label="Step to rerun" value=${sel[0]} onChange=${function(e){touched.current=true;sel[1](e.target.value)}}>${PREP_STEPS.map(function(k){return html`<option value=${k}>${STEP_LABEL[k]}</option>`})}</select></label>`}<textarea class="rrf" rows="3" placeholder="Feedback for the step: what its answer got wrong" value=${fb[0]} onInput=${function(e){touched.current=true;fb[1](e.target.value)}}></textarea><label class="rrh">Send as <select class="rrs" aria-label="Whose feedback" value=${from} onChange=${function(e){src[1](e.target.value)}}><option value="resolver">the resolver's claim</option><option value="ruling">my ruling</option></select></label><div class="rrb"><button type="button" class="rbtn rrgo" title="Rerun this step with the feedback; the branch goes back to where it started" onClick=${function(){go(false)}}>rerun</button><button type="button" class="rbtn rrall" title="Rerun this step with the feedback, then the steps after it" disabled=${step==='context'} onClick=${function(){go(true)}}>rerun + later steps</button></div>${msg[0]?html`<div class=${'rrm '+msg[0].cls}>${msg[0].text}</div>`:null}</div>`;
   }
   // A popover hung on document.body under its anchor: a control typed into inside a fold's summary would toggle the fold.
   function Floating(p){
@@ -498,10 +499,33 @@
     function state(){var box=dw.box();if(!box)return null;if(want)return want;var tl=box.querySelector('.tl'),ta=box.querySelector('.comp textarea');return {step:cur.split('/')[2],scroll:tl.scrollTop,bottom:tl.scrollTop+tl.clientHeight>=tl.scrollHeight-40,draft:ta?ta.value:''}}
     function settle(box){if(!want)return;var w=want,tl=box.querySelector('.tl');want=null;tl.scrollTop=w.bottom?tl.scrollHeight:(w.scroll||0);var ta=box.querySelector('.comp textarea');if(ta&&w.draft)ta.value=w.draft}
     function post(agent,num,what,body){return postJSON('chat/'+agent+'/'+num+'/'+what,body)}
+    // A disagreement: the resolver blamed a step, the rerun step disputed points of it, the resolver held them
+    // (review contested). The latest claim, reply and rebuttal side by side, and the engineer's ruling.
+    function contestOf(entries){
+      for(var k=(entries||[]).length-1;k>=0;k--){var e=entries[k]||{};
+        if(e.stage==='review'&&e.state==='ruled')return null;
+        if(e.stage==='review'&&e.state==='contested'){var claim=null;
+          for(var j=k-1;j>=0;j--){var w=entries[j]||{};if(w.stage==='review'&&w.state==='wrong'&&w.step===e.step){claim=w.note;break}}
+          return {step:e.step,held:e.note,claim:claim,t:e.t}}}
+      return null}
+    function Dispute(p){
+      var c=p.c, ans=useStatus('agents/'+p.agent+'/'+c.step+'/'+p.num+'.json',c.t)[0], gap=useState(false), msg=useState(null);
+      var pts=((ans&&ans.feedback)||{}).points||[];
+      function rule(side){msg[1]({cls:'working',text:'sending'});
+        postJSON('rule/'+p.agent+'/'+p.num,{'for':side,gap:gap[0]}).then(function(r){
+          if(r.ok){msg[1]({cls:'done',text:side==='step'?'resolver told the answer stands':STEP_LABEL[c.step]+' rerunning with your ruling'});return}
+          return errText(r).then(function(t){msg[1]({cls:'failed',text:t})})}).catch(function(){msg[1]({cls:'failed',text:'server unreachable'})})}
+      return html`<div class="dsp"><div class="dsh">${'Resolver and '+STEP_LABEL[c.step]+' disagree'}</div>
+        <div class="dsr"><b>Resolver</b><span>${c.claim||''}</span></div>
+        <div class="dsr"><b>${STEP_LABEL[c.step]}</b><span>${pts.map(function(x){return html`<div class=${'dsp-pt '+x.verdict}><span class="v">${x.verdict}</span> ${x.claim}${x.verdict==='disputed'?html`<div class="dsw">${x.why}${x.basis?html`<div class="dsb">${x.basis}</div>`:null}</div>`:null}</div>`})}</span></div>
+        <div class="dsr"><b>Resolver</b><span>${c.held||''}</span></div>
+        <div class="rrb"><button type="button" class="rbtn" onClick=${function(){rule('resolver')}}>Resolver is right</button><button type="button" class="rbtn" onClick=${function(){rule('step')}}>${STEP_LABEL[c.step]+' is right'}</button><label class="dsg"><input type="checkbox" checked=${gap[0]} onChange=${function(e){gap[1](e.target.checked)}}/> skill gap</label></div>
+        ${msg[0]?html`<div class=${'rrm '+msg[0].cls}>${msg[0].text}</div>`:null}</div>`;
+    }
     function RerunBlock(p){
       var S=useStore(), v=((S.res||{})[p.agent]||{})[p.num]||{}, entries=useStatus('agents/'+p.agent+'/resolve/'+p.num+'.stage.json',JSON.stringify(v.stage||null))[0];
-      var blame=entries===undefined?undefined:blameOf(entries);
-      return html`<details class="rrw" open=${!!blame}><summary>Rerun step${blame&&blame.step?html`<span class="rrt">${' · '+STEP_LABEL[blame.step]+' blamed'}</span>`:null}</summary><${Rerun} agent=${p.agent} num=${p.num} prefill=${blame||null}/></details>`;
+      var blame=entries===undefined?undefined:blameOf(entries), c=entries===undefined?null:contestOf(entries);
+      return html`${c?html`<div class="rrw rrn"><${Dispute} agent=${p.agent} num=${p.num} c=${c}/></div>`:null}<details class="rrw" open=${!!blame}><summary>Rerun step${blame&&blame.step?html`<span class="rrt">${' · '+STEP_LABEL[blame.step]+' blamed'}</span>`:null}</summary><${Rerun} agent=${p.agent} num=${p.num} prefill=${blame||null}/></details>`;
     }
     function Panel(p){
       var agent=p.agent, num=p.num, step=p.step, chat=step==='resolve', box=useRef(null), tlRef=useRef(null), ta=useRef(null);

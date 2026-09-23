@@ -269,6 +269,11 @@ main{min-width:0}
 .rrn .rbtn:hover{color:var(--text-primary)} .rrn .rbtn:disabled{opacity:.4;cursor:default}
 .rrn .rrm{font-size:12px;line-height:1.4} .rrn .rrm.failed{color:var(--text-danger)} .rrn .rrm.done{color:var(--text-success)} .rrn .rrm.working{color:var(--text-muted)}
 .sess .rrw{border-top:1px solid var(--border);padding:6px 10px;background:var(--surface-1)}
+.dsp{display:flex;flex-direction:column;gap:6px} .dsp .dsh{font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-warning,var(--text-muted))}
+.dsp .dsr{display:grid;grid-template-columns:92px 1fr;gap:8px;padding-top:6px;border-top:1px solid var(--border);color:var(--text-primary)}
+.dsp .dsr>b{font-weight:600;color:var(--text-secondary)} .dsp .v{font-family:var(--font-mono);font-size:11px;color:var(--text-muted)}
+.dsp .dsp-pt.disputed .v{color:var(--text-danger)} .dsp .dsw{color:var(--text-secondary);margin:2px 0 4px 12px} .dsp .dsb{font-style:italic;color:var(--text-muted)}
+.dsp .dsg{display:flex;align-items:center;gap:4px;font-size:12px}
 .sess .rrw>summary{cursor:pointer;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-muted)}
 .sess .rrw>summary .rrt{text-transform:none;letter-spacing:0;color:var(--text-warning)}
 .sess .rrw[open]>summary{margin-bottom:6px}

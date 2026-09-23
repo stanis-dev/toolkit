@@ -29,11 +29,11 @@
   // and while a prep step reruns, the second line shows the prep steps instead. Sources: GET steps/<agent> "steps" (status files) and "resolve" (stage.py log, runs,
   // live session).
   var STAGES=['review','repro','fix','regressions','merge'];
-  var HEALTH={working:'now',holds:'ok',wrong:'bad',writing:'now',reproduces:'ok','does-not-reproduce':'bad','wrong-reason':'bad',
+  var HEALTH={working:'now',holds:'ok',wrong:'bad',contested:'bad',ruled:'ok',writing:'now',reproduces:'ok','does-not-reproduce':'bad','wrong-reason':'bad',
     applying:'now',solved:'ok',refine:'warn',misguided:'bad',running:'now',found:'warn',fixing:'now',clean:'ok',ready:'ok',merged:'merged'};
-  var WAIT={wrong:1,'does-not-reproduce':1,'wrong-reason':1,refine:1,misguided:1,found:1,ready:1,solved:1};
+  var WAIT={wrong:1,contested:1,'does-not-reproduce':1,'wrong-reason':1,refine:1,misguided:1,found:1,ready:1,solved:1};
   var ICON={review:'ti-eye',repro:'ti-flask',fix:'ti-tool',regressions:'ti-stack-2',merge:'ti-git-merge',misguided:'ti-arrow-back-up',solved:'ti-circle-check',fixing:'ti-repeat',clean:'ti-shield-check'};
-  var LABEL={working:'Reviewing',holds:'Review holds',wrong:'A step is wrong',writing:'Writing repro',reproduces:'Repro is red','does-not-reproduce':'Doesn\'t reproduce',
+  var LABEL={working:'Reviewing',holds:'Review holds',wrong:'A step is wrong',contested:'Disagreement',ruled:'Ruled',writing:'Writing repro',reproduces:'Repro is red','does-not-reproduce':'Doesn\'t reproduce',
     'wrong-reason':'Red for another reason',applying:'Applying fix',solved:'Solved',refine:'Fix needs work',misguided:'Fix misguided',running:'Regression run',
     fixing:'Fixing regressions',clean:'No regressions',ready:'Ready to merge',merged:'Merged'};
   var RUNNING={repro:'Running repro',fix:'Testing fix',regressions:'Regression run'};
@@ -78,6 +78,7 @@
       var BL={analysis:'Analysis',strategy:'Sim strategy',context:'Context edit'};
       var blamed=st.step||(BL[st.note]?st.note:''), rerun=blamed&&(v.ended||{})[blamed]>st.t;
       if(st.state==='wrong')label=(BL[blamed]||'A step')+' is wrong';
+      if(st.state==='contested')label='Resolver and '+(BL[blamed]||'a step').toLowerCase()+' disagree';
       if(st.state==='misguided'&&BL[blamed])label='Fix misguided · '+BL[blamed];
       if(rerun&&(st.state==='wrong'||st.state==='misguided')){label=BL[blamed]+' rerun · review again';cls=''}
       if(cur==='regressions'&&st.state==='running')label='Regression run';

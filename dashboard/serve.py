@@ -22,7 +22,11 @@ POST /kill/<agent>/<n>/<step> sends SIGTERM to the run that status file names; r
 which /steps reports as stopped, as it does a resolution session ended with /stop or whose host is gone.
 POST /chain/<agent>/<n> {steps, model, effort} runs several of setup, analysis, strategy, context and resolve for one
 issue, one after another in that order, each once the one before is done; the first that fails or is stopped ends it,
-and POST /chain/<agent>/<n>/stop ends it after the current step. The sequence runs in chain.py, a process of its own;
+and POST /chain/<agent>/<n>/stop ends it after the current step. Both routes and /run take {from}: resolver, engineer or
+ruling, whose the feedback is (run.py --from).
+POST /rule/<agent>/<n> {for: resolver|step, gap} is the engineer's ruling on an open disagreement (review contested):
+for the resolver the step reruns with the ruling, for the step the resolution session is told the answer stands;
+steps.rule records review ruled and a skill gap in agents/<agent>/skill-gaps.json. The sequence runs in chain.py, a process of its own;
 state in agents/<agent>/chain/<n>.json, and in /steps as "chains".
 POST /run/<agent>/<n>/<step> (analysis, strategy or context) starts the sierra skill's run.py for that issue and step, detached,
 in the issue's worktree; the card's button calls it and then polls agents/<agent>/<step>/<n>.status.json. A runner's own
@@ -88,6 +92,7 @@ BATCHNEW = re.compile(r'^/batchnew/' + A + '$')
 BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
 SYNC = re.compile(r'^/sync/' + A + '$')
 CHAIN = re.compile(r'^/chain/' + A + r'/(\d+)(/stop)?$')
+RULE = re.compile(r'^/rule/' + A + r'/(\d+)$')
 CHAT = re.compile(r'^/chat/' + A + r'/(\d+)/(start|ask|events|send|abort|stop|ui|state)$')
 BOOT = f'{time.time():.3f}'
 
@@ -459,10 +464,16 @@ class H(SimpleHTTPRequestHandler):
             chosen = [x for x in body.get('steps') or [] if x in ORDER]
             if not chosen:
                 self.reply(400, {'error': 'no steps'}); return
-            st, err = steps.start_chain(agent, n, chosen, body.get('model'), body.get('effort'), feedback=str(body.get('feedback') or '').strip() or None)
+            st, err = steps.start_chain(agent, n, chosen, body.get('model'), body.get('effort'), feedback=str(body.get('feedback') or '').strip() or None,
+                                        source=body.get('from'))
             if err:
                 self.reply(409, {'error': err}); return
             self.reply(202, st); return
+        ru = RULE.match(self.path)
+        if ru:
+            body = self.body() or {}
+            st, err = steps.rule(*ru.groups(), body.get('for'), bool(body.get('gap')))
+            self.reply(409, {'error': err}) if err else self.reply(202, st if isinstance(st, dict) else {}); return
         y = SYNC.match(self.path)
         if y:
             agent = y.group(1)
@@ -574,7 +585,7 @@ class H(SimpleHTTPRequestHandler):
             feedback = str(opts.get('feedback') or '').strip()
             if feedback:  # a one-step sequence, so its end reaches the live resolution session as any rerun's does
                 agent, n, step = r.groups()
-                st, err = steps.start_chain(agent, n, [step], opts.get('model'), opts.get('effort'), feedback=feedback)
+                st, err = steps.start_chain(agent, n, [step], opts.get('model'), opts.get('effort'), feedback=feedback, source=opts.get('from'))
                 self.reply(409, {'error': err}) if err else self.reply(202, st); return
             err = start_step(*r.groups(), model=opts.get('model'), effort=opts.get('effort'))
             self.reply(409, {'error': err}) if err else self.reply(202); return

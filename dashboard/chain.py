@@ -2,7 +2,7 @@
 """A sequence: several steps of one issue, one after another, in a process of its own.
 
   chain.py <agent> <n> --steps setup,analysis,strategy,context,resolve [--model <id>] [--effort <level>] [--pages <dir>]
-           [--feedback <text>]
+           [--feedback <text> [--from resolver|engineer|ruling]]
 
 Steps run in the order setup, analysis, strategy, context, resolve, whatever order --steps names them in; each starts
 when the one before is done, and a step that fails, is stopped or cannot start ends the sequence there. The
@@ -33,7 +33,8 @@ def main(argv):
         if os.path.exists(stop):
             state.update(state='stopped', error='stopped from the page'); break
         state['at'] = step; write_json(path, state)
-        err = steps.start_step(agent, n, step, opts.get('--model'), opts.get('--effort'), ask=True, feedback=None if ran else feedback)
+        err = steps.start_step(agent, n, step, opts.get('--model'), opts.get('--effort'), ask=True, feedback=None if ran else feedback,
+                               source=opts.get('--from'))
         if err:
             state.update(state='failed', error=step + ': ' + err); break
         ran.append(step)

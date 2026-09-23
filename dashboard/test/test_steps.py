@@ -179,7 +179,7 @@ class Steps(unittest.TestCase):
         call = self.pi_calls()[-1]
         self.assertFalse(call['cont'])
         self.assertIn('Stand-in sim-strategy instructions.', call['stdin'])
-        self.assertIn('# Feedback on the previous run\n\nName the second question.', call['stdin'])
+        self.assertIn('# Feedback from the engineer on the previous run\n\nName the second question.', call['stdin'])
 
     def test_fresh_run_moves_the_session_aside(self):
         self.run_step('strategy')
@@ -210,6 +210,63 @@ class Steps(unittest.TestCase):
         self.assertIn(f'- `<runs>`: `{os.path.join(self.run_dir, "agents", AG, "context", "runs", N)}`', lane)
         self.assertIn('- `<workspace>`: `hip-900`', lane)
         self.assertIn(f'- `<checkout>`: `{self.wt}`', lane)
+
+
+class Disputes(unittest.TestCase):
+    """A rerun step weighing feedback: run.py's check on its answer, the rerun note with the disputed points, the open
+    disagreement and the engineer's ruling recorded."""
+    def setUp(self):
+        self.old, self.dir = os.getcwd(), os.path.join(HERE, 'run-disputes')
+        shutil.rmtree(self.dir, ignore_errors=True)
+        for d in ('resolve', 'strategy'):
+            os.makedirs(os.path.join(self.dir, 'agents', AG, d))
+        os.chdir(self.dir)
+        sys.path.insert(0, os.path.dirname(HERE))
+        import steps
+        self.steps = steps
+        self.fb = {'verdict': 'partly', 'points': [
+            {'claim': 'Move the edit to item 2.', 'verdict': 'accepted', 'why': 'It decides the turn.', 'basis': None},
+            {'claim': 'Re-ask the seller question.', 'verdict': 'disputed', 'why': 'She had answered it.', 'basis': '«retomá la pregunta pendiente»'}]}
+        json.dump({'ok': True, 'feedback': self.fb}, open(os.path.join('agents', AG, 'strategy', N + '.json'), 'w'))
+
+    def tearDown(self):
+        os.chdir(self.old)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def stage(self, *entries):
+        json.dump([dict(t='2026-09-23T10:0%dZ' % k, stage='review', step='strategy', **e) for k, e in enumerate(entries)],
+                  open(os.path.join('agents', AG, 'resolve', N + '.stage.json'), 'w'))
+
+    def test_run_checks_the_feedback_field(self):
+        sys.path.insert(0, SCRIPTS)
+        import run
+        self.assertTrue(run.feedback_errors({'feedback': None}, 'Fix it.', 'resolver'))
+        self.assertTrue(run.feedback_errors({'feedback': self.fb}, '', None))
+        self.assertTrue(run.feedback_errors({'feedback': self.fb}, 'Fix it.', 'ruling'))
+        self.assertEqual(run.feedback_errors({'feedback': self.fb}, 'Fix it.', 'resolver'), [])
+
+    def test_rerun_note_lists_the_disputed_points(self):
+        note = self.steps.rerun_note(AG, N, ['strategy'])
+        self.assertIn('strategy answered the feedback: partly.', note)
+        self.assertIn('disputed · Re-ask the seller question.', note)
+        self.assertIn('basis: «retomá la pregunta pendiente»', note)
+        self.assertIn('concede it, or hold it with review contested', note)
+
+    def test_ruling_closes_the_disagreement(self):
+        self.stage(dict(state='wrong', note='Re-ask it.'))
+        self.assertEqual(self.steps.contest(AG, N), {})
+        self.assertEqual(self.steps.rule(AG, N, 'step'), (None, 'no open disagreement'))
+        self.stage(dict(state='wrong', note='Re-ask it.'), dict(state='contested', note='She never answered: turn 41.'))
+        c = self.steps.contest(AG, N)
+        self.assertEqual((c['step'], c['held'], [p['claim'] for p in c['disputed']]),
+                         ('strategy', 'She never answered: turn 41.', ['Re-ask the seller question.']))
+        out, err = self.steps.rule(AG, N, 'step', gap=True)
+        self.assertIsNone(err)
+        log = json.load(open(os.path.join('agents', AG, 'resolve', N + '.stage.json')))
+        self.assertEqual((log[-1]['state'], log[-1]['step'], log[-1]['note']), ('ruled', 'strategy', 'for strategy; skill gap'))
+        gaps = json.load(open(os.path.join('agents', AG, 'skill-gaps.json')))
+        self.assertEqual((gaps[0]['n'], gaps[0]['for']), (N, 'step'))
+        self.assertEqual(self.steps.contest(AG, N), {})
 
 
 if __name__ == '__main__':
