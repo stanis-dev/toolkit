@@ -65,10 +65,11 @@
     var crashed=s.resolve==='failed'&&!v.turn;
     if(prepRun||chOn||v.turn==='agent')r.kind='working';
     else if(crashed||(prepBad&&!st&&!v.turn))r.kind='bad';
+    else if(st&&st.state==='merged')r.kind='';
     else if(v.turn==='you'||(st&&!v.turn&&WAIT[st.state]))r.kind=st&&st.state==='ready'?'ready':'you';
     r.who=r.kind==='working'?html`<i class="ti ti-loader-2 spin" title="The agent is working"></i>`:r.kind==='bad'?html`<i class="ti ti-alert-circle bad" title=${crashed?'The resolution session ended with an error':PREP[prepBad]+' failed'}></i>`:(r.kind==='you'||r.kind==='ready')?html`<span class="dot" title="Your turn"></span>`:null;
     if(prepRun||(!st&&!v.turn)){r.l2=prepLine(s,prepRun,prepBad,queued,stale);return r}
-    var bar=v.bar||{}, cur=st?st.stage:'', bars=STAGES.map(function(k){var h=bar[k]?HEALTH[bar[k]]:'';if(k===cur&&v.live)h='now';return html`<i class=${h} title=${k+(bar[k]?': '+bar[k]:'')}></i>`});
+    var bar=v.bar||{}, cur=st?st.stage:'', bars=STAGES.map(function(k){var h=bar[k]?HEALTH[bar[k]]:'';if(h==='now'&&k!==cur)h='ok';if(k===cur&&v.live)h='now';return html`<i class=${h} title=${k+(bar[k]?': '+bar[k]:'')}></i>`});
     var label, icon, cls='', rate=null;
     if(v.live){label=RUNNING[cur]||'Running sims';icon=ICON[cur]||'ti-player-play';rate=Math.max(0,Math.round((Date.now()-Date.parse(v.live))/60000))+' min'}
     else if(st){
