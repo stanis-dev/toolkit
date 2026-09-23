@@ -140,7 +140,7 @@ def checked_out_at(repo, branch):
 def main(argv):
     args = [a for a in argv if not a.startswith("--")]
     opts = {argv[k]: argv[k + 1] for k in range(len(argv) - 1) if argv[k].startswith("--")}
-    if len(args) < 3 or args[0] not in ("create", "delete") or args[1] not in AGENT_DIR or not re.fullmatch(r"\d{4}", args[2]):
+    if len(args) < 3 or args[0] not in ("create", "delete") or args[1] not in AGENT_DIR or not re.fullmatch(r"\d{4}(?:-\d)?", args[2]):
         sys.exit(__doc__)
     pages = os.path.abspath(opts.get("--pages") or os.getcwd())
     repo = os.path.abspath(opts.get("--repo") or os.getcwd())

@@ -83,9 +83,9 @@ RESET = re.compile(r'^/reset/' + A + r'/(\d+)$')
 STEPSTATE = re.compile(r'^/steps/' + A + '$')
 REQUEST = re.compile(r'^/request/' + A + r'/(audit-[A-Z0-9]+)(?:/(auditentry-[A-Z0-9]+))?$')
 CALL = re.compile(r'^/call/' + A + r'/(audit-[A-Z0-9]+)$')
-BATCHBASE = re.compile(r'^/batchbase/' + A + r'/(\d{4})$')
+BATCHBASE = re.compile(r'^/batchbase/' + A + r'/(\d{4}(?:-\d)?)$')
 BATCHNEW = re.compile(r'^/batchnew/' + A + '$')
-BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4})$')
+BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
 SYNC = re.compile(r'^/sync/' + A + '$')
 CHAIN = re.compile(r'^/chain/' + A + r'/(\d+)(/stop)?$')
 CHAT = re.compile(r'^/chat/' + A + r'/(\d+)/(start|ask|events|send|abort|stop|ui|state)$')
@@ -480,8 +480,8 @@ class H(SimpleHTTPRequestHandler):
             agent = bb.group(1)
             batch = bb.group(2) if bb.re is BATCHBASE else str(body.get('batch') or '')
             base = str(body.get('base') or '').strip()
-            if not re.fullmatch(r'\d{4}', batch):
-                self.reply(400, {'error': 'batch is MMDD'}); return
+            if not re.fullmatch(r'\d{4}(?:-\d)?', batch):
+                self.reply(400, {'error': 'batch is MMDD or MMDD-2'}); return
             if not re.fullmatch(r'[\w][\w./-]*', base):
                 self.reply(400, {'error': 'bad branch name'}); return
             if bb.re is BATCHNEW and batch in load_batches(agent):
@@ -498,7 +498,7 @@ class H(SimpleHTTPRequestHandler):
             if body is None:
                 self.send_error(400, 'body is not JSON'); return
             batch = str(body.get('batch') or '')
-            if batch and not re.fullmatch(r'\d{4}', batch):
+            if batch and not re.fullmatch(r'\d{4}(?:-\d)?', batch):
                 self.send_error(400, 'batch is MMDD'); return
             path = os.path.join('agents', agent, 'cards', n + '.html')
             os.makedirs(os.path.dirname(path), exist_ok=True)

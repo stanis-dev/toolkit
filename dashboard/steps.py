@@ -66,7 +66,7 @@ def status_path(agent, n, step):
 
 def card_batch(agent, n):
     try:
-        m = re.match(r'\s*<!--\s*batch:\s*(\d{4})\s*-->', open(os.path.join('agents', agent, 'cards', n + '.html'), encoding='utf-8').read(400))
+        m = re.match(r'\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->', open(os.path.join('agents', agent, 'cards', n + '.html'), encoding='utf-8').read(400))
         return m.group(1) if m else ''
     except OSError:
         return ''

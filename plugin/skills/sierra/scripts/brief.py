@@ -542,7 +542,7 @@ def resolve_brief(agent, n, base, repo, iss):
     ws = st.get("name") if st.get("state") == "done" and st.get("workspace") else None
     baseline = os.path.join(base, "strategy", "runs", str(n), "regressions.json")
     card = os.path.join(base, "cards", f"{n}.html")
-    m = re.match(r"\s*<!--\s*batch:\s*(\d{4})\s*-->", open(card, encoding="utf-8").read(400)) if os.path.exists(card) else None
+    m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(card, encoding="utf-8").read(400)) if os.path.exists(card) else None
     batch = m.group(1) if m else None
     entry = (load(os.path.join(base, "batches.json")) if os.path.exists(os.path.join(base, "batches.json")) else {}).get(batch) or {}
     unset = "none yet: the batch has no worktree and workspace; set it up in the sidebar before merging"
