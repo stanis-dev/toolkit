@@ -123,7 +123,7 @@
   var MODELS=['gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'];
   function fmtK(n){return n>=1000?Math.round(n/1000)+'k':String(n)}
   // in counts every input token the model read, the cached share in brackets; reasoning is part of out.
-  function usageLine(u){return fmtK((u.in||0)+(u.cached||0))+' in'+(u.cached?' ('+fmtK(u.cached)+' cached)':'')+' · '+fmtK(u.out)+' out'+(u.reasoning?' ('+fmtK(u.reasoning)+' reasoning)':'')+(u.cost?' · $'+u.cost.toFixed(2):'')+' · '+(u.commands||0)+' commands'}
+  function usageLine(u){return (u.context?'context '+fmtK(u.context)+' · ':'')+fmtK((u.in||0)+(u.cached||0))+' in'+(u.cached?' ('+fmtK(u.cached)+' cached)':'')+' · '+fmtK(u.out)+' out'+(u.reasoning?' ('+fmtK(u.reasoning)+' reasoning)':'')+(u.cost?' · $'+u.cost.toFixed(2):'')+' · '+(u.commands||0)+' commands'}
   function getJSON(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
   function postJSON(u,body){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})})}
   function errText(r){return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}return j.error||(/<p>Message: ([^<]*)/.exec(t)||[])[1]||(t||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().split('.')[0]||('server said '+r.status)})}

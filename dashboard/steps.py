@@ -321,12 +321,13 @@ def stale_states(agent):
 
 def add_usage(u, ev):
     """Adds one event's tokens and cost to u: an assistant message_end brings its usage, a tool_execution_end counts
-    one command. The same sums run.py keeps for the three answers."""
+    one command, and context is the latest call's whole input. The same sums run.py keeps for the three answers."""
     if ev.get('type') == 'message_end' and (ev.get('message') or {}).get('role') == 'assistant':
         x = ev['message'].get('usage') or {}
         for k, f in (('in', 'input'), ('cached', 'cacheRead'), ('out', 'output'), ('reasoning', 'reasoning')):
             u[k] = u.get(k, 0) + (x.get(f) or 0)
         u['cost'] = round(u.get('cost', 0) + ((x.get('cost') or {}).get('total') or 0), 6)
+        u['context'] = (x.get('input') or 0) + (x.get('cacheRead') or 0)
         return True
     if ev.get('type') == 'tool_execution_end':
         u['commands'] = u.get('commands', 0) + 1
