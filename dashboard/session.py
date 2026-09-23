@@ -3,6 +3,10 @@
 restart without ending it.
 
   session.py <agent> <n> [--model <id>] [--effort <level>] [--ask] [--resume] [--pages <dir>] [--repo <dir>]
+  session.py <agent> <batch> --kind driver [--model <id>] [--effort <level>] [--resume] [--pages <dir>]
+
+--kind driver hosts the batch driver instead: the batch-driver skill after brief.py --batch <batch> as the first prompt,
+in the batch's worktree, everything under agents/<agent>/driver/ in place of resolve/, keyed by the batch.
 
 Starts pi in the issue's worktree with the step's brief (brief.py --step resolve) as the first prompt; with --ask the
 issue-resolution skill text follows the brief in that prompt. --resume starts pi on the session file of the last
@@ -24,6 +28,9 @@ PROVIDER = os.environ.get('SIERRA_RUN_PROVIDER') or 'openai-codex'
 SYSTEM = ('You work one issue of a Sierra voice agent with an engineer. The first message is the issue\'s brief: '
           'where things live, the issue and the step answers so far. Until a message brings the resolution '
           'instructions, answer the engineer from the brief and the files and change nothing.')
+KINDS = {'resolve': ('resolve', 'issue-resolution', SYSTEM),
+         'driver': ('driver', 'batch-driver', 'You drive one batch of issues of a Sierra voice agent with an engineer. The first message is the '
+                    'batch\'s brief and your instructions. Do only the step the engineer asks for, then report and stop.')}
 
 
 class Refused(Exception):
@@ -31,9 +38,10 @@ class Refused(Exception):
 
 
 class Host:
-    def __init__(self, agent, n, repo, model, effort):
-        self.agent, self.n, self.repo, self.model, self.effort = agent, n, repo, model, effort
-        self.base = os.path.join(os.getcwd(), 'agents', agent, 'resolve')
+    def __init__(self, agent, n, repo, model, effort, kind='resolve'):
+        self.agent, self.n, self.repo, self.model, self.effort, self.kind = agent, n, repo, model, effort, kind
+        self.folder, self.skill_name, self.system = KINDS[kind]
+        self.base = os.path.join(os.getcwd(), 'agents', agent, self.folder)
         self.runs = os.path.join(self.base, 'runs', n)
         self.status_path = os.path.join(self.base, n + '.status.json')
         self.log_path = os.path.join(self.runs, 'out.jsonl')
@@ -45,8 +53,8 @@ class Host:
         self.proc = None
 
     def skill(self):
-        """The issue-resolution skill text without its frontmatter, kept in ask.md."""
-        skill = open(os.path.join(steps.SCRIPTS, '..', '..', 'issue-resolution', 'SKILL.md'), encoding='utf-8').read()
+        """The kind's skill text without its frontmatter, kept in ask.md."""
+        skill = open(os.path.join(steps.SCRIPTS, '..', '..', self.skill_name, 'SKILL.md'), encoding='utf-8').read()
         skill = re.sub(r'\A---\n.*?\n---\n', '', skill, flags=re.S)
         open(os.path.join(self.runs, 'ask.md'), 'w', encoding='utf-8').write(skill)
         return skill
@@ -62,8 +70,9 @@ class Host:
                 raise Refused('nothing to resume: no session file in ' + self.session_dir)
             self.opening = None
         else:
-            brief = subprocess.run([sys.executable, os.path.join(steps.SCRIPTS, 'brief.py'), self.agent, self.n, '--step', 'resolve',
-                                    '--pages', os.getcwd(), '--repo', self.repo], capture_output=True, text=True)
+            which = ['--batch', self.n] if self.kind == 'driver' else [self.n, '--step', 'resolve']
+            brief = subprocess.run([sys.executable, os.path.join(steps.SCRIPTS, 'brief.py'), self.agent] + which +
+                                   ['--pages', os.getcwd(), '--repo', self.repo], capture_output=True, text=True)
             if brief.returncode != 0:
                 raise Refused('brief: ' + brief.stderr.strip()[-600:])
             self.opening = brief.stdout + ('\n\n' + self.skill() if ask else '')
@@ -102,15 +111,15 @@ class Host:
     def start(self, resume):
         commit = subprocess.run(['git', '-C', self.repo, 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True).stdout.strip()
         cmd = [PI, '--mode', 'rpc', '--no-skills', '--no-extensions', '--no-context-files', '--no-prompt-templates',
-               '--system-prompt', SYSTEM, '--session-dir', self.session_dir, '--thinking', self.effort, '--model', f'{PROVIDER}/{self.model}']
+               '--system-prompt', self.system, '--session-dir', self.session_dir, '--thinking', self.effort, '--model', f'{PROVIDER}/{self.model}']
         if resume:
             cmd.append('--continue')
-        open(os.path.join(self.runs, 'system.md'), 'w', encoding='utf-8').write(SYSTEM)
+        open(os.path.join(self.runs, 'system.md'), 'w', encoding='utf-8').write(self.system)
         self.log = open(self.log_path, 'a', encoding='utf-8')
         self.err = open(os.path.join(self.runs, 'err.log'), 'a' if resume else 'w')
         self.proc = subprocess.Popen(cmd, cwd=self.repo, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.err,
                                      text=True, encoding='utf-8', errors='replace', bufsize=1)
-        self.status = {'step': 'resolve', 'state': 'working', 'started': now(), 'ended': None, 'seconds': None, 'commit': commit,
+        self.status = {'step': self.folder, 'state': 'working', 'started': now(), 'ended': None, 'seconds': None, 'commit': commit,
                        'model': self.model, 'effort': self.effort, 'pid': os.getpid(), 'pi': self.proc.pid, 'thread': None,
                        'usage': dict(self.usage), 'usage_all': self.total(), 'live': None, 'error': None, 'asked': self.ask_at,
                        'turn': 'you', 'simrun': None, 'resumed': now() if resume else None}
@@ -164,9 +173,10 @@ class Host:
                           state='done' if rc == 0 else 'failed', ended=now(),
                           error=None if rc == 0 else 'stopped from the page' if self.stopping else f'pi exit {rc}',
                           seconds=round((datetime.now(timezone.utc) - started).total_seconds()))
-        sys.path.insert(0, steps.SCRIPTS)
-        import ledger
-        ledger.add(os.getcwd(), self.agent, self.n, ledger.entry(self.status['ended'], 'resolve', self.status, self.usage))
+        if self.kind == 'resolve':
+            sys.path.insert(0, steps.SCRIPTS)
+            import ledger
+            ledger.add(os.getcwd(), self.agent, self.n, ledger.entry(self.status['ended'], 'resolve', self.status, self.usage))
         self.emit({'type': 'exit', 'code': rc})
         self.ended = True
         try:
@@ -284,12 +294,15 @@ def main(argv):
     if len(args) != 2:
         sys.exit(__doc__)
     agent, n = args
+    kind = opts.get('--kind') or 'resolve'
+    if kind not in KINDS:
+        sys.exit(__doc__)
     os.chdir(os.path.abspath(opts.get('--pages') or os.path.dirname(os.path.abspath(__file__))))
-    repo = opts.get('--repo') or steps.repo_of(agent, n)
-    host = Host(agent, n, repo, opts.get('--model') or 'gpt-5.6-terra', opts.get('--effort') or 'high')
+    repo = opts.get('--repo') or (steps.batch_worktree(agent, n) if kind == 'driver' else steps.repo_of(agent, n))
+    host = Host(agent, n, repo, opts.get('--model') or 'gpt-5.6-terra', opts.get('--effort') or 'high', kind)
     try:
         if not repo:
-            raise Refused('no worktree: set the issue up first')
+            raise Refused('no worktree: set the batch up first' if kind == 'driver' else 'no worktree: set the issue up first')
         host.prepare('--ask' in flags, '--resume' in flags)
         host.start('--resume' in flags)
     except (Refused, OSError) as ex:

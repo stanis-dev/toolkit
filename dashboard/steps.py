@@ -93,14 +93,21 @@ def repo_of(agent, n):
     return None
 
 
-def session_dir(agent, n):
-    return os.path.join('agents', agent, 'resolve', 'runs', n, 'session')
+def session_dir(agent, n, kind='resolve'):
+    return os.path.join('agents', agent, kind, 'runs', n, 'session')
 
 
-def resumable(agent, n):
-    """A resolution session that ended without finishing (stopped, crashed, host gone) and left pi's session file."""
-    st = settle(status_path(agent, n, 'resolve'))
-    d = session_dir(agent, n)
+def batch_worktree(agent, batch):
+    """The batch's worktree from batches.json, None when it has none on disk."""
+    wt = (load_batches(agent).get(batch) or {}).get('worktree')
+    return wt if wt and os.path.isdir(wt) else None
+
+
+def resumable(agent, n, kind='resolve'):
+    """A session (resolution, or with kind driver the batch driver's) that ended without finishing (stopped, crashed,
+    host gone) and left pi's session file."""
+    st = settle(status_path(agent, n, kind))
+    d = session_dir(agent, n, kind)
     return st.get('state') == 'failed' and os.path.isdir(d) and any(f.endswith('.jsonl') for f in os.listdir(d))
 
 
@@ -127,21 +134,23 @@ def spawn_proc(status, log_path, argv, cwd=None):
     return None, p
 
 
-def start_session(agent, n, model, effort, repo, ask=False, resume=False, wait=60):
-    """Start session.py, the resolution's own host process, and wait until it holds the session or gives up: None
-    when it runs, else its reason (the brief failed, nothing to resume)."""
-    runs = os.path.join('agents', agent, 'resolve', 'runs', n)
+def start_session(agent, n, model, effort, repo, ask=False, resume=False, wait=60, kind='resolve'):
+    """Start session.py, the resolution's own host process (with kind driver, the batch driver's, n the batch), and
+    wait until it holds the session or gives up: None when it runs, else its reason (the brief failed, nothing to
+    resume)."""
+    runs = os.path.join('agents', agent, kind, 'runs', n)
     os.makedirs(runs, exist_ok=True)
     err_path = os.path.join(runs, 'start.err')
     if os.path.exists(err_path):
         os.remove(err_path)
-    argv = [os.path.join(HERE, 'session.py'), agent, n, '--model', model, '--effort', effort, '--pages', os.getcwd(), '--repo', repo]
-    err, p = spawn_proc(status_path(agent, n, 'resolve'), os.path.join(runs, 'host.log'), argv + (['--ask'] if ask else []) + (['--resume'] if resume else []), cwd=os.getcwd())
+    argv = [os.path.join(HERE, 'session.py'), agent, n, '--model', model, '--effort', effort, '--pages', os.getcwd(), '--repo', repo,
+            '--kind', kind]
+    err, p = spawn_proc(status_path(agent, n, kind), os.path.join(runs, 'host.log'), argv + (['--ask'] if ask else []) + (['--resume'] if resume else []), cwd=os.getcwd())
     if err:
         return err
     t0 = time.time()
     while time.time() - t0 < wait:
-        st = load_json(status_path(agent, n, 'resolve'), {})
+        st = load_json(status_path(agent, n, kind), {})
         if st.get('pid') == p.pid and (st.get('state') == 'working' or (p.poll() is not None and not os.path.exists(err_path))):
             return None
         if p.poll() is not None:
@@ -151,6 +160,21 @@ def start_session(agent, n, model, effort, repo, ask=False, resume=False, wait=6
                 return f'session host exit {p.returncode}'
         time.sleep(0.1)
     return 'the session host did not start in time'
+
+
+def start_driver(agent, batch, model=None, effort=None, resume=False):
+    """Start the batch driver's session for one batch: None when it runs, else why not."""
+    model, effort = str(model or 'gpt-5.6-terra'), str(effort or 'high')
+    if not re.fullmatch(r'[\w.-]+', model) or not re.fullmatch(r'[\w-]+', effort):
+        return 'bad model or effort'
+    wt = batch_worktree(agent, batch)
+    if not wt:
+        return 'batch ' + batch + ' has no worktree: set it up first'
+    if settle(status_path(agent, batch, 'driver')).get('state') == 'working':
+        return 'the driver is already running'
+    if resume and not resumable(agent, batch, 'driver'):
+        return 'nothing to resume: no stopped driver with a session file'
+    return start_session(agent, batch, model, effort, wt, ask=not resume, resume=resume, kind='driver')
 
 
 def stepgit():
@@ -212,10 +236,11 @@ def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False,
                       + (['--feedback', feedback] if feedback else []) + (['--from', source] if feedback and source else []), cwd=repo)[0]
 
 
-def host_call(agent, n, req, timeout=15):
-    """One command to the issue's session host over its socket: its reply, or {"error"} when no host listens."""
-    path = os.path.join('agents', agent, 'resolve', 'runs', n, 'sock')
-    if settle(status_path(agent, n, 'resolve')).get('state') != 'working' or not os.path.exists(path):
+def host_call(agent, n, req, timeout=15, kind='resolve'):
+    """One command to the issue's session host (with kind driver, the batch driver's) over its socket: its reply, or
+    {"error"} when no host listens."""
+    path = os.path.join('agents', agent, kind, 'runs', n, 'sock')
+    if settle(status_path(agent, n, kind)).get('state') != 'working' or not os.path.exists(path):
         return {'error': 'no session: start it first' if req.get('cmd') == 'ask' else 'not running'}
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.settimeout(timeout)

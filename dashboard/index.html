@@ -29,11 +29,11 @@
   // and while a prep step reruns, the second line shows the prep steps instead. Sources: GET steps/<agent> "steps" (status files) and "resolve" (stage.py log, runs,
   // live session).
   var STAGES=['review','repro','fix','regressions','merge'];
-  var HEALTH={working:'now',holds:'ok',wrong:'bad',contested:'bad',ruled:'ok',writing:'now',reproduces:'ok','does-not-reproduce':'bad','wrong-reason':'bad',
+  var HEALTH={working:'now',holds:'ok',wrong:'bad',contested:'bad',ruled:'ok',reopened:'warn',writing:'now',reproduces:'ok','does-not-reproduce':'bad','wrong-reason':'bad',
     applying:'now',solved:'ok',refine:'warn',misguided:'bad',running:'now',found:'warn',fixing:'now',clean:'ok',ready:'ok',merged:'merged'};
-  var WAIT={wrong:1,contested:1,'does-not-reproduce':1,'wrong-reason':1,refine:1,misguided:1,found:1,ready:1,solved:1};
+  var WAIT={wrong:1,contested:1,reopened:1,'does-not-reproduce':1,'wrong-reason':1,refine:1,misguided:1,found:1,ready:1,solved:1};
   var ICON={review:'ti-eye',repro:'ti-flask',fix:'ti-tool',regressions:'ti-stack-2',merge:'ti-git-merge',misguided:'ti-arrow-back-up',solved:'ti-circle-check',fixing:'ti-repeat',clean:'ti-shield-check'};
-  var LABEL={working:'Reviewing',holds:'Review holds',wrong:'A step is wrong',contested:'Disagreement',ruled:'Ruled',writing:'Writing repro',reproduces:'Repro is red','does-not-reproduce':'Doesn\'t reproduce',
+  var LABEL={working:'Reviewing',holds:'Review holds',wrong:'A step is wrong',contested:'Disagreement',ruled:'Ruled',reopened:'Reopened by its batch',writing:'Writing repro',reproduces:'Repro is red','does-not-reproduce':'Doesn\'t reproduce',
     'wrong-reason':'Red for another reason',applying:'Applying fix',solved:'Solved',refine:'Fix needs work',misguided:'Fix misguided',running:'Regression run',
     fixing:'Fixing regressions',clean:'No regressions',ready:'Ready to merge',merged:'Merged'};
   var RUNNING={repro:'Running repro',fix:'Testing fix',regressions:'Regression run'};
@@ -152,7 +152,7 @@
       open[x.name]=!open[x.name];draw();
     }
     return html`<div class=${'grp'+(open[x.name]?' open':'')+(x.name===NONE?' none':'')} data-g=${x.name}>
-      <div class="row" onClick=${click}><i class="ti ti-chevron-right" aria-hidden="true"></i><span class="nm">${x.name===NONE?x.name:'Batch '+x.name}${you?html`<span class="pdot" title="An issue here needs you"></span>`:null}${cost?html`<span class="bcost" title="Spent on this batch's issues so far">${money(cost)}</span>`:null}</span>${x.name===NONE||q.b?html`<span class="cnt">${x.issues.length}</span>`:html`<a class="cnt" href=${href({a:a,b:x.name})} title="Review this batch">${x.issues.length}</a>`}${x.name===NONE?null:html`<${BatchLine} a=${a} b=${x.name} e=${(d.batches||{})[x.name]||{}} count=${x.issues.length}/>`}</div>
+      <div class="row" onClick=${click}><i class="ti ti-chevron-right" aria-hidden="true"></i><span class="nm">${x.name===NONE?x.name:'Batch '+x.name}${you?html`<span class="pdot" title="An issue here needs you"></span>`:null}${cost?html`<span class="bcost" title="Spent on this batch's issues so far">${money(cost)}</span>`:null}</span>${x.name===NONE||q.b?html`<span class="cnt">${x.issues.length}</span>`:html`<a class="cnt" href=${href({a:a,b:x.name})} title="Review this batch">${x.issues.length}</a>`}${x.name===NONE?null:html`<a class="sbtn bdrv" href=${href({a:a,d:x.name})} title="The batch after its cards: align, combined check, driver" aria-label=${'Batch '+x.name+' view'} onClick=${function(ev){ev.stopPropagation()}}><i class="ti ti-route" aria-hidden="true"></i></a>`}${x.name===NONE?null:html`<${BatchLine} a=${a} b=${x.name} e=${(d.batches||{})[x.name]||{}} count=${x.issues.length}/>`}</div>
       <div class="items">${x.issues.map(function(i){return html`<${Row} key=${i.num} a=${a} i=${i} q=${q} active=${p.cur===i}/>`})}</div></div>`;
   }
   // Selection: the list-check button turns the sidebar into a picker; a click on a card toggles it, a click on a batch row
@@ -264,6 +264,8 @@
     var open=ui.open[a]=ui.open[a]||{};
     Cards.load(a).then(function(d){
       if(ui.agent!==a)return; ui.data=d; ui.err=null;
+      if(q.d){draw();if(cardv.dataset.bv!==a+'/'+q.d){shown.body=null;shown.nav=null;rnav.innerHTML='';Cards.closeDrawers();ui.lastView='batch/'+q.d;Cards.batchView(cardv,a,q.d);cardv.dataset.bv=a+'/'+q.d}return}
+      delete cardv.dataset.bv;
       var cur=q.i?d.issues[+q.i]:null;
       if(q.b&&(!cur||cur.batch!==q.b)){var first=d.list.filter(function(i){return i.batch===q.b}).sort(function(x,y){return y.num-x.num})[0];if(first){location.replace(href({a:a,b:q.b,i:first.num}));return}}
       draw();

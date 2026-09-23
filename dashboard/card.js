@@ -498,7 +498,8 @@
     function close(){dw.close();cur=null;want=null}
     function state(){var box=dw.box();if(!box)return null;if(want)return want;var tl=box.querySelector('.tl'),ta=box.querySelector('.comp textarea');return {step:cur.split('/')[2],scroll:tl.scrollTop,bottom:tl.scrollTop+tl.clientHeight>=tl.scrollHeight-40,draft:ta?ta.value:''}}
     function settle(box){if(!want)return;var w=want,tl=box.querySelector('.tl');want=null;tl.scrollTop=w.bottom?tl.scrollHeight:(w.scroll||0);var ta=box.querySelector('.comp textarea');if(ta&&w.draft)ta.value=w.draft}
-    function post(agent,num,what,body){return postJSON('chat/'+agent+'/'+num+'/'+what,body)}
+    // The resolution's session lives under chat/<agent>/<n>/, the batch driver's under driver/<agent>/<batch>/.
+    function post(agent,num,what,body,step){return postJSON((step==='driver'?'driver/':'chat/')+agent+'/'+num+'/'+what,body)}
     // A disagreement: the resolver blamed a step, the rerun step disputed points of it, the resolver held them
     // (review contested). The latest claim, reply and rebuttal side by side, and the engineer's ruling.
     function contestOf(entries){
@@ -522,13 +523,18 @@
         <div class="rrb"><button type="button" class="rbtn" onClick=${function(){rule('resolver')}}>Resolver is right</button><button type="button" class="rbtn" onClick=${function(){rule('step')}}>${STEP_LABEL[c.step]+' is right'}</button><label class="dsg"><input type="checkbox" checked=${gap[0]} onChange=${function(e){gap[1](e.target.checked)}}/> skill gap</label></div>
         ${msg[0]?html`<div class=${'rrm '+msg[0].cls}>${msg[0].text}</div>`:null}</div>`;
     }
+    // What a batch's check sent back to this card: newest first, the evidence behind a fold.
+    function Reopened(p){
+      var log=useStatus('agents/'+p.agent+'/resolve/'+p.num+'.reopen.json',p.k)[0]||[];
+      if(!log.length)return null;
+      return html`<div class="rrw rrn rop"><div class="dsh">${'Reopened by batch '+log[log.length-1].batch}</div>${log.slice().reverse().map(function(e,k){return html`<details open=${k===0}><summary>${'batch '+e.batch+' · '+String(e.t||'').replace('T',' ').replace('Z',' UTC')}</summary><pre>${e.evidence}</pre></details>`})}</div>`}
     function RerunBlock(p){
       var S=useStore(), v=((S.res||{})[p.agent]||{})[p.num]||{}, entries=useStatus('agents/'+p.agent+'/resolve/'+p.num+'.stage.json',JSON.stringify(v.stage||null))[0];
       var blame=entries===undefined?undefined:blameOf(entries), c=entries===undefined?null:contestOf(entries);
-      return html`${c?html`<div class="rrw rrn"><${Dispute} agent=${p.agent} num=${p.num} c=${c}/></div>`:null}<details class="rrw" open=${!!blame}><summary>Rerun step${blame&&blame.step?html`<span class="rrt">${' · '+STEP_LABEL[blame.step]+' blamed'}</span>`:null}</summary><${Rerun} agent=${p.agent} num=${p.num} prefill=${blame||null}/></details>`;
+      return html`<${Reopened} agent=${p.agent} num=${p.num} k=${JSON.stringify(v.stage||null)}/>${c?html`<div class="rrw rrn"><${Dispute} agent=${p.agent} num=${p.num} c=${c}/></div>`:null}<details class="rrw" open=${!!blame}><summary>Rerun step${blame&&blame.step?html`<span class="rrt">${' · '+STEP_LABEL[blame.step]+' blamed'}</span>`:null}</summary><${Rerun} agent=${p.agent} num=${p.num} prefill=${blame||null}/></details>`;
     }
     function Panel(p){
-      var agent=p.agent, num=p.num, step=p.step, chat=step==='resolve', box=useRef(null), tlRef=useRef(null), ta=useRef(null);
+      var agent=p.agent, num=p.num, step=p.step, drv=step==='driver', chat=step==='resolve'||drv, box=useRef(null), tlRef=useRef(null), ta=useRef(null);
       var s=useState({}), info=s[0], n=useState(0), bump=n[1], stick=useRef(true), feed=useRef(null);
       // what the files say, read again every 2 s while the run works
       useEffect(function(){var live=true,timer=null,base='agents/'+agent+'/'+step+'/',runs=base+'runs/'+num+'/';
@@ -539,7 +545,7 @@
           if(r[0]&&r[0].state==='working')timer=setTimeout(tick,2000)})}
         tick(); return function(){live=false;if(timer)clearTimeout(timer)}},[]);
       // the resolution's event stream, folded into one timeline as lines land; repainted at most every 120 ms
-      useEffect(function(){if(!chat)return;var tl=PiTimeline(),pt=null,src=new EventSource('chat/'+agent+'/'+num+'/events');feed.current={tl:tl,ready:false,any:false};
+      useEffect(function(){if(!chat)return;var tl=PiTimeline(),pt=null,src=new EventSource((drv?'driver/':'chat/')+agent+'/'+num+'/events');feed.current={tl:tl,ready:false,any:false};
         function schedule(){if(pt)return;pt=setTimeout(function(){pt=null;var el=tlRef.current;if(el)stick.current=el.scrollTop+el.clientHeight>=el.scrollHeight-40;bump(function(k){return k+1})},120)}
         src.onmessage=function(e){feed.current.any=true;tl.push(e.data);schedule()};
         src.addEventListener('ready',function(){feed.current.ready=true;schedule()});
@@ -561,16 +567,16 @@
           function part(label,tx){return '<div class="pl">'+esc(label)+(tx==null?' · not recorded':' · '+fmtK(tx.length)+' chars')+'</div>'+(tx==null?'':'<pre>'+esc(tx)+'</pre>')}
           prm[1](st?part('System prompt',sys)+part(chat?'First message':'Message',msg)+(ask&&msg!=null&&msg.indexOf(ask.slice(0,400))<0?part('Resolution instructions · sent '+String(st.asked).replace('T',' ').replace('Z',' UTC'),ask):''):'<div class="pl">no run yet</div>')});
         return function(){live=false}},[pk,st===undefined]);
-      function send(mode){var el=ta.current,text=el.value.trim();if(!text)return;el.disabled=true;post(agent,num,'send',mode?{message:text,mode:mode}:{message:text}).then(function(r){el.disabled=false;if(r.ok){el.value='';el.focus()}else errText(r).then(function(t){alertRow('server said '+r.status+' '+t)})}).catch(function(){el.disabled=false})}
+      function send(mode){var el=ta.current,text=el.value.trim();if(!text)return;el.disabled=true;post(agent,num,'send',mode?{message:text,mode:mode}:{message:text},step).then(function(r){el.disabled=false;if(r.ok){el.value='';el.focus()}else errText(r).then(function(t){alertRow('server said '+r.status+' '+t)})}).catch(function(){el.disabled=false})}
       function alertRow(msg){if(feed.current){feed.current.tl.push(JSON.stringify({type:'error',message:msg,t:new Date().toISOString()}));bump(function(k){return k+1})}}
       function uiClick(e){var b=e.target.closest('button.uib');if(!b)return;var d=b.dataset,an={id:d.id};
         if(d.kind==='confirm')an.confirmed=d.val==='yes'; else if(d.kind==='cancel')an.cancelled=true; else if(d.kind==='select')an.value=d.val; else if(d.kind==='input'){var inp=b.parentElement.querySelector('input');an.value=inp?inp.value:''}
-        Array.prototype.forEach.call(b.parentElement.querySelectorAll('button'),function(x){x.disabled=true}); post(agent,num,'ui',an)}
-      var empty=chat?html`<div class="ev sys"><span class="t"></span><span class="b">no session yet · press play in the Resolution header</span></div>`:html`<div class="ev sys"><span class="t"></span><span class="b">no events</span></div>`;
-      return html`<aside class=${'sess'+(chat?' chat':'')} role="dialog" aria-label="Session details" ref=${box}><header><span class="ttl">${'#'+num+' · '+(STEP_LABEL[step]||step)}</span><span class=${st===undefined?'st':'st chip '+(st?st.state:'')}>${st?st.state:st===null?'no run yet':''}</span><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header><div class="hd2" dangerouslySetInnerHTML=${{__html:hd}}></div><details class="prm"><summary>Prompt</summary><div class="pp" dangerouslySetInnerHTML=${{__html:prm[0]||''}}></div></details>
+        Array.prototype.forEach.call(b.parentElement.querySelectorAll('button'),function(x){x.disabled=true}); post(agent,num,'ui',an,step)}
+      var empty=chat?html`<div class="ev sys"><span class="t"></span><span class="b">${drv?'no session yet · press play on the batch view':'no session yet · press play in the Resolution header'}</span></div>`:html`<div class="ev sys"><span class="t"></span><span class="b">no events</span></div>`;
+      return html`<aside class=${'sess'+(chat?' chat':'')} role="dialog" aria-label="Session details" ref=${box}><header><span class="ttl">${drv?'Batch '+num+' · driver':'#'+num+' · '+(STEP_LABEL[step]||step)}</span><span class=${st===undefined?'st':'st chip '+(st?st.state:'')}>${st?st.state:st===null?'no run yet':''}</span><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header><div class="hd2" dangerouslySetInnerHTML=${{__html:hd}}></div><details class="prm"><summary>Prompt</summary><div class="pp" dangerouslySetInnerHTML=${{__html:prm[0]||''}}></div></details>
         <div class="tl" ref=${tlRef} onClick=${chat?uiClick:null}>${rows.length?rows.map(function(r,k){return html`<${Ev} key=${k} r=${r} t0=${t0}/>`}):(chat?(ready?empty:null):info.rows?empty:null)}${wait?html`<div class="ev sys wait"><span class="t"></span><i class="ti ti-hourglass" aria-hidden="true"></i><span class="b">${'waiting on the model · '+Math.round((Date.now()-info.last)/1000)} s since the last event</span></div>`:null}</div>
-        ${chat?html`<${RerunBlock} agent=${agent} num=${num}/>`:null}
-        ${chat?html`<form class="comp" onSubmit=${function(e){e.preventDefault();send()}}><textarea rows="3" ref=${ta} placeholder="Message the agent · Enter sends, Shift+Enter for a new line" onKeyDown=${function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}></textarea><div class="cbtns"><button type="submit" class="rbtn send" title="Send now; while the agent runs it is delivered before its next model call">send</button><button type="button" class="rbtn later" title="Deliver when the agent finishes" onClick=${function(){send('follow_up')}}>after this</button><button type="button" class="rbtn askb" title="Send the resolution instructions: review the answers, guard red, apply, guard green, report" disabled=${sent||note[0]==='sending'||!(st&&st.state==='working')} onClick=${function(){note[1]('sending');post(agent,num,'ask').then(function(r){if(r.ok)note[1]('sent');else{note[1](null);errText(r).then(function(t){alertRow('server said '+r.status+' '+t)})}}).catch(function(){note[1](null)})}}>${sent||note[0]==='sent'?'resolution sent':'resolution'}</button><span class="sp"></span><button type="button" class="rbtn kbtn abort" title="Interrupt the current turn" onClick=${function(){post(agent,num,'abort')}}>interrupt</button></div></form>`:null}
+        ${chat&&!drv?html`<${RerunBlock} agent=${agent} num=${num}/>`:null}
+        ${chat?html`<form class="comp" onSubmit=${function(e){e.preventDefault();send()}}><textarea rows="3" ref=${ta} placeholder="Message the agent · Enter sends, Shift+Enter for a new line" onKeyDown=${function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}></textarea><div class="cbtns"><button type="submit" class="rbtn send" title="Send now; while the agent runs it is delivered before its next model call">send</button><button type="button" class="rbtn later" title="Deliver when the agent finishes" onClick=${function(){send('follow_up')}}>after this</button>${drv?null:html`<button type="button" class="rbtn askb" title="Send the resolution instructions: review the answers, guard red, apply, guard green, report" disabled=${sent||note[0]==='sending'||!(st&&st.state==='working')} onClick=${function(){note[1]('sending');post(agent,num,'ask').then(function(r){if(r.ok)note[1]('sent');else{note[1](null);errText(r).then(function(t){alertRow('server said '+r.status+' '+t)})}}).catch(function(){note[1](null)})}}>${sent||note[0]==='sent'?'resolution sent':'resolution'}</button>`}<span class="sp"></span><button type="button" class="rbtn kbtn abort" title="Interrupt the current turn" onClick=${function(){post(agent,num,'abort',null,step)}}>interrupt</button></div></form>`:null}
         <details class="ans" hidden=${!ans}><summary>Answer</summary><pre>${ans||''}</pre></details><details class="errl" hidden=${!tail}><summary>stderr</summary><pre>${tail}</pre></details></aside>`;
     }
     function toggle(agent,num,step,keep,restore){step=step||'analysis';var k=agent+'/'+num+'/'+step; if(dw.box()&&cur===k){if(!keep)close();return} close(); cur=k; want=restore||null;
@@ -578,6 +584,39 @@
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
     return {toggle:toggle,close:close,state:state};
   })();
+  // The batch after its cards are done: the driver's stage per step, its session, the main workspace, the cards and the
+  // latest combined check against the one before it. GET driver/<agent>/<batch>/check, again every 3 s.
+  var DSTAGES=['align','check','sort','route','pr'], DHEALTH={working:'now',done:'ok',conflict:'bad',running:'now',clean:'ok',found:'warn',sent:'now',waiting:'now',back:'ok',written:'now',pushed:'ok'};
+  function BatchView(p){
+    var agent=p.agent, batch=p.batch, d=useState(null), n=useState(0), note=useState(null);
+    useEffect(function(){var live=true,t=null;function tick(){getJSON('driver/'+agent+'/'+batch+'/check').then(function(x){if(!live)return;d[1](x);t=setTimeout(tick,3000)})}tick();return function(){live=false;if(t)clearTimeout(t)}},[agent,batch]);
+    var st=useStatus('agents/'+agent+'/driver/'+batch+'.status.json',n[0])[0], x=d[0];
+    if(!x)return html`<div class="bv"><div class="ev sys">loading</div></div>`;
+    var last={};(x.stage||[]).forEach(function(e){last[e.stage]=e});
+    var cur=(x.stage||[]).slice(-1)[0], working=!!(st&&st.state==='working');
+    function start(resume){note[1]('starting');postJSON('driver/'+agent+'/'+batch+'/start',Object.assign(runOpts(),resume?{resume:true}:{})).then(function(r){
+      if(!r.ok)return errText(r).then(function(t){note[1](t)});note[1](null);n[1](function(k){return k+1});Session.toggle(agent,batch,'driver',true)}).catch(function(){note[1]('server unreachable')})}
+    function stop(){postJSON('driver/'+agent+'/'+batch+'/stop').then(function(){setTimeout(function(){n[1](function(k){return k+1})},1500)})}
+    var runs=x.runs||[], now=runs[runs.length-1], prev=runs[runs.length-2], pmap={};
+    if(prev)prev.sims.forEach(function(s){pmap[s.name]=s});
+    var sims=now?now.sims.slice().sort(function(a,b){return (a.passed/a.total||0)-(b.passed/b.total||0)}):[];
+    function cnt(s){return s?html`<span class=${'cnt '+(s.passed===s.total?'ok':s.passed?'flaky':'ko')}>${s.passed+'/'+s.total}</span>`:html`<span class="dim">–</span>`}
+    var m=x.main, e=x.entry||{};
+    return html`<div class="bv">
+      <header class="bvh"><div class="id"><span class="num">${'Batch '+batch}</span><span>${e.base||''}</span></div>
+        <div class="bvc"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort"/>
+          ${working?html`<button class="rbtn" title="Stop the driver" onClick=${stop}><${Icon} n="ti-player-stop"/></button>`:html`<button class="rbtn" title="Start the driver with the batch brief" onClick=${function(){start(false)}}><${Icon} n="ti-player-play"/></button>${st&&st.state==='failed'?html`<button class="rbtn" title="Resume the last driver session" onClick=${function(){start(true)}}><${Icon} n="ti-player-track-next"/></button>`:null}`}
+          <button class="rbtn" title="Open the driver's session" disabled=${!st} onClick=${function(){Session.toggle(agent,batch,'driver')}}><${Icon} n="ti-message"/></button>
+          <span class=${'chip '+(st?st.state:'')}>${st?(working?'live':st.state):'no driver yet'}</span>${note[0]?html`<span class="dim">${note[0]}</span>`:null}</div></header>
+      <div class="bvs">${DSTAGES.map(function(k){var l=last[k];return html`<div class=${'bvst '+(l?DHEALTH[l.state]||'':'')+(cur&&cur.stage===k?' cur':'')} title=${l&&l.note||''}><b>${k}</b><span>${l?l.state:'–'}</span>${l&&l.note?html`<em>${l.note}</em>`:null}</div>`})}</div>
+      <div class="bvl"><span class="dim">main workspace</span> ${m?(m.state==='done'?(m.name+' · main at '+(m.commit||'?')+' · '+String(m.ended||'').replace('T',' ').replace('Z',' UTC')):m.state+(m.error?' · '+m.error.split('\n')[0]:'')):'none yet'}</div>
+      <h3>Cards</h3><table class="bvt"><thead><tr><th>Issue</th><th>State</th><th>Repro</th><th>Reopened</th></tr></thead><tbody>${(x.cards||[]).map(function(c){var s=c.stage||{},r=c.reopened||[];
+        return html`<tr><td><a href=${'#a='+agent+'&b='+batch+'&i='+c.n}>${'#'+c.n}</a></td><td>${s.stage?s.stage+' '+s.state:'not started'}</td><td>${c.repro?cnt({passed:c.repro[0],total:c.repro[1]}):'–'}</td><td>${r.length?r.length+'× · last '+String(r[r.length-1].t||'').slice(5,16).replace('T',' '):'–'}</td></tr>`})}</tbody></table>
+      <h3>${now?'Check · run '+(now.run||now.file)+' · '+now.t.replace('T',' ').replace('Z',' UTC'):'Check · no run yet'}</h3>
+      ${now?html`<table class="bvt"><thead><tr><th>Simulation</th><th>Now</th><th>${prev?'Previous check':''}</th></tr></thead><tbody>${sims.map(function(s){return html`<tr><td>${s.name}</td><td>${cnt(s)}</td><td>${prev?cnt(pmap[s.name]):null}</td></tr>`})}</tbody></table>`:null}
+    </div>`;
+  }
+  function batchView(el,agent,batch){unmount(el);el.innerHTML='';mount(el,html`<${BatchView} agent=${agent} batch=${batch}/>`)}
   function badges(root){root.querySelectorAll('.res, .was, .cnt').forEach(function(el){var m=/(\d+)\s*\/\s*(\d+)/.exec(el.textContent);if(m)el.classList.add(+m[1]===+m[2]?'ok':+m[1]===0?'ko':'flaky')})}
   function md(s){s=esc(s).replace(/\[@([^\]]+)\]\(mention:[^)]*\)/g,'@$1').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');return s.split(/\n{2,}/).map(function(p){return '<p>'+p.replace(/\n/g,'<br>')+'</p>'}).join('')}
   function report(i){
@@ -616,5 +655,5 @@
     else if(d.kind==='transcript'){Transcript.toggle(i,d.s.conv,d.s);if(d.ctx)Context.toggle(i,d.ctx.conv,d.ctx.entry,true,d.ctx)}
     else if(d.kind==='context')Context.toggle(i,d.s.conv,d.s.entry,false,d.s)}
   window.Cards={StepToggles:StepToggles,ModelSelect:ModelSelect,MODELS:MODELS,EFFORTS:EFFORTS,chosenSteps:chosenSteps,drawerState:drawerState,closeDrawers:closeDrawers,restoreDrawer:restoreDrawer,
-    store:Store,useStore:useStore,unmount:unmount,cache:cache,esc:esc,report:report,card:card,norm:norm,badges:badges,load:load,applyFolds:applyFolds,foldToggle:foldToggle,chrome:chrome};
+    batchView:batchView,store:Store,useStore:useStore,unmount:unmount,cache:cache,esc:esc,report:report,card:card,norm:norm,badges:badges,load:load,applyFolds:applyFolds,foldToggle:foldToggle,chrome:chrome};
 })();

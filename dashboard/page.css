@@ -277,3 +277,20 @@ main{min-width:0}
 .sess .rrw>summary{cursor:pointer;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-muted)}
 .sess .rrw>summary .rrt{text-transform:none;letter-spacing:0;color:var(--text-warning)}
 .sess .rrw[open]>summary{margin-bottom:6px}
+/* the batch view */
+.bv{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.bvh{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.bvh .num{font-weight:600;margin-right:8px}
+.bvc{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bvs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.bvst{border:1px solid var(--border);border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;font-size:12px;min-width:0}
+.bvst b{text-transform:capitalize}.bvst em{font-style:normal;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bvst.cur{outline:2px solid currentColor;outline-offset:-1px}
+.bvst.ok{border-color:var(--green)}.bvst.warn{border-color:var(--orange)}.bvst.bad{border-color:var(--text-danger)}.bvst.now{border-color:var(--text-accent)}
+.bv .cnt.ok{color:var(--text-success)}.bv .cnt.flaky{color:var(--text-warning)}.bv .cnt.ko{color:var(--text-danger)}
+.bvl{font-size:13px}.bv .dim{opacity:.6}
+.bv h3{margin:6px 0 0;font-size:13px;font-weight:600}
+.bvt{border-collapse:collapse;font-size:13px;width:100%}
+.bvt th,.bvt td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--border-soft)}
+.rop pre{white-space:pre-wrap;font-size:12px;max-height:260px;overflow:auto}
+@media (max-width:640px){.bvs{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -24,6 +24,9 @@ POST /chain/<agent>/<n> {steps, model, effort} runs several of setup, analysis, 
 issue, one after another in that order, each once the one before is done; the first that fails or is stopped ends it,
 and POST /chain/<agent>/<n>/stop ends it after the current step. Both routes and /run take {from}: resolver, engineer or
 ruling, whose the feedback is (run.py --from).
+The batch driver: POST /driver/<agent>/<batch>/start {model, effort, resume}, send, abort, stop, and GET
+/driver/<agent>/<batch>/events and state, as /chat for a resolution session, hosted by session.py --kind driver under
+agents/<agent>/driver/; GET /driver/<agent>/<batch>/check is the batch card's data (batch_check).
 POST /rule/<agent>/<n> {for: resolver|step, gap} is the engineer's ruling on an open disagreement (review contested):
 for the resolver the step reruns with the ruling, for the step the resolution session is told the answer stands;
 steps.rule records review ruled and a skill gap in agents/<agent>/skill-gaps.json. The sequence runs in chain.py, a process of its own;
@@ -93,8 +96,33 @@ BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
 SYNC = re.compile(r'^/sync/' + A + '$')
 CHAIN = re.compile(r'^/chain/' + A + r'/(\d+)(/stop)?$')
 RULE = re.compile(r'^/rule/' + A + r'/(\d+)$')
+DRIVER = re.compile(r'^/driver/' + A + r'/(\d{4}(?:-\d)?)/(start|events|send|abort|stop|state|check)$')
 CHAT = re.compile(r'^/chat/' + A + r'/(\d+)/(start|ask|events|send|abort|stop|ui|state)$')
 BOOT = f'{time.time():.3f}'
+
+
+def batch_check(agent, batch):
+    """The batch card's data: the driver's stage history, each check run file under batches/<batch>/check/ with its
+    per-simulation counts, newest last, the batch's cards with their guard counts and reopenings, and the driver's main
+    workspace (mainws.py's status)."""
+    d = os.path.join('agents', agent, 'batches', batch, 'check')
+    runs = []
+    for f in sorted(os.listdir(d), key=lambda f: os.path.getmtime(os.path.join(d, f))) if os.path.isdir(d) else []:
+        j = load_json(os.path.join(d, f), None) if f.endswith('.json') else None
+        if isinstance(j, dict) and j.get('tests'):
+            runs.append({'file': f, 'run': j.get('simulationRunId'), 't': datetime.fromtimestamp(os.path.getmtime(os.path.join(d, f)), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                         'sims': [{'name': x.get('name'), 'passed': x.get('passed') or 0, 'total': x.get('total') or 0} for x in j['tests']]})
+    cards = []
+    for f in sorted(os.listdir(os.path.join('agents', agent, 'cards'))) if os.path.isdir(os.path.join('agents', agent, 'cards')) else []:
+        n = f[:-5] if f.endswith('.html') else None
+        if not n or not n.isdigit() or steps.card_batch(agent, n) != batch:
+            continue
+        red = (load_json(os.path.join('agents', agent, 'strategy', n + '.json'), {}).get('guard') or {}).get('red') or {}
+        stage = load_json(os.path.join('agents', agent, 'resolve', n + '.stage.json'), [])
+        cards.append({'n': n, 'stage': stage[-1] if stage else None, 'repro': [red.get('passed'), red.get('total')] if red.get('total') else None,
+                      'reopened': load_json(os.path.join('agents', agent, 'resolve', n + '.reopen.json'), [])})
+    return {'stage': load_json(os.path.join('agents', agent, 'driver', batch + '.stage.json'), []), 'runs': runs, 'cards': cards,
+            'entry': load_batches(agent).get(batch) or {}, 'main': load_json(os.path.join('agents', agent, 'driver', batch + '.main.json'), None)}
 
 
 def step_states(agent):
@@ -348,22 +376,26 @@ class H(SimpleHTTPRequestHandler):
             except Exception as ex:
                 self.reply(500, {'error': str(ex)[-400:]})
             return
-        c = CHAT.match(path)
+        c, kind = CHAT.match(path), 'resolve'
+        if not c:
+            c, kind = DRIVER.match(path), 'driver'
         if not c:
             return super().do_GET()
         agent, n, what = c.groups()
         if what == 'state':  # the status file is the record; a session whose host died reads failed there
-            st = settle(status_path(agent, n, 'resolve'))
+            st = settle(status_path(agent, n, kind))
             running = st.get('state') == 'working'
-            self.reply(200, {'running': running, 'streaming': running and st.get('turn') == 'agent', 'resumable': steps.resumable(agent, n), 'status': st}); return
+            self.reply(200, {'running': running, 'streaming': running and st.get('turn') == 'agent', 'resumable': steps.resumable(agent, n, kind), 'status': st}); return
+        if what == 'check' and kind == 'driver':
+            self.reply(200, batch_check(agent, n)); return
         if what != 'events':
             self.send_error(405); return
-        self.events(agent, n)
-    def events(self, agent, n):
+        self.events(agent, n, kind)
+    def events(self, agent, n, kind='resolve'):
         """out.jsonl as server-sent events from the offset the browser last saw, then followed until the session's exit
         event, or until a new session replaces the file."""
-        log_path = os.path.join('agents', agent, 'resolve', 'runs', n, 'out.jsonl')
-        status = status_path(agent, n, 'resolve')
+        log_path = os.path.join('agents', agent, kind, 'runs', n, 'out.jsonl')
+        status = status_path(agent, n, kind)
         try:
             pos = int(self.headers.get('Last-Event-ID') or 0)
         except ValueError:
@@ -418,15 +450,20 @@ class H(SimpleHTTPRequestHandler):
                     self.wfile.write(b': ping\n\n'); self.wfile.flush(); quiet = 0.0
         except (BrokenPipeError, ConnectionResetError):
             pass
-    def do_chat(self, agent, n, what):
+    def do_chat(self, agent, n, what, kind='resolve'):
         body = self.body()
         if body is None:
             self.send_error(400, 'body is not JSON'); return
         if what == 'start':
-            err = start_step(agent, n, 'resolve', model=body.get('model'), effort=body.get('effort'), ask=bool(body.get('ask')), resume=bool(body.get('resume')))
+            if kind == 'driver':
+                err = steps.start_driver(agent, n, body.get('model'), body.get('effort'), resume=bool(body.get('resume')))
+            else:
+                err = start_step(agent, n, 'resolve', model=body.get('model'), effort=body.get('effort'), ask=bool(body.get('ask')), resume=bool(body.get('resume')))
             if err:
                 self.reply(409, {'error': err}); return
-            self.reply(202, {'pid': settle(status_path(agent, n, 'resolve')).get('pid')}); return
+            self.reply(202, {'pid': settle(status_path(agent, n, kind)).get('pid')}); return
+        if what in ('check', 'events', 'state'):
+            self.send_error(405); return
         if what == 'send':
             if not str(body.get('message') or '').strip():
                 self.send_error(400, 'empty message'); return
@@ -434,9 +471,9 @@ class H(SimpleHTTPRequestHandler):
                 self.send_error(400, 'bad mode'); return
         if what == 'ui' and not body.get('id'):
             self.send_error(400, 'no id'); return
-        if what == 'stop' and settle(status_path(agent, n, 'resolve')).get('state') != 'working':
+        if what == 'stop' and settle(status_path(agent, n, kind)).get('state') != 'working':
             self.reply(202, {}); return
-        out = host_call(agent, n, dict(body, cmd=what) if what in ('send', 'ui') else {'cmd': what})
+        out = host_call(agent, n, dict(body, cmd=what) if what in ('send', 'ui') else {'cmd': what}, kind=kind)
         if 'error' in out:
             self.send_error(409, out['error']); return
         self.reply(202, out)
@@ -452,6 +489,9 @@ class H(SimpleHTTPRequestHandler):
         c = CHAT.match(self.path)
         if c:
             self.do_chat(*c.groups()); return
+        dr = DRIVER.match(self.path)
+        if dr:
+            self.do_chat(*dr.groups(), kind='driver'); return
         ch = CHAIN.match(self.path)
         if ch:
             agent, n, stop = ch.groups()
