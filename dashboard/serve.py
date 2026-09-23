@@ -15,8 +15,9 @@ POST /setup/<agent>/<n> starts the skill's setup.py: the issue's own worktree un
 workspace, both named <prefix>-<n>; status in agents/<agent>/setup/<n>.status.json. Every step below runs in that worktree and
 refuses (409) until it is there.
 POST /reset/<agent>/<n> archives every step's answer (analysis, strategy, context, resolve) and the card to the steps'
-history/ folders, drops the step status files and leaves the card with its state comments only; the worktree and workspace
-stay. Refused (409) while a step of that issue is running.
+history/ folders with the sidebar's stage history, drops the step status files and leaves the card with its state comments
+only; it stops a live resolution session and moves the worktree's uncommitted tracked changes to a git stash, while the
+branch and workspace stay. Refused (409) while analysis, strategy, context or a sequence of that issue is running.
 POST /kill/<agent>/<n>/<step> sends SIGTERM to the run that status file names; run.py marks it failed («stopped from the page»),
 which /steps reports as stopped, as it does a resolution session ended with /stop or whose host is gone.
 POST /chain/<agent>/<n> {steps, model, effort} runs several of setup, analysis, strategy, context and resolve for one
@@ -528,6 +529,11 @@ class H(SimpleHTTPRequestHandler):
                     self.reply(409, {'error': 'the resolution session did not stop'}); return
             stamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H%M%SZ')
             archived = []
+            wt, sg = repo_of(agent, n), steps.stepgit()
+            left = sg.dirty(wt) if wt and sg else []
+            if left:
+                sg.git(wt, 'stash', 'push', '-m', 'reset ' + n + ' ' + stamp, '--', *left)
+                archived.append('uncommitted changes to git stash: ' + ', '.join(left))
             card = os.path.join(base, 'cards', n + '.html')
             if os.path.exists(card):
                 text = open(card, encoding='utf-8').read()

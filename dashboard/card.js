@@ -257,7 +257,7 @@
   function Cost(p){var S=useStore(), t=((S.cost||{})[p.i.agent]||{})[p.i.num]; if(!t||!t.cost)return null;
     var names={analysis:'analysis',strategy:'sim strategy',context:'context edit',resolve:'resolution'};
     return html`<span class="chip cost" title=${'Spent on this ticket over '+t.runs+' run'+(t.runs===1?'':'s')+'\n'+Object.keys(t.steps).map(function(k){return (names[k]||k)+': $'+t.steps[k].toFixed(2)}).join('\n')+'\nList prices as pi reports them'}>$${t.cost.toFixed(2)}</span>`}
-  // Reset: every step's answer and the card go to history, the card empties; the worktree and workspace stay. Two clicks:
+  // Reset: every step's answer and the card go to history, the card empties, a live session stops, uncommitted changes go to a git stash; the branch and workspace stay. Two clicks:
   // the first arms the button for four seconds.
   function Reset(p){var i=p.i, s=useState({}), st=s[0], T='Reset every step: the answers and the card go to history, the card empties', timer=useRef(null);
     useEffect(function(){return function(){if(timer.current)clearTimeout(timer.current)}},[]);
