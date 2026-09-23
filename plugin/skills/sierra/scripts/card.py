@@ -16,7 +16,7 @@ comments. `--out -` prints the section instead.
 
 `ss` renders the Sim Strategy section (sections/sim-changes.html) from the sim-strategy skill's JSON,
 `agents/<agent>/strategy/<n>.json`, resolving simulation ids to names and groups in the repo's `*.tests.ts`. Pass
-counts stay empty; runs fill them later. `oc` renders the Studio Context and the Studio Context Edit sections
+counts stay empty; runs fill them later, except the guard's own 5× run before any edit, shown as its repro line. `oc` renders the Studio Context and the Studio Context Edit sections
 (sections/studio-context.html, studio-context-edit.html) from the context-edit skill's JSON,
 `agents/<agent>/context/<n>.json`: the context is the analysis's two items plus the answer's `also` items and `tool`,
 the edit is its `edit`; item text, numbering and gates come from the block files in the repo.
@@ -529,6 +529,10 @@ def render_ss(agent, n, strategy, pages, repo):
                    + (f' · {esc(name)}' if name else "") + (f' · {esc(guard["why"])}' if guard.get("why") else "") + "</span></div>")
         if guard.get("run"):
             out.append(f'  <div class="line"><span class="k">run</span><span class="gist">{esc(guard["run"])}</span></div>')
+        red = guard.get("red") or {}
+        if red.get("total"):
+            out.append(f'  <div class="line"><span class="k">repro</span><span class="gist"><b>{red.get("passed", 0)}/{red["total"]} pass</b>'
+                       + f' before the fix · {esc(red.get("run", ""))}' + (f' · {esc(red["why"])}' if red.get("why") else "") + "</span></div>")
         out.append("</div>")
 
     def head(cls, name_html, group, res="", gist="", open_=False):
