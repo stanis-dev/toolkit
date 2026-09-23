@@ -61,7 +61,7 @@ page's transcript drawer, so the card and the drawer come from one parse.
 GET /chat/<agent>/<n>/events is that log as server-sent events: the log so far, then live; each event's id is its
 end offset in the file, so a stream that reconnects (Last-Event-ID) carries on where it broke off.
 POST /chat/<agent>/<n>/send {message, mode?} forwards a prompt; while the agent runs it is queued as a steer unless
-mode says follow_up. POST /chat/<agent>/<n>/abort interrupts the current turn; /stop ends the process;
+mode says follow_up; while it is idle, any mode starts a turn. POST /chat/<agent>/<n>/abort interrupts the current turn; /stop ends the process;
 /ui {id, ...} answers an extension's confirm/select/input request; GET …/state is {running, streaming, resumable,
 status}. Status: agents/<agent>/resolve/<n>.status.json.
 

@@ -232,6 +232,8 @@ class Host:
             mode = req.get('mode') or ('steer' if self.streaming else 'prompt')
             if mode not in ('prompt', 'steer', 'follow_up'):
                 raise Refused('bad mode')
+            if not self.streaming:
+                mode = 'prompt'
             self.send({'type': mode, 'message': text})
             return {'mode': mode}
         if what == 'abort':
