@@ -4,14 +4,13 @@
   batchmerge.py <agent> <MMDD> <issue-branch> [--pages <dir>]
 
 In the batch worktree from agents/<agent>/batches.json, one merge at a time (a lock under batches/):
-1. Refused while the worktree has uncommitted tracked changes other than setup's copies and the SDK's generated files.
-2. When main has moved, origin/main is merged into the batch first, as mainsync.py does: two simulations added at the
+1. When main has moved, origin/main is merged into the batch first, as mainsync.py does: two simulations added at the
    same place are both kept; any other conflict is aborted, exit 5, nothing merged.
-3. Ghostwriter pull. A tracked file the pull changes to a version the batch branch has had (main's included) is the
+2. Ghostwriter pull. A tracked file the pull changes to a version the batch branch has had (main's included) is the
    workspace running behind or ahead of the branch: it is restored from the branch. A version the branch never had,
    or a new Studio file, is a Studio edit: printed, restored from the branch, exit 2, the issue not merged.
-4. git merge of the issue branch; a conflict is aborted, exit 3.
-5. Lint, push --replace, pull; a tracked file the last pull changes means the workspace does not hold the branch: exit 4.
+3. git merge of the issue branch; a conflict is aborted, exit 3.
+4. Lint, push --replace, pull; a tracked file the last pull changes means the workspace does not hold the branch: exit 4.
 Every command's output goes to stdout. The branch is pushed to no git remote."""
 import fcntl, json, os, sys, time
 
@@ -50,10 +49,6 @@ def main(argv):
             if int(time.time() - t0) % 60 == 0:
                 print("waiting for another merge into this batch", flush=True)
             time.sleep(1)
-
-    why = stepgit.refusal(wt)
-    if why:
-        print("batch " + why); return 1
 
     code, what = merge_main(wt)
     if code:

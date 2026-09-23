@@ -308,14 +308,7 @@ class Reruns(Lab):
     def git(self, n, *a):
         return subprocess.run(['git', '-C', self.wt(n)] + list(a), capture_output=True, text=True, env=self.env, check=True).stdout.strip()
 
-    def test_refused_with_the_files_named(self):
-        open(os.path.join(self.wt('301'), 'README'), 'a').write('work in progress\n')
-        try:
-            for path, body in ((f'/run/{AG}/301/strategy', {}), (f'/run/{AG}/301/strategy', {'feedback': 'x'}), (f'/chain/{AG}/301', {'steps': ['context']})):
-                code, r = post(path, body)
-                self.assertEqual((code, r['error']), (409, 'the worktree has uncommitted changes: README; commit or drop them first'))
-        finally:
-            self.git('301', 'checkout', '--', 'README')
+    def test_refused_while_another_step_runs(self):
         self.write(f'agents/{AG}/analysis/301.status.json', {'state': 'working', 'pid': os.getpid()})
         try:
             self.assertEqual(post(f'/run/{AG}/301/context', {}), (409, {'error': 'analysis is running: wait for it or stop it'}))

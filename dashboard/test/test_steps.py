@@ -1,6 +1,6 @@
 """Checks of the staging run.py and stepgit.py, the real scripts, on a made-up issue 900 in a throwaway git worktree,
 with the stand-in pi (json mode), a stand-in sierra CLI, the stand-in brief and a card.py that renders nothing:
-the commit per step, the rewind per step and its refusals, the workspace push only when Studio content changed,
+the commit per step, the rewind per step and its refusal on a wrong binding, the workspace push only when Studio content changed,
 --feedback continuing the kept session or running fresh, the schema retry on both paths, and the context brief's
 lane section. python3 -m unittest test_steps (from test/), or run.sh."""
 import json, os, shutil, subprocess, sys, unittest
@@ -138,14 +138,6 @@ class Steps(unittest.TestCase):
         self.assertEqual(len(self.log('sierra')), 4)
 
     def test_refusals(self):
-        self.run_step('strategy', [[SIM, 'sim 2\n']])
-        head = self.git('rev-parse', 'HEAD')
-        open(os.path.join(self.wt, SIM), 'w').write('work in progress\n')
-        st = self.run_step('strategy')
-        self.assertEqual(st['state'], 'failed')
-        self.assertIn('uncommitted changes: ' + SIM, st['error'])
-        self.assertEqual(self.git('rev-parse', 'HEAD'), head)
-        self.git('checkout', '--', SIM)
         open(os.path.join(self.wt, LOCK), 'w').write('lock 3\n')
         self.run_step('context', [[BLOCK, '{"v": 2}\n']])
         self.bind('https://studio.example.invalid/workspace/batch-0922')

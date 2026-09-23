@@ -5,16 +5,15 @@
 
 Every Studio workspace receives what merges to main, so after a merge to main a pull shows main's newer content as
 changes the branch never had. In the worktree:
-1. Refused while it has uncommitted tracked changes other than setup's copies and the SDK's generated files.
-2. git fetch origin main; nothing to merge when origin/main is already in the branch.
-3. git merge origin/main. Where both sides add a simulation at the same place, both are kept; any other conflict is
+1. git fetch origin main; nothing to merge when origin/main is already in the branch.
+2. git merge origin/main. Where both sides add a simulation at the same place, both are kept; any other conflict is
    aborted, exit 3, the files named.
-4. pnpm install when the merge changed the lockfile or a package.json.
-5. Ghostwriter pull. A changed Studio file whose new version the branch has had (main's included, after the merge) is
+3. pnpm install when the merge changed the lockfile or a package.json.
+4. Ghostwriter pull. A changed Studio file whose new version the branch has had (main's included, after the merge) is
    restored from the branch; a version it never had, or a new Studio file, is a Studio edit: printed, restored, exit 2.
-6. Lint, push --replace, pull; a Studio file the last pull changes means the workspace does not hold the branch: exit 4.
+5. Lint, push --replace, pull; a Studio file the last pull changes means the workspace does not hold the branch: exit 4.
 Exit 0: the branch holds main and the workspace holds the branch. Every command's output goes to stdout. The branch
-is pushed to no git remote. batchmerge.py uses steps 2 to 4 before each merge into a batch."""
+is pushed to no git remote. batchmerge.py uses steps 1 to 3 before each merge into a batch."""
 import os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -51,7 +50,7 @@ def both_sims(text):
 
 
 def merge_main(wt):
-    """Steps 2 to 4. (0, what happened) or (3, the conflicting files)."""
+    """Steps 1 to 3. (0, what happened) or (3, the conflicting files)."""
     run(["git", "-C", wt, "fetch", "-q", "origin", "main"])
     if subprocess.run(["git", "-C", wt, "merge-base", "--is-ancestor", "origin/main", "HEAD"]).returncode == 0:
         return 0, "origin/main is already in the branch"
@@ -92,7 +91,7 @@ def known_blobs(wt, path):
 
 
 def pull_and_sort(wt, sierra, agent_dir, composer_rel):
-    """Step 5: 0, 1 when the pull failed, or 2 on a Studio edit; the worktree ends on the branch's content."""
+    """Step 4: 0, 1 when the pull failed, or 2 on a Studio edit; the worktree ends on the branch's content."""
     code, _ = run([sierra, "-C", agent_dir, "ghostwriter", "pull"])
     if code:
         return 1
@@ -117,7 +116,7 @@ def pull_and_sort(wt, sierra, agent_dir, composer_rel):
 
 
 def push_and_check(wt, sierra, agent_dir, composer_rel):
-    """Step 6: 0, or 4 when the workspace does not hold the branch."""
+    """Step 5: 0, or 4 when the workspace does not hold the branch."""
     for cmd in (["lint"], ["push", "--replace", "-y"], ["pull"]):
         code, _ = run([sierra, "-C", agent_dir, "ghostwriter"] + cmd)
         if code:
@@ -139,9 +138,6 @@ def main(argv):
     agent_rel = AGENT_DIR[agent]
     agent_dir, composer_rel = os.path.join(wt, agent_rel), agent_rel + "/.composer"
     sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
-    why = stepgit.refusal(wt)
-    if why:
-        print(why); return 1
     code, what = merge_main(wt)
     if code:
         print("merging origin/main conflicts in " + what + ": aborted, nothing merged"); return 3

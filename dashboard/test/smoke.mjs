@@ -3,8 +3,7 @@
 // hipotecarios 304 and its Prompt fold, nothing rebuilt on poll, and a server restart under the open page with a live
 // stand-in session. Usage: node smoke.mjs <base url> <lab dir>
 import { launch } from './cdp.mjs';
-import { utimesSync, readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { utimesSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const [BASE, RUN] = process.argv.slice(2);
@@ -158,7 +157,7 @@ try {
     eq(await P.eval(`fetch('chat/${A}/296/state').then(r=>r.json()).then(j=>j.running)`), false, 'host gone');
   });
 
-  if (RERUNS) await check('rerun from the resolution panel: prefill, refusal, the live session told', async () => {
+  if (RERUNS) await check('rerun from the resolution panel: prefill, the live session told', async () => {
     const stage = join(RUN, 'agents', A, 'resolve', '297.stage.json');
     writeFileSync(stage, JSON.stringify(JSON.parse(readFileSync(stage, 'utf8')).concat([{ t: new Date().toISOString(), stage: 'fix', state: 'misguided', step: 'context', note: 'The edit is too broad.' }])));
     await P.goto(`${BASE}/index.html#a=${A}&i=297`); await card(297);
@@ -167,12 +166,6 @@ try {
     await P.waitFor(`document.querySelector('aside.sess details.rrw[open] .rrs')?.value==='context'`, 5000, 'rerun block open, context chosen');
     eq(await P.eval(`[document.querySelector('aside.sess .rrw .rrf').value,document.querySelector('aside.sess .rrw>summary').textContent,!!document.querySelector('aside.sess .rrw + form.comp')]`),
       ['The edit is too broad.', 'Rerun step · context edit blamed', true], 'prefill, title, above the message box');
-    const wt = JSON.parse(readFileSync(join(RUN, 'agents', A, 'setup', '297.status.json'), 'utf8')).worktree;
-    appendFileSync(join(wt, 'README'), 'work in progress\n');
-    await P.eval(`document.querySelector('aside.sess .rrw .rrgo').click()`);
-    await P.waitFor(`document.querySelector('aside.sess .rrw .rrm.failed')`, 5000, 'refusal shown');
-    eq(await P.eval(`document.querySelector('aside.sess .rrw .rrm').textContent`), 'the worktree has uncommitted changes: README; commit or drop them first', 'refusal text');
-    execFileSync('git', ['-C', wt, 'checkout', '--', 'README']);
     await P.eval(`document.querySelector('aside.sess .rrw .rrgo').click()`);
     await P.waitFor(`document.querySelector('aside.sess .rrw .rrm.done')`, 5000, 'rerun started');
     await P.waitFor(`/The engineer reran context with feedback/.test(document.querySelector('aside.sess .tl').textContent)`, 15000, 'the session is told');

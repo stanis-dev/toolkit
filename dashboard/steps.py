@@ -196,14 +196,11 @@ PREP = ('analysis', 'strategy', 'context')
 
 def prep_refusal(agent, n, step, repo):
     """Why step cannot start now: another of the three answers is running (the rewind would pull the tree from under
-    it), or the worktree has uncommitted changes. None when it can."""
+    it). None when it can."""
     for other in PREP:
         if other != step and settle(status_path(agent, n, other)).get('state') == 'working':
             return other + ' is running: wait for it or stop it'
-    try:
-        return stepgit() and stepgit().refusal(repo)
-    except RuntimeError as ex:
-        return str(ex)
+    return None
 
 
 def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False, feedback=None, source=None):

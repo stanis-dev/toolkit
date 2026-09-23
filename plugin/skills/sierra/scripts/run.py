@@ -21,7 +21,7 @@ in `<step>/runs/<n>/`: prompt.md (the whole message sent), system.md (the system
 A SIGTERM from the page's stop button ends pi and everything it started, and marks the run stopped.
 
 The repo is the issue's worktree. Before the step runs, stepgit.py moves the issue branch back to where the step started
-(dropping this step's commit and the later steps'), refusing a worktree with uncommitted changes, and pushes the tree's
+(dropping this step's commit and the later steps') and pushes the tree's
 Studio content to the issue workspace when what it dropped touched it; status "rewind" records it. After strategy and
 context have written their answer, what they changed goes in one commit with the trailer `Step: <step> <n>`, recorded
 as status "step_commit". pi's session is kept in runs/<n>/session/; a fresh run moves the previous one aside to

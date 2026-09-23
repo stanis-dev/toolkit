@@ -59,15 +59,6 @@ def dirty(wt, keep_generated=False):
     return [p for p in dict.fromkeys(out) if not setup_copy(p) and (keep_generated or not generated(wt, p))]
 
 
-def refusal(wt):
-    """Why a step cannot run in this worktree now, or None."""
-    d = dirty(wt)
-    if not d:
-        return None
-    return ("the worktree has uncommitted changes: " + ", ".join(d[:10]) + (f" and {len(d) - 10} more" if len(d) > 10 else "")
-            + "; commit or drop them first")
-
-
 def untracked(wt):
     return {p for p in git(wt, "ls-files", "--others", "--exclude-standard", "-z").split("\0") if p}
 
@@ -89,10 +80,7 @@ def history(wt, n, since=None, limit=400):
 
 def plan(wt, n, step, since=None):
     """What a (re)run of step drops: {to, dropped, files, push}, or None when no step commit of step or a later one is
-    on the branch. Refused on a dirty worktree."""
-    why = refusal(wt)
-    if why:
-        raise Refused(why)
+    on the branch."""
     commits = history(wt, n, since)
     k = ORDER.index(step)
     hits = [i for i, c in enumerate(commits) if c["step"] and ORDER.index(c["step"]) >= k]
