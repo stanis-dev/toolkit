@@ -512,10 +512,20 @@ class H(SimpleHTTPRequestHandler):
         if rs:
             agent, n = rs.groups()
             base = os.path.join('agents', agent)
-            for step in STEPS:
+            for step in STEPS[:-1]:
                 st = load_json(os.path.join(base, step, n + '.status.json'), {})
                 if st.get('state') == 'working' and alive(int(st.get('pid') or 0)):
                     self.reply(409, {'error': step + ' is running: stop it first'}); return
+            if settle(os.path.join(base, 'chain', n + '.json')).get('state') == 'working':
+                self.reply(409, {'error': 'a sequence is running: stop it first'}); return
+            host = settle(status_path(agent, n, 'resolve'))
+            if host.get('state') == 'working':
+                host_call(agent, n, {'cmd': 'stop'})
+                t0 = time.time()
+                while alive(int(host.get('pid') or 0)) and time.time() - t0 < 10:
+                    time.sleep(0.2)
+                if alive(int(host.get('pid') or 0)):
+                    self.reply(409, {'error': 'the resolution session did not stop'}); return
             stamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H%M%SZ')
             archived = []
             card = os.path.join(base, 'cards', n + '.html')
@@ -537,6 +547,11 @@ class H(SimpleHTTPRequestHandler):
                 p = os.path.join(base, step, n + '.status.json')
                 if os.path.exists(p):
                     os.remove(p)
+            for ext in ('stage.json', 'runs.json'):
+                p = os.path.join(base, 'resolve', n + '.' + ext)
+                if os.path.exists(p):
+                    hist = os.path.join(base, 'resolve', 'history'); os.makedirs(hist, exist_ok=True)
+                    shutil.move(p, os.path.join(hist, n + '.' + stamp + '.' + ext)); archived.append('resolve ' + ext.split('.')[0])
             self.reply(200, {'archived': archived}); return
         k = KILL.match(self.path)
         if k:
