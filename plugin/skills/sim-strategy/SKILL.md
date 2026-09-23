@@ -88,7 +88,7 @@ brief says the issue has no workspace, nothing can run: say in `guard.why` where
 ## Guard red
 
 Write the changes `sims` describes, the guard and any other simulation you modify or delete, in the files and groups
-you name, and change nothing else. Leave them uncommitted: the runner commits them. Run the guard 5×, the launch in
+you name, and change nothing else. Leave them uncommitted: they stay the card's work until merge. Run the guard 5×, the launch in
 tooling.md, Simulation runs, with `--num-runs 5` into `<runs>/guard-red.json`. Read the transcripts, not the judge
 alone: the guard is red for the reason the analysis names, the same customer move going unanswered the same way. Red
 for another reason means the guard is wrong: fix it and run it again. Put the last run in `guard.red`. Green on the
@@ -103,6 +103,11 @@ its group. Leave the guard out; keep the list to 240. Run the list once, 5×, on
 tooling.md, Simulation runs, with `--num-runs 5` into `<runs>/regressions.json` and `--run-id-file <runs>/regressions.id`:
 that run is the baseline the resolution compares against after the fix. Put the list in `regressions.sims`, each with
 one sentence on how the change could reach it, and the run id in `regressions.run`.
+
+When the brief has «Before the fix · already recorded», this is a rerun: the guard's red run and the regression runs
+listed there stay the card's before counts. Run neither again; keep `guard.red` and `regressions.run` from them. Run
+only the simulations you add to the list, once, 5×, into the file that section names: their counts are their
+baseline.
 
 ## Output
 

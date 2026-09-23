@@ -81,7 +81,7 @@ Judge the failure turn from inside its request.
 Apply the edit to the block file at the pointer, the `old` and `new` of your answer and nothing else, and push it to
 `<workspace>` as tooling.md, Studio content, says; this push needs no go, the engineer reviews it before merge. When
 lint fails or the diff after the second pull is not empty, say what it reported in `flags.push`. A change `flags.code`
-names is not applied. Leave the file uncommitted: the runner commits it.
+names is not applied. Leave the file uncommitted: it stays the card's work until merge.
 
 ## Flags, instead of stopping
 

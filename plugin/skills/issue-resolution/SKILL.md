@@ -27,10 +27,12 @@ The brief that opened the session gives this issue's values, then the issue and 
   `context/<n>.json`.
 
 The strategy step wrote the guard and ran it red, the context step applied the edit and pushed it to `<workspace>`;
-each committed its change on the issue's branch. The engineer can rerun a step with feedback: the branch goes back to
-where that step started, the step and those after it commit again, and a message tells you which steps reran and their
-new commits. Re-read those answers, say what differs, and review them again.
-- `<scripts>`: brief.py, card.py, blocks.py, runset.py, sync.py, batchmerge.py.
+both left their changes uncommitted in `<checkout>`. Everything uncommitted there is the card's work; HEAD is the branch
+before it. The engineer can rerun a step with feedback: the step works on the tree as it is, and a message tells you
+which steps reran and where their new answers are. Re-read those answers, say what differs, and review them again.
+Pull `<workspace>` only with `python3 <scripts>/pull.py <agent> <checkout>`: it commits what main's merges brought as
+base and leaves the card's work uncommitted.
+- `<scripts>`: brief.py, card.py, blocks.py, runset.py, sync.py, pull.py, batchmerge.py.
 - `<references>`: the workflow's reference, issues.md, sims/, tooling.md.
 
 The page shows where the issue stands from one command, which you run at each change of stage or verdict:
@@ -49,7 +51,8 @@ Read the three answers against the card and the linked call. Say, one line each:
 - whether the guard reproduces that turn's condition: read the transcripts of the strategy's red run, `guard.red`;
   the persona makes the customer's move at the same point of the journey, and the guard is red on the behaviour the
   analysis names, not on something else; a `no_repro` or `wrong_reason` flag fails this check;
-- whether the applied edit is the context answer's: `git -C <checkout> show` the context step's commit, and a pull of
+- whether the applied edit is the context answer's: `git -C <checkout> diff` the edited block against the answer's
+  `old` and `new`, and a pull of
   `<workspace>` leaves no diff;
 - Verify that proposed edit aligns with `/Users/stan/code/toolkit/plugin/skills/sierra/references/agent/agent-design.md`
   best practices.
@@ -105,8 +108,8 @@ Nothing else on the card. Anything you want the engineer to decide goes in the s
 When the guard is 5/5 and the regressions are clean, say the issue is ready to merge and list what goes: the simulation
 and code files, and the Studio items the edit changed. Then, each with the engineer's go:
 
-1. The guard and the edit are committed already. Commit what you changed since in `<checkout>`, one commit per
-   concern, with no attribution line.
+1. Commit the card's work in `<checkout>`, everything uncommitted there: one commit per concern (the simulations, the
+   Studio edit, anything you changed since), with no attribution line.
 2. Merge into the batch with one command: `python3 <scripts>/batchmerge.py <agent> <batch> <the issue's branch>`. It
    waits for any other merge into the batch, pulls `<batch-workspace>`, merges, pushes the merged Studio content back
    and checks it. Exit 0: merged and synced. Exit 2: the batch workspace holds Studio changes the batch branch never

@@ -20,12 +20,10 @@ failed, with times, the repo commit, token usage, how long the model has been si
 in `<step>/runs/<n>/`: prompt.md (the whole message sent), system.md (the system prompt), out.jsonl (every pi event, deltas coalesced), err.log.
 A SIGTERM from the page's stop button ends pi and everything it started, and marks the run stopped.
 
-The repo is the issue's worktree. Before the step runs, stepgit.py moves the issue branch back to where the step started
-(dropping this step's commit and the later steps') and pushes the tree's
-Studio content to the issue workspace when what it dropped touched it; status "rewind" records it. After strategy and
-context have written their answer, what they changed goes in one commit with the trailer `Step: <step> <n>`, recorded
-as status "step_commit". pi's session is kept in runs/<n>/session/; a fresh run moves the previous one aside to
-session.<stamp>/. --feedback continues that session (-c) with one message, the feedback and that the tree was rewound;
+The repo is the issue's worktree. Git is left alone: the card's work stays uncommitted there until the resolution
+commits it at merge, so HEAD is the branch before the card's work and the tree is the work so far. A context step
+needs the worktree's Ghostwriter bound to the issue workspace, since it pushes there. pi's session is kept in runs/<n>/session/; a fresh run moves the previous one aside to
+session.<stamp>/. --feedback continues that session (-c) with one message, the feedback;
 without a session it runs fresh with the feedback under a heading at the end of the prompt. feedback.md keeps the text.
 --from says whose it is, engineer by default: a claim the step weighs (the answer's `feedback` field, required non-null
 then), or a ruling, which it applies (every point accepted).
@@ -334,7 +332,7 @@ def main(argv):
     t0 = time.time()
     status = {"step": step, "state": "working", "started": started, "ended": None, "seconds": None, "commit": None,
               "model": model, "effort": effort, "pid": os.getpid(), "thread": None, "usage": None, "live": None, "error": None,
-              "feedback": bool(feedback), "continued": False, "rewind": None, "step_commit": None}
+              "feedback": bool(feedback), "continued": False}
     write_json(status_path, status)
     lock = threading.Lock()
     stopped = []
@@ -368,27 +366,13 @@ def main(argv):
         import stepgit, setup as setup_mod
         agent_rel = setup_mod.AGENT_DIR[agent]
         agent_dir = os.path.join(repo, agent_rel)
-        setup_st = stepgit.load(os.path.join(base, "setup", f"{n}.status.json"))
-        try:
-            rw = stepgit.plan(repo, n, step, setup_st.get("commit"))
-            if rw and rw["push"]:
+        if step == "context":
+            try:
                 stepgit.binding(pages, agent, n, agent_dir)
-        except stepgit.Refused as ex:
-            fail(str(ex))
-        if rw:
-            stepgit.reset(repo, rw["to"])
-            status["rewind"] = dict(rw, at=now(), pushed=False, files=rw["files"][:50], **{"from": rw["from"][:9], "to": rw["to"][:9]})
-            write_json(status_path, status)
-            if rw["push"]:
-                try:
-                    stepgit.push(os.path.join(agent_dir, "node_modules", ".bin", "sierra"), agent_dir, repo,
-                                 os.path.join(agent_rel, ".composer"), os.path.join(runs, "rewind.log"))
-                except RuntimeError as ex:
-                    fail("rewound, but the workspace push failed: " + str(ex))
-                status["rewind"]["pushed"] = True
+            except stepgit.Refused as ex:
+                fail(str(ex))
         status["commit"] = stepgit.git(repo, "rev-parse", "--short", "HEAD").strip()
         write_json(status_path, status)
-        before = stepgit.untracked(repo)
         continued = bool(feedback) and os.path.isdir(session_dir) and any(f.endswith(".jsonl") for f in os.listdir(session_dir))
         if not continued and os.path.isdir(session_dir) and os.listdir(session_dir):
             stamp = datetime.fromtimestamp(os.path.getmtime(session_dir), timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
@@ -397,8 +381,7 @@ def main(argv):
         status["continued"] = continued
         if feedback:
             open(os.path.join(runs, "feedback.md"), "w", encoding="utf-8").write(feedback + "\n")
-        where = ("The checkout was rewound to where this step started: "
-                 + (", ".join(f"{d['short']} {d['subject']}" for d in rw["dropped"]) + " dropped." if rw else "nothing needed dropping."))
+        where = "The checkout holds the card's work so far, uncommitted; HEAD is the branch before it."
         brief = subprocess.run([sys.executable, os.path.join(HERE, "brief.py"), agent, n, "--step", step, "--pages", pages, "--repo", repo],
                                capture_output=True, text=True)
         if brief.returncode != 0:
@@ -539,9 +522,6 @@ def main(argv):
                                 capture_output=True, text=True)
         if render.returncode != 0:
             fail("card.py: " + render.stderr.strip()[-800:])
-        if step in stepgit.COMMITS:
-            made = stepgit.commit(repo, setup_mod.PREFIX[agent], n, step, before)
-            status["step_commit"] = made and {k: made[k] for k in ("hash", "short", "subject", "files")}
         with lock:
             status.update(state="done", ended=now(), seconds=round(time.time() - t0), usage=usage_of(os.path.join(runs, "out.jsonl")))
             write_json(status_path, status)

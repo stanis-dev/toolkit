@@ -38,12 +38,14 @@ simulation files, read from the repository given by --repo, the working director
 """
 import contextlib
 import csv
+import glob
 import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -81,11 +83,22 @@ def same(a, b):
 
 # ---------- 1. the tree ----------
 
-def tree(repo, agent):
+def tree(repo, agent, at=None):
+    """The Studio content outline of the tree, or with at, as that commit has it (the card's uncommitted work left out)."""
     composer = os.path.join(repo, AGENT_DIR.get(agent, agent), ".composer")
     if not os.path.isdir(composer):
         fail(f"missing {composer}")
     buf = io.StringIO()
+    if at:
+        with tempfile.TemporaryDirectory() as tmp:
+            rel = os.path.join(AGENT_DIR.get(agent, agent), ".composer")
+            arch = subprocess.run(["git", "-C", repo, "archive", at, rel], capture_output=True)
+            if arch.returncode:
+                fail(f"git archive {at} {rel}: " + arch.stderr.decode(errors="replace")[-300:])
+            subprocess.run(["tar", "-x", "-C", tmp], input=arch.stdout, check=True)
+            with contextlib.redirect_stdout(buf):
+                blocks.outline(os.path.join(tmp, rel))
+        return buf.getvalue()
     with contextlib.redirect_stdout(buf):
         blocks.outline(composer)
     return buf.getvalue()
@@ -446,7 +459,7 @@ def main(argv):
     if step != "analysis":
         fail(f"unknown step {step}")
     parts = []
-    parts.append(f"# Studio content · {agent} · outline\n\n" + tree(repo, agent))
+    parts.append(f"# Studio content · {agent} · outline, as HEAD has it\n\n" + tree(repo, agent, "HEAD"))
     sop = sop_text(base)
     if sop:
         parts.append(f"# SOP · {agent}\n\n" + sop)
@@ -477,6 +490,7 @@ def run_text(agent, n, base, repo, step):
         return head + "This issue has no Studio workspace of its own yet.\n"
     agent_dir = os.path.join(repo, AGENT_DIR.get(agent, agent))
     return head + "\n".join([
+        f"- `<agent>`: `{agent}`",
         f"- `<checkout>`: `{repo}`",
         f"- `<agent-dir>`: `{agent_dir}`",
         f"- `<sierra>`: `{os.path.join(agent_dir, 'node_modules', '.bin', 'sierra')}`",
@@ -505,7 +519,37 @@ def strategy_brief(agent, n, base, repo, iss):
         d = load(p)
         parts.append(f"# Call {cid} · release {d['metadata'].get('release')}\n\ncached at `{conv_dir}/`\n\n" + transcript(conv_dir, d))
     parts.append(run_text(agent, n, base, repo, "strategy"))
+    before = before_fix(base, n)
+    if before:
+        parts.append(before)
     return "\n".join(parts)
+
+
+def baseline_files(base, n):
+    """The Sim Strategy's before-the-fix regression runs: its first run's list, then the runs of simulations a rerun added."""
+    d = os.path.join(base, "strategy", "runs", str(n))
+    first = os.path.join(d, "regressions.json")
+    added = sorted(glob.glob(os.path.join(d, "regressions-added-*.json")))
+    return ([first] if os.path.exists(first) else []) + added
+
+
+def before_fix(base, n):
+    """For a rerun of the Sim Strategy: the guard's red run and the regression runs recorded before the fix, which stay."""
+    prev = os.path.join(base, "strategy", f"{n}.json")
+    files = baseline_files(base, n)
+    red = (load(prev).get("guard") or {}).get("red") if os.path.exists(prev) else None
+    if not files and not (red or {}).get("total"):
+        return ""
+    lines = ["# Before the fix · already recorded", "",
+             "An earlier run of this step recorded these on the agent before the fix; they stay the card's before counts."]
+    if (red or {}).get("total"):
+        lines.append(f"- guard red: {red.get('passed')}/{red['total']} · run {red.get('run')}" + (f" · {red['why']}" if red.get("why") else ""))
+    for f in files:
+        sims = [t.get("name") for t in (load(f).get("tests") or [])]
+        lines.append(f"- `{f}`: " + ", ".join(x for x in sims if x))
+    k = len([f for f in files if "regressions-added-" in f]) + 1
+    lines.append(f"- the next added regression run goes to `{os.path.join(base, 'strategy', 'runs', str(n), f'regressions-added-{k}.json')}`")
+    return "\n".join(lines) + "\n"
 
 
 
@@ -549,7 +593,7 @@ def resolve_brief(agent, n, base, repo, iss):
     scripts = os.path.dirname(os.path.abspath(__file__))
     st = load(os.path.join(base, "setup", f"{n}.status.json")) if os.path.exists(os.path.join(base, "setup", f"{n}.status.json")) else {}
     ws = st.get("name") if st.get("state") == "done" and st.get("workspace") else None
-    baseline = os.path.join(base, "strategy", "runs", str(n), "regressions.json")
+    baselines = baseline_files(base, n)
     card = os.path.join(base, "cards", f"{n}.html")
     m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(card, encoding="utf-8").read(400)) if os.path.exists(card) else None
     batch = m.group(1) if m else None
@@ -563,7 +607,7 @@ def resolve_brief(agent, n, base, repo, iss):
              f"- `<workspace>`: " + (f"`{ws}`" if ws else "none yet: the issue has no Studio workspace of its own, nothing can run") + "\n"
              f"- `<runs>`: `{os.path.join(base, 'resolve', 'runs', str(n))}`\n"
              f"- `<agent>`: `{agent}`; `<n>`: `{n}`\n"
-             f"- `<baseline>`: " + (f"`{baseline}`" if os.path.exists(baseline) else f"none: the Sim Strategy wrote no `{baseline}`, so there is nothing to compare regressions against") + "\n"
+             f"- `<baseline>`: " + (" ".join(f"`{b}`" for b in baselines) if baselines else "none: the Sim Strategy wrote no regression run, so there is nothing to compare regressions against") + "\n"
              f"- `<batch>`: " + (f"`{batch}`" if batch else "none: the card is in no batch") + "\n"
              f"- `<batch-branch>`: " + (f"`{entry['base']}`" if entry.get("base") else ("none: the card is in no batch" if not batch else f"none: batch {batch} has no branch")) + "\n"
              f"- `<batch-workspace>`: " + (f"`{entry['workspace']}`" if entry.get("workspace") else unset) + "\n"
@@ -647,9 +691,9 @@ def batch_brief(agent, batch, base):
         sst = load(os.path.join(base, "strategy", f"{n}.status.json")) if os.path.exists(os.path.join(base, "strategy", f"{n}.status.json")) else {}
         if red.get("total"):
             runs.append((sst.get("ended") or "", "strategy guard, before the fix", f"{red.get('passed')}/{red['total']} · run {red.get('run')}", {}))
-        bl = os.path.join(base, "strategy", "runs", n, "regressions.json")
-        if os.path.exists(bl):
-            runs.append((sst.get("ended") or "", "strategy regression baseline, before the fix", f"`{bl}`", per_sim(bl)))
+        for bl in baseline_files(base, n):
+            t = (sst.get("ended") or "") if bl.endswith("/regressions.json") else datetime.fromtimestamp(os.path.getmtime(bl), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            runs.append((t, "strategy regression baseline", f"`{bl}`", per_sim(bl)))
         rr = load(os.path.join(base, "resolve", f"{n}.runs.json")) if os.path.exists(os.path.join(base, "resolve", f"{n}.runs.json")) else []
         for r in rr:
             runs.append((r.get("t") or "", f"resolution, stage {r.get('stage')}", f"{r.get('passed')}/{r.get('total')} over {r.get('sims')} sims · run {r.get('run')} · `{r.get('file')}`", per_sim(r.get("file") or "")))
