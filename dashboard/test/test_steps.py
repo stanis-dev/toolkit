@@ -234,6 +234,18 @@ class Steps(unittest.TestCase):
         self.assertEqual(len([l for l in hist if ' event ' in l and not l.startswith('earlier')]), 30)
         self.assertTrue(hist[-1].endswith(f'event 34 → cards/{N}/strategy/runs/x34/answer.json'), hist[-1])
 
+    def test_history_index_starts_after_the_last_reset(self):
+        sys.path.insert(0, self.scripts)
+        import cardlog
+        cardlog.add(self.run_dir, AG, N, 'strategy', 'before the reset')
+        cardlog.add(self.run_dir, AG, N, 'engineer', 'reset the card: uncommitted changes to git stash: x.ts', reset=True)
+        self.assertEqual(cardlog.index(self.run_dir, AG, N), '')
+        cardlog.add(self.run_dir, AG, N, 'analysis', 'after the reset')
+        hist = cardlog.index(self.run_dir, AG, N)
+        self.assertIn('after the reset', hist)
+        self.assertNotIn('before the reset', hist)
+        self.assertNotIn('git stash', hist)
+
     def test_context_brief_carries_the_lane(self):
         os.makedirs(os.path.join(self.wt, 'agents', 'hipotecarios', '.composer', 'blocks'), exist_ok=True)
         out = subprocess.run([sys.executable, os.path.join(SCRIPTS, 'brief.py'), AG, N, '--step', 'context', '--pages', self.run_dir, '--repo', self.wt],

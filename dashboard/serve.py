@@ -660,7 +660,7 @@ class H(SimpleHTTPRequestHandler):
                     shutil.move(p, h); archived.append('resolve ' + ext.split('.')[0])
                     kept.append(paths.rel(base, h))
             cardlog.add(os.getcwd(), agent, n, 'engineer', 'reset the card: ' + (', '.join(archived) or 'nothing to archive')
-                        + '; answers so far are history', kept)
+                        + '; answers so far are history', kept, reset=True)
             self.reply(200, {'archived': archived}); return
         k = KILL.match(self.path)
         if k:

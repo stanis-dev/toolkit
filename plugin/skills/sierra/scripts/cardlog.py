@@ -92,8 +92,12 @@ def stamp(t):
 
 def index(pages, agent, n, keep=KEEP):
     """The card's history as the briefs print it: the last `keep` events one per line, older ones folded into counts.
-    An answer a later run of the same step replaced is marked superseded. Empty when the card has no history."""
+    An answer a later run of the same step replaced is marked superseded. A reset starts the card over: only the events
+    after the last one count. Empty when the card has no history since then."""
     events = load(pages, agent, n)
+    resets = [k for k, e in enumerate(events) if e.get("reset")]
+    if resets:
+        events = events[resets[-1] + 1:]
     if not events:
         return ""
     last = {}
