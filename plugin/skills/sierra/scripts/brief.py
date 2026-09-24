@@ -1,7 +1,7 @@
 """Print the brief a workflow step skill reads for one issue, so it explores nothing.
 
 Usage:
-  brief.py <agent> <n> [--step analysis|strategy|context|resolve] [--pages <dir>] [--repo <dir>] [--calls <k>]
+  brief.py <agent> <n> [--step analysis|strategy|context|resolve] [--pages <dir>] [--repo <dir>] [--calls <k>] [--fresh 1]
   brief.py <agent> --batch <batch> [--pages <dir>] [--repo <dir>]
   brief.py <agent> --replay <result-dir>
 
@@ -497,7 +497,7 @@ def main(argv):
     iss = source.load(base, n)
     if not iss:
         fail(f"{agent} {n} has no source: no issue in the cache and no source.json in the card")
-    history = cardlog.index(pages, agent, n)
+    history = cardlog.index(pages, agent, n, bare=step if opts.get("--fresh") else None)
     history = "\n" + history if history else ""
     if step == "strategy":
         sys.stdout.write(strategy_brief(agent, n, base, repo, iss) + history)

@@ -477,7 +477,8 @@ def main(argv):
         if feedback:
             open(os.path.join(runs, "feedback.md"), "w", encoding="utf-8").write(feedback + "\n")
         where = "The checkout holds the card's work so far, uncommitted; HEAD is the branch before it."
-        brief = subprocess.run([sys.executable, os.path.join(HERE, "brief.py"), agent, n, "--step", step, "--pages", pages, "--repo", repo],
+        brief = subprocess.run([sys.executable, os.path.join(HERE, "brief.py"), agent, n, "--step", step, "--pages", pages, "--repo", repo]
+                               + ([] if feedback else ["--fresh", "1"]),
                                capture_output=True, text=True)
         if brief.returncode != 0:
             fail("brief: " + brief.stderr.strip()[-800:])
