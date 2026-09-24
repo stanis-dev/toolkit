@@ -14,7 +14,8 @@ refuses without it.
 POST /setup/<agent>/<n> starts the skill's setup.py: the issue's own worktree under <repo>/.claude/worktrees/ and its own Studio
 workspace, both named <prefix>-<n>; status in agents/<agent>/cards/<n>/setup/status.json. Every step below runs in that worktree and
 refuses (409) until it is there.
-POST /reset/<agent>/<n> archives every step's answer (analysis, strategy, context, resolve) and the card to the steps'
+POST /reset/<agent>/<n> archives every step's answer (analysis, strategy, context, resolve), the strategy's before-the-fix
+run files (guard-red, regressions) and the card to the steps'
 history/ folders with the sidebar's stage history, drops the step status files and leaves the card with its state comments
 only, and records it in the card's history (cardlog.py), which stays; it stops a live resolution session and moves the worktree's uncommitted tracked changes to a git stash, while the
 branch and workspace stay. Refused (409) while analysis, strategy, context or a sequence of that issue is running.
@@ -614,6 +615,12 @@ class H(SimpleHTTPRequestHandler):
                 p = paths.status(base, n, step)
                 if os.path.exists(p):
                     os.remove(p)
+            sruns = paths.runs(base, n, 'strategy')
+            for f in sorted(os.listdir(sruns)) if os.path.isdir(sruns) else []:
+                if re.fullmatch(r'(guard-red|regressions(-added-\d+)?)\.(json|id)', f):
+                    h = paths.history(base, n, 'strategy', stamp, f); os.makedirs(os.path.dirname(h), exist_ok=True)
+                    shutil.move(os.path.join(sruns, f), h); archived.append('strategy ' + f)
+                    kept.append(paths.rel(base, h))
             for ext in ('stage.json', 'runs.json'):
                 p = paths.step_file(base, n, 'resolve', ext)
                 if os.path.exists(p):
