@@ -126,7 +126,7 @@ try {
   });
 
   await check('stale marks in the card and the sidebar; the card\'s rerun popover', async () => {
-    const t = new Date(Date.now() + 5000); utimesSync(join(RUN, 'agents', A, 'analysis', '304.json'), t, t);
+    const t = new Date(Date.now() + 5000); utimesSync(join(RUN, 'agents', A, 'cards', '304', 'analysis', 'answer.json'), t, t);
     await P.waitFor(`document.querySelector('#tree a.it[data-n="304"] .stl')`, 6000, 'stale mark on the sidebar row');
     eq(await P.eval(`document.querySelector('#tree a.it[data-n="304"] .stl').title`), 'Stale: Sim strategy (analysis is newer), Context edit (analysis is newer)', 'row mark title');
     await P.waitFor(`${strip('sim strategy')}.querySelector('.chip.stale')`, 4000, 'stale chip on the strategy strip');
@@ -169,7 +169,7 @@ try {
   });
 
   if (RERUNS) await check('rerun from the resolution panel: prefill, the live session told', async () => {
-    const stage = join(RUN, 'agents', A, 'resolve', '297.stage.json');
+    const stage = join(RUN, 'agents', A, 'cards', '297', 'resolve', 'stage.json');
     writeFileSync(stage, JSON.stringify(JSON.parse(readFileSync(stage, 'utf8')).concat([{ t: new Date().toISOString(), stage: 'fix', state: 'misguided', step: 'context', note: 'The edit is too broad.' }])));
     await P.goto(`${BASE}/index.html#a=${A}&i=297`); await card(297);
     await P.eval(`${strip('resolution')}.querySelector('button[aria-label="Run resolution"]').click()`);
@@ -180,7 +180,7 @@ try {
     await P.eval(`document.querySelector('aside.sess .rrw .rrgo').click()`);
     await P.waitFor(`document.querySelector('aside.sess .rrw .rrm.done')`, 5000, 'rerun started');
     await P.waitFor(`/The engineer reran context with feedback/.test(document.querySelector('aside.sess .tl').textContent)`, 15000, 'the session is told');
-    ok(await P.eval(`/context: done, new answer in agents\\/[a-z]+\\/context\\/297\\.json/.test(document.querySelector('aside.sess .tl').textContent)`), 'with the new answer');
+    ok(await P.eval(`/context: done, new answer in agents\\/[a-z]+\\/cards\\/297\\/context\\/answer\\.json/.test(document.querySelector('aside.sess .tl').textContent)`), 'with the new answer');
     const log = readFileSync(join(RUN, 'standin.log'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.who === 'run.py' && r.n === '297');
     eq(log.map(r => [r.step, r.feedback]), [['context', 'The edit is too broad.']], 'run.py got the feedback');
     await P.eval(`${strip('resolution')}.querySelector('.kbtn').click()`);
@@ -188,12 +188,12 @@ try {
   });
 
   await check('history drawer: newest first, superseded, pointers', async () => {
-    const log = join(RUN, 'agents', A, 'log');
+    const log = join(RUN, 'agents', A, 'cards', '304');
     mkdirSync(log, { recursive: true });
-    writeFileSync(join(log, '304.jsonl'), [
-      { t: '2026-09-23T09:00:00Z', who: 'context', what: 'overpowered: edit Cierre › 3', refs: ['context/runs/304/2026-09-23T085800Z/answer.json'], answer: true },
-      { t: '2026-09-23T09:05:00Z', who: 'engineer', what: 'message: «go ahead»', refs: ['resolve/runs/304/out.jsonl@L12'] },
-      { t: '2026-09-23T09:10:00Z', who: 'context', what: 'rerun: overpowered: edit Cierre › 3 · feedback accepted', refs: ['context/runs/304/2026-09-23T090800Z/answer.json', 'git:abc1234'], answer: true },
+    writeFileSync(join(log, 'log.jsonl'), [
+      { t: '2026-09-23T09:00:00Z', who: 'context', what: 'overpowered: edit Cierre › 3', refs: ['cards/304/context/runs/2026-09-23T085800Z/answer.json'], answer: true },
+      { t: '2026-09-23T09:05:00Z', who: 'engineer', what: 'message: «go ahead»', refs: ['cards/304/resolve/runs/out.jsonl@L12'] },
+      { t: '2026-09-23T09:10:00Z', who: 'context', what: 'rerun: overpowered: edit Cierre › 3 · feedback accepted', refs: ['cards/304/context/runs/2026-09-23T090800Z/answer.json', 'git:abc1234'], answer: true },
     ].map(e => JSON.stringify(e)).join('\n') + '\n');
     await P.goto(`${BASE}/index.html#a=${A}&i=304`); await card(304);
     await P.eval(`document.querySelector('.hstb').click()`);
@@ -204,7 +204,7 @@ try {
         href: ev[1].querySelector('.refs a').getAttribute('href'), line: ev[1].querySelector('.refs a').textContent, git: ev[0].querySelector('.refs code').textContent };
     }})()`);
     eq(h.who, ['context', 'engineer', 'context'], 'newest first'); eq(h.old, [false, false, true], 'the earlier answer superseded');
-    eq([h.href, h.line, h.git], [`agents/${A}/resolve/runs/304/out.jsonl`, '304/out.jsonl · line 12', 'git:abc1234'], 'pointers');
+    eq([h.href, h.line, h.git], [`agents/${A}/cards/304/resolve/runs/out.jsonl`, 'runs/out.jsonl · line 12', 'git:abc1234'], 'pointers');
     await P.eval(`document.querySelector('.hstb').click()`);
     await P.waitFor(`!document.querySelector('aside.sess.hist')`, 3000, 'closed on a second click');
   });
@@ -216,11 +216,11 @@ try {
     const f = await P.eval(`(${function () {
       const box = document.querySelector('aside.sess.files');
       return { groups: [...box.querySelectorAll('.fg>summary')].map(s => s.firstChild.textContent),
-        log: [...box.querySelectorAll('.fr')].some(r => r.title === 'log/304.jsonl'),
+        log: [...box.querySelectorAll('.fr')].some(r => r.title === 'cards/304/log.jsonl'),
         folded: [...box.querySelectorAll('.fd')].every(d => !d.open) };
     }})()`);
     eq(f.groups.slice(0, 2), ['Source', 'Card'], 'source and card first'); eq([f.log, f.folded], [true, true], 'the log listed, folders folded');
-    await P.eval(`[...document.querySelectorAll('aside.sess.files .fr')].find(r => r.title === 'log/304.jsonl').click()`);
+    await P.eval(`[...document.querySelectorAll('aside.sess.files .fr')].find(r => r.title === 'cards/304/log.jsonl').click()`);
     await P.waitFor(`/overpowered/.test((document.querySelector('aside.sess.files .pv pre')||{}).textContent||'')`, 5000, 'preview shows the log');
     await P.eval(`document.querySelector('.flsb').click()`);
     await P.waitFor(`!document.querySelector('aside.sess.files')`, 3000, 'closed on a second click');

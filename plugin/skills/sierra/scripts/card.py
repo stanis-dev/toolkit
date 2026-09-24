@@ -10,18 +10,18 @@ Usage:
 and the pages-dir cache, and, until the context step has answered, the Studio Context section with the two items the
 answer names (the instruction meant to produce the good turn as A, the one that won as B): the issue file for the
 reported line, details.json for the turns and tags, debug.log for the tool calls. `call_rows()` gives the whole call
-to the page's transcript drawer through the server, the same parse. By default the JSON is `agents/<agent>/analysis/<n>.json` and the section is spliced into
-`agents/<agent>/cards/<n>.html`, replacing the existing `.ia` block or opening the card after its state
+to the page's transcript drawer through the server, the same parse. By default the JSON is `agents/<agent>/cards/<n>/analysis/answer.json` and the section is spliced into
+`agents/<agent>/cards/<n>/card.html`, replacing the existing `.ia` block or opening the card after its state
 comments. `--out -` prints the section instead.
 
 `ss` renders the Sim Strategy section (sections/sim-changes.html) from the sim-strategy skill's JSON,
-`agents/<agent>/strategy/<n>.json`, resolving simulation ids to names and groups in the repo's `*.tests.ts`. Pass
+`agents/<agent>/cards/<n>/strategy/answer.json`, resolving simulation ids to names and groups in the repo's `*.tests.ts`. Pass
 counts stay empty; runs fill them later, except the guard's own 5× run before any edit, shown as its repro line. `oc` renders the Studio Context and the Studio Context Edit sections
 (sections/studio-context.html, studio-context-edit.html) from the context-edit skill's JSON,
-`agents/<agent>/context/<n>.json`: the context is the analysis's two items plus the answer's `also` items and `tool`,
+`agents/<agent>/cards/<n>/context/answer.json`: the context is the analysis's two items plus the answer's `also` items and `tool`,
 the edit is its `edit`; item text, numbering and gates come from the block files in the repo, an item the analysis
 marked with the text that holds its marks: the edit's old text, the tree's, or the commit the context step started from.
-`rs` renders the Resolution section from the issue-resolution skill's report, `agents/<agent>/resolve/<n>.md`:
+`rs` renders the Resolution section from the issue-resolution skill's report, `agents/<agent>/cards/<n>/resolve/report.md`:
 headings, paragraphs, lists and code blocks, nothing more. `--repo` is the repository root, the working directory by
 default.
 """
@@ -998,6 +998,8 @@ def write_out(out, pages, agent, n, pieces):
     with open(card, "w", encoding="utf-8") as fh:
         fh.write(text)
     print(card)
+    if not out:
+        paths.link_source(paths.agent(pages, agent), n)
 
 
 def pre_edit(repo, base, n):

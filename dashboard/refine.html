@@ -269,7 +269,7 @@ details.fullcard .card .ia .top2{display:none}
   // leave every card an orphan and the queue empty until a manual reload.
   function poll(){
     Promise.all(AGENTS.map(function(a){var base='agents/'+a+'/cards/';return Promise.all([fetch(base).then(function(r){return r.ok?r.text():''}).catch(function(){return ''}).then(function(ls){
-      var files=[],m,re=/href="(\d+\.html)"/g;while((m=re.exec(ls)))files.push(m[1]);
+      var files=[],m,re=/href="(\d+)\/"/g;while((m=re.exec(ls)))files.push(m[1]+'/card.html');
       return Promise.all(files.map(function(f){return fetch(base+f,{method:'HEAD'}).then(function(r){return a+'/'+f+'@'+r.headers.get('Last-Modified')+'/'+r.headers.get('Content-Length')}).catch(function(){return f+'@?'})}));
     }),fetch('agents/'+a+'/issues/').then(function(r){return r.ok?r.text():''}).catch(function(){return ''}).then(function(ls){return (ls.match(/href="\d+\.json"/g)||[]).join()})])})).then(function(sig){sig=sig.join('\n');if(state.sig!==null&&state.sig!==sig){AGENTS.forEach(function(a){delete Cards.cache[a]});load().then(render)}state.sig=sig}).catch(function(){}).then(function(){setTimeout(poll,2000)});
   }

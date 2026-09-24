@@ -10,10 +10,10 @@ in the batch's worktree, everything under agents/<agent>/driver/ in place of res
 
 Starts pi in the issue's worktree with the step's brief (brief.py --step resolve) as the first prompt; with --ask the
 issue-resolution skill text follows the brief in that prompt. --resume starts pi on the session file of the last
-session instead (--continue in its session dir), with no new prompt. Writes, under agents/<agent>/resolve/:
-runs/<n>/out.jsonl (pi's events, results capped, the server streams it to the page; a link to out.<start stamp>.jsonl,
-the session's own log, which a later session leaves alone), <n>.status.json (state, pid of
-this process, usage, whose turn it is as "turn", an in-flight sim run as "simrun"), <n>.runs.json (pass counts of every
+session instead (--continue in its session dir), with no new prompt. Writes, under agents/<agent>/cards/<n>/resolve/:
+runs/out.jsonl (pi's events, results capped, the server streams it to the page; a link to out.<start stamp>.jsonl,
+the session's own log, which a later session leaves alone), status.json (state, pid of
+this process, usage, whose turn it is as "turn", an in-flight sim run as "simrun"), runs.json (pass counts of every
 `sierra … test` the session ran) and, when pi ends, the ticket's ledger entry. A resolution session's start, the
 engineer's messages (a send without "by", or by engineer), the resolution instructions and each sim run's counts are events
 of the card's history (cardlog.py), pointing into its log. Listens on the Unix socket runs/<n>/sock
@@ -49,6 +49,8 @@ class Host:
         self.status_path = steps.paths.status(self.base, n, self.folder)
         self.log_path = os.path.join(self.runs, 'out.jsonl')
         self.sock_path = os.path.join(self.runs, 'sock')
+        if len(self.sock_path) > 100:  # the OS caps a socket path near 104 bytes; this host runs in the pages dir
+            self.sock_path = os.path.relpath(self.sock_path)
         self.session_dir = os.path.join(self.runs, 'session')
         self.lock, self.wlock, self.llock = threading.Lock(), threading.Lock(), threading.Lock()
         self.streaming = self.stopping = self.ended = False
@@ -223,7 +225,7 @@ class Host:
 
     def track_run(self, t, ev):
         """A `sierra … test` launch: in flight between its start and end events; at the end the file it wrote is read
-        and its pass counts appended to resolve/<n>.runs.json under the stage current then."""
+        and its pass counts appended to cards/<n>/resolve/runs.json under the stage current then."""
         if t == 'tool_execution_start':
             cmd = str((ev.get('args') or {}).get('command') or '')
             if SIM_RUN.search(cmd) and '--list' not in cmd:

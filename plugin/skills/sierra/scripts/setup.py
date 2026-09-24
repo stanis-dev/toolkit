@@ -11,7 +11,7 @@ pnpm install in the agent dir; the Studio workspace <prefix>-<n> connected or cr
 Ghostwriter bound to it and the worktree's Studio content pushed there (init, pull, restore the tree, lint, push, pull).
 Existing worktree, branch or workspace of that name are adopted, never replaced.
 
-Writes agents/<agent>/setup/<n>.status.json for the page: state working/done/failed, pid, times, the lane's name, worktree,
+Writes agents/<agent>/cards/<n>/setup/status.json for the page: state working/done/failed, pid, times, the lane's name, worktree,
 branch, base commit, workspace url, the steps done, the error tail. Every command's output goes to stdout (the page's
 run.log). Nothing else on disk changes; the worktree is left for `git worktree remove` when the issue is done."""
 import fcntl, json, os, re, signal, subprocess, sys, time

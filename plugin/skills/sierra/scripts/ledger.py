@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""What each ticket has cost: one entry per model run, kept in <pages>/agents/<agent>/cost/<n>.json (a JSON list).
+"""What each ticket has cost: one entry per model run, kept in <pages>/agents/<agent>/cards/<n>/cost.json (a JSON list).
 
   ledger.py <agent> <n> [--pages <dir>]     prints the ticket's entries and total
   ledger.py backfill [--pages <dir>]        adds the runs recorded before the ledger existed; safe to repeat

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The card's history: one event per line in <pages>/agents/<agent>/log/<n>.jsonl, and the index the briefs print.
+"""The card's history: one event per line in <pages>/agents/<agent>/cards/<n>/log.jsonl, and the index the briefs print.
 
   cardlog.py <agent> <n> [--pages <dir>]
 

@@ -1,12 +1,12 @@
 """Stand-in for setup.py: the issue's worktree is a new git repo with one commit under --repo; status done."""
 import os, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import standin
+import standin, paths
 
 (agent, n), o = standin.args(sys.argv[1:])
 prefix = {'cobranzas': 'cob', 'openpay': 'opp', 'hipotecarios': 'hip'}[agent]
 wt = os.path.join(o['--repo'], '.claude', 'worktrees', f'{prefix}-{n}')
-path = os.path.join(o['--pages'], 'agents', agent, 'setup', n + '.status.json')
+path = paths.status(paths.agent(o['--pages'], agent), n, 'setup')
 st = {'state': 'working', 'pid': os.getpid(), 'started': standin.now(), 'name': f'{prefix}-{n}', 'worktree': wt, 'branch': f'stan/{prefix}-{n}',
       'batch': o.get('--batch'), 'base': o.get('--base'), 'steps': [], 'step': 'worktree'}
 standin.write(path, st)

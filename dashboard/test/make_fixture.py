@@ -6,6 +6,9 @@ files are made safe on the way: no pid, no working state, worktrees under @REPO@
   make_fixture.py [--live <pages dir>]"""
 import json, os, re, shutil, sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'plugin', 'skills', 'sierra', 'scripts'))
+import paths  # noqa: E402
+
 LIVE = sys.argv[sys.argv.index('--live') + 1] if '--live' in sys.argv else os.path.expanduser('~/.claude/bbva-issues')
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixture')
 PICK = {'hipotecarios': ['296', '297', '300', '301', '302', '303', '304'], 'cobranzas': ['321', '366', '446', '447', '448'],
@@ -43,24 +46,23 @@ def copy(src, dst, json_safe=False):
 
 shutil.rmtree(OUT, ignore_errors=True)
 for agent, nums in PICK.items():
-    s, d = os.path.join(LIVE, 'agents', agent), os.path.join(OUT, 'agents', agent)
+    s, d = paths.agent(LIVE, agent), paths.agent(OUT, agent)
     os.makedirs(os.path.join(d, 'issues'), exist_ok=True)
     for n in nums + EXTRA_ISSUES[agent]:
-        copy(f'{s}/issues/{n}.json', f'{d}/issues/{n}.json')
-        copy(f'{s}/cards/{n}.html', f'{d}/cards/{n}.html')
+        copy(paths.issue(s, n), paths.issue(d, n))
+        copy(paths.card(s, n), paths.card(d, n))
         for step in ('analysis', 'strategy', 'context', 'resolve', 'setup'):
             for ext in ('json', 'md', 'stage.json', 'runs.json'):
-                copy(f'{s}/{step}/{n}.{ext}', f'{d}/{step}/{n}.{ext}')
-            copy(f'{s}/{step}/{n}.status.json', f'{d}/{step}/{n}.status.json', json_safe=True)
-        copy(f'{s}/cost/{n}.json', f'{d}/cost/{n}.json')
-        copy(f'{s}/chain/{n}.json', f'{d}/chain/{n}.json', json_safe=True)
+                copy(paths.step_file(s, n, step, ext), paths.step_file(d, n, step, ext))
+            copy(paths.status(s, n, step), paths.status(d, n, step), json_safe=True)
+        copy(paths.cost(s, n), paths.cost(d, n))
+        copy(paths.chain(s, n), paths.chain(d, n), json_safe=True)
     for f in ('batches.json', 'sync.status.json'):
         copy(f'{s}/{f}', f'{d}/{f}', json_safe=True)
-    for f in os.listdir(f'{s}/batches') if os.path.isdir(f'{s}/batches') else []:
-        if f.endswith('.status.json'):
-            copy(f'{s}/batches/{f}', f'{d}/batches/{f}', json_safe=True)
-rec = os.path.join(OUT, 'agents', 'hipotecarios', 'resolve', 'runs', '304')
-copy(os.path.join(LIVE, 'agents', 'hipotecarios', 'resolve', 'runs', '304', 'out.jsonl'), os.path.join(rec, 'out.jsonl'))
+    for b in paths.batch_ids(s):
+        copy(paths.batch_file(s, b, 'status.json'), paths.batch_file(d, b, 'status.json'), json_safe=True)
+h = paths.agent(LIVE, 'hipotecarios')
+copy(os.path.join(paths.runs(h, '304', 'resolve'), 'out.jsonl'), os.path.join(paths.runs(paths.agent(OUT, 'hipotecarios'), '304', 'resolve'), 'out.jsonl'))
 for f in ('exclude.json',):
     copy(os.path.join(LIVE, f), os.path.join(OUT, f))
 print('fixture in', OUT, sum(len(fs) for _, _, fs in os.walk(OUT)), 'files')

@@ -20,7 +20,7 @@ For `strategy`:
   2. the tags the agent can emit: every tag literal in the agent's source with the file that declares it, and the
      tags the suite already asserts;
   3. the issue as above;
-  4. the Issue Analysis answer, `agents/<agent>/analysis/<n>.json` in the pages dir (the step fails without it);
+  4. the Issue Analysis answer, `agents/<agent>/cards/<n>/analysis/answer.json` in the pages dir (the step fails without it);
   5. the call the analysis names, the one holding its failure logEntryId, as a transcript; <k> is 1 here.
 For `context`:
   1. the Studio content as for `analysis`;
@@ -680,7 +680,7 @@ def resolve_brief(agent, n, base, repo, iss):
              f"- `<references>`: `{os.path.abspath(os.path.join(scripts, '..', 'references'))}`\n",
              issue_text(iss)]
     for step, title in (("analysis", "Issue Analysis"), ("strategy", "Sim Strategy"), ("context", "Studio Context Edit")):
-        path = os.path.join(base, step, f"{n}.json")
+        path = paths.answer(base, n, step)
         if os.path.exists(path):
             mtime = datetime.fromtimestamp(os.path.getmtime(path), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             parts.append(f"# {title} · {agent} {n}\n\n`{path}`, modified {mtime}\n\n```json\n" + json.dumps(load(path), ensure_ascii=False, indent=1) + "\n```\n")

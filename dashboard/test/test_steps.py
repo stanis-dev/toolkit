@@ -11,6 +11,9 @@ import lab
 
 AG, N, WS = 'hipotecarios', '900', 'https://studio.example.invalid/workspace/hip-900'
 SCRIPTS = lab.TOOLKIT
+sys.path.insert(0, SCRIPTS)
+import paths  # noqa: E402
+os.environ['SIERRA_SCRIPTS'] = SCRIPTS
 BLOCK = 'agents/hipotecarios/.composer/blocks/b.json'
 LOCK = 'agents/hipotecarios/.composer/pnpm-lock.yaml'
 SIM = 'agents/hipotecarios/simulations/s.tests.ts'
@@ -48,10 +51,11 @@ class Steps(unittest.TestCase):
         self.bind(WS)
         base = os.path.join(self.run_dir, 'agents', AG)
         json.dump({'issue': {'number': int(N), 'name': 'Made-up issue', 'status': 'OPEN'}, 'linkedLogs': []}, open(os.path.join(base, 'issues', N + '.json'), 'w'))
-        os.makedirs(os.path.join(base, 'analysis'), exist_ok=True)
-        json.dump({'ok': True}, open(os.path.join(base, 'analysis', N + '.json'), 'w'))
+        for p in (paths.answer(base, N, 'analysis'), paths.status(base, N, 'setup')):
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+        json.dump({'ok': True}, open(paths.answer(base, N, 'analysis'), 'w'))
         json.dump({'state': 'done', 'worktree': self.wt, 'workspace': WS, 'name': 'hip-' + N, 'commit': fork},
-                  open(os.path.join(base, 'setup', N + '.status.json'), 'w'))
+                  open(paths.status(base, N, 'setup'), 'w'))
 
     def tearDown(self):
         shutil.rmtree(self.run_dir, ignore_errors=True)
@@ -70,7 +74,7 @@ class Steps(unittest.TestCase):
         return self.status(step)
 
     def status(self, step):
-        return json.load(open(os.path.join(self.run_dir, 'agents', AG, step, N + '.status.json')))
+        return json.load(open(paths.status(paths.agent(self.run_dir, AG), N, step)))
 
     def git(self, *a):
         return subprocess.run(['git', '-C', self.wt] + list(a), capture_output=True, text=True, env=self.env).stdout.strip()
@@ -138,7 +142,7 @@ class Steps(unittest.TestCase):
         self.assertTrue(call['cont'])
         self.assertIn('The guard misses the second question.', call['stdin'])
         self.assertIn("holds the card's work so far, uncommitted", call['stdin'])
-        runs = os.path.join(self.run_dir, 'agents', AG, 'strategy', 'runs', N)
+        runs = paths.runs(paths.agent(self.run_dir, AG), N, 'strategy')
         self.assertEqual(open(os.path.join(runs, 'feedback.md')).read(), 'The guard misses the second question.\n')
         self.assertTrue(open(os.path.join(runs, 'prompt.md')).read().startswith('Feedback from the engineer'))
         self.assertTrue(os.path.exists(os.path.join(runs, 'system.md')))
@@ -155,7 +159,7 @@ class Steps(unittest.TestCase):
     def test_fresh_run_moves_the_session_aside(self):
         self.run_step('strategy')
         self.run_step('strategy')
-        runs = os.path.join(self.run_dir, 'agents', AG, 'strategy', 'runs', N)
+        runs = paths.runs(paths.agent(self.run_dir, AG), N, 'strategy')
         kept = sorted(d for d in os.listdir(runs) if d.startswith('session'))
         self.assertEqual(len(kept), 2)
         self.assertEqual(kept[0], 'session')
@@ -173,7 +177,7 @@ class Steps(unittest.TestCase):
         self.assertIn('$.ok: expected boolean', calls[1]['message'])
 
     def history(self):
-        return [json.loads(l) for l in open(os.path.join(self.run_dir, 'agents', AG, 'log', N + '.jsonl'))]
+        return [json.loads(l) for l in open(paths.log(paths.agent(self.run_dir, AG), N))]
 
     def test_each_run_is_an_event_with_its_own_files(self):
         self.run_step('strategy', replies=['{"ok": true, "n": 1}'])
@@ -212,14 +216,14 @@ class Steps(unittest.TestCase):
         self.assertEqual([(e['who'], e['what']) for e in ev], [('engineer', 'review wrong (strategy): guard misses it'),
                                                              ('pull', "took main's changes as base: b.json")])
         self.assertEqual(ev[1]['refs'], ['git:' + self.git('rev-parse', '--short', 'HEAD')])
-        stages = json.load(open(os.path.join(self.run_dir, 'agents', AG, 'resolve', N + '.stage.json')))
+        stages = json.load(open(paths.step_file(paths.agent(self.run_dir, AG), N, 'resolve', 'stage.json')))
         self.assertEqual(stages[-1]['t'], ev[0]['t'])
 
     def test_briefs_end_with_the_history(self):
         sys.path.insert(0, self.scripts)
         import cardlog
         for k in range(35):
-            cardlog.add(self.run_dir, AG, N, 'engineer' if k % 2 else 'strategy', f'event {k}', [f'strategy/runs/{N}/x{k}/answer.json'])
+            cardlog.add(self.run_dir, AG, N, 'engineer' if k % 2 else 'strategy', f'event {k}', [paths.rel(paths.agent(self.run_dir, AG), os.path.join(paths.runs(paths.agent(self.run_dir, AG), N, 'strategy'), f'x{k}', 'answer.json'))])
         os.makedirs(os.path.join(self.wt, 'agents', 'hipotecarios', '.composer', 'blocks'), exist_ok=True)
         out = subprocess.run([sys.executable, os.path.join(SCRIPTS, 'brief.py'), AG, N, '--step', 'context', '--pages', self.run_dir, '--repo', self.wt],
                              capture_output=True, text=True, env=self.env)
@@ -227,7 +231,7 @@ class Steps(unittest.TestCase):
         hist = out.stdout[out.stdout.index('# Card history · hipotecarios 900'):].splitlines()
         self.assertTrue(hist[4].startswith('earlier: strategy ×3, engineer ×2'), hist[4])
         self.assertEqual(len([l for l in hist if ' event ' in l and not l.startswith('earlier')]), 30)
-        self.assertTrue(hist[-1].endswith(f'event 34 → strategy/runs/{N}/x34/answer.json'), hist[-1])
+        self.assertTrue(hist[-1].endswith(f'event 34 → cards/{N}/strategy/runs/x34/answer.json'), hist[-1])
 
     def test_context_brief_carries_the_lane(self):
         os.makedirs(os.path.join(self.wt, 'agents', 'hipotecarios', '.composer', 'blocks'), exist_ok=True)
@@ -235,7 +239,7 @@ class Steps(unittest.TestCase):
                              capture_output=True, text=True, env=self.env)
         self.assertEqual(out.returncode, 0, out.stderr)
         lane = out.stdout[out.stdout.index('# Lane · hipotecarios 900'):]
-        self.assertIn(f'- `<runs>`: `{os.path.join(self.run_dir, "agents", AG, "context", "runs", N)}`', lane)
+        self.assertIn(f'- `<runs>`: `{paths.runs(paths.agent(self.run_dir, AG), N, "context")}`', lane)
         self.assertIn('- `<workspace>`: `hip-900`', lane)
         self.assertIn(f'- `<checkout>`: `{self.wt}`', lane)
 
@@ -247,7 +251,7 @@ class Disputes(unittest.TestCase):
         self.old, self.dir = os.getcwd(), os.path.join(HERE, 'run-disputes')
         shutil.rmtree(self.dir, ignore_errors=True)
         for d in ('resolve', 'strategy'):
-            os.makedirs(os.path.join(self.dir, 'agents', AG, d))
+            os.makedirs(os.path.dirname(paths.answer(paths.agent(self.dir, AG), N, d)))
         os.chdir(self.dir)
         sys.path.insert(0, os.path.dirname(HERE))
         import steps
@@ -255,7 +259,7 @@ class Disputes(unittest.TestCase):
         self.fb = {'verdict': 'partly', 'points': [
             {'claim': 'Move the edit to item 2.', 'verdict': 'accepted', 'why': 'It decides the turn.', 'basis': None},
             {'claim': 'Re-ask the seller question.', 'verdict': 'disputed', 'why': 'She had answered it.', 'basis': '«retomá la pregunta pendiente»'}]}
-        json.dump({'ok': True, 'feedback': self.fb}, open(os.path.join('agents', AG, 'strategy', N + '.json'), 'w'))
+        json.dump({'ok': True, 'feedback': self.fb}, open(paths.answer(paths.agent('', AG), N, 'strategy'), 'w'))
 
     def tearDown(self):
         os.chdir(self.old)
@@ -263,7 +267,7 @@ class Disputes(unittest.TestCase):
 
     def stage(self, *entries):
         json.dump([dict(t='2026-09-23T10:0%dZ' % k, stage='review', step='strategy', **e) for k, e in enumerate(entries)],
-                  open(os.path.join('agents', AG, 'resolve', N + '.stage.json'), 'w'))
+                  open(paths.step_file(paths.agent('', AG), N, 'resolve', 'stage.json'), 'w'))
 
     def test_run_checks_the_feedback_field(self):
         sys.path.insert(0, SCRIPTS)
@@ -290,7 +294,7 @@ class Disputes(unittest.TestCase):
                          ('strategy', 'She never answered: turn 41.', ['Re-ask the seller question.']))
         out, err = self.steps.rule(AG, N, 'step', gap=True)
         self.assertIsNone(err)
-        log = json.load(open(os.path.join('agents', AG, 'resolve', N + '.stage.json')))
+        log = json.load(open(paths.step_file(paths.agent('', AG), N, 'resolve', 'stage.json')))
         self.assertEqual((log[-1]['state'], log[-1]['step'], log[-1]['note']), ('ruled', 'strategy', 'for strategy; skill gap'))
         gaps = json.load(open(os.path.join('agents', AG, 'skill-gaps.json')))
         self.assertEqual((gaps[0]['n'], gaps[0]['for']), (N, 'step'))

@@ -2,15 +2,15 @@
 stopped on SIGTERM), one ledger entry of $0.02; strategy and context record a stand-in step commit. No model, no card."""
 import os, signal, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import standin, ledger
+import standin, ledger, paths
 
 (agent, n, step), o = standin.args(sys.argv[1:])
 pages = o['--pages']
-path = os.path.join(pages, 'agents', agent, step, n + '.status.json')
+path = paths.status(paths.agent(pages, agent), n, step)
 st = {'step': step, 'state': 'working', 'started': standin.now(), 'ended': None, 'seconds': None, 'commit': 'standin', 'model': o.get('--model'),
       'effort': o.get('--effort'), 'pid': os.getpid(), 'usage': None, 'live': None, 'error': None}
 standin.write(path, st)
-runs = os.path.join(pages, 'agents', agent, step, 'runs', n)
+runs = paths.runs(paths.agent(pages, agent), n, step)
 os.makedirs(runs, exist_ok=True)
 open(os.path.join(runs, 'system.md'), 'w').write('Stand-in system prompt for ' + step)
 open(os.path.join(runs, 'prompt.md'), 'w').write('Stand-in prompt for ' + step + ' of ' + n)

@@ -15,7 +15,7 @@ contested is the resolution holding points the rerun step disputed; review ruled
 written by the issues page with --step and --note. review reopened is reopen.py sending the card back with what its
 batch's check found.
 
-Appends {"t", "stage", "state", "step", "note"} to <pages>/agents/<agent>/resolve/<n>.stage.json (a JSON list) and refuses a
+Appends {"t", "stage", "state", "step", "note"} to <pages>/agents/<agent>/cards/<n>/resolve/stage.json (a JSON list) and refuses a
 stage or state outside the table, and the same as one event of the card's history (cardlog.py), by --by (default
 resolve) with --ref as its pointer. The pages dir defaults to ~/.claude/bbva-issues."""
 import json, os, sys

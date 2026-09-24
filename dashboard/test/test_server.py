@@ -5,10 +5,13 @@ import importlib.util, json, os, socket, subprocess, sys, threading, time, unitt
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import lab
+sys.path.insert(0, lab.TOOLKIT)
+import paths  # noqa: E402
 
 PORT = 8491
 BASE = f'http://127.0.0.1:{PORT}'
 AG = 'hipotecarios'
+B = paths.agent('', AG)
 
 
 def get(path, headers=None):
@@ -93,16 +96,16 @@ class StepStates(Lab):
 
     def test_stopped_versus_failed(self):
         a = f'agents/{AG}'
-        self.write(f'{a}/analysis/900.status.json', {'state': 'failed', 'error': 'stopped from the page', 'pid': 0})
-        self.write(f'{a}/strategy/900.status.json', {'state': 'failed', 'error': 'pi exit 1', 'pid': 0})
-        self.write(f'{a}/resolve/900.status.json', {'state': 'failed', 'error': 'process gone', 'pid': 0})
-        self.write(f'{a}/context/900.status.json', {'state': 'working', 'pid': 999999})
-        self.write(f'{a}/resolve/901.status.json', {'state': 'working', 'pid': 999999})
-        self.write(f'{a}/analysis/901.json', {})
+        self.write(paths.step_file(a, '900', 'analysis', 'status.json'), {'state': 'failed', 'error': 'stopped from the page', 'pid': 0})
+        self.write(paths.step_file(a, '900', 'strategy', 'status.json'), {'state': 'failed', 'error': 'pi exit 1', 'pid': 0})
+        self.write(paths.step_file(a, '900', 'resolve', 'status.json'), {'state': 'failed', 'error': 'process gone', 'pid': 0})
+        self.write(paths.step_file(a, '900', 'context', 'status.json'), {'state': 'working', 'pid': 999999})
+        self.write(paths.step_file(a, '901', 'resolve', 'status.json'), {'state': 'working', 'pid': 999999})
+        self.write(paths.step_file(a, '901', 'analysis', 'json'), {})
         s = get('/steps/' + AG)['steps']
         self.assertEqual(s['900'], {'analysis': 'stopped', 'strategy': 'failed', 'resolve': 'stopped', 'context': 'failed'})
         self.assertEqual(s['901'], {'resolve': 'stopped', 'analysis': 'done'})
-        st = self.load(a, 'context', '900.status.json')
+        st = self.load(paths.step_file(a, '900', 'context', 'status.json'))
         self.assertEqual((st['state'], st['error']), ('failed', 'process gone'))
         self.assertEqual(s['304']['setup'], 'done')
 
@@ -128,7 +131,7 @@ class Sequences(Lab):
         state = get(f'/chat/{AG}/304/state')
         self.assertTrue(state['running'])
         self.assertTrue(state['status']['asked'])
-        self.assertIn('Stand-in resolution instructions', open(self.path('agents', AG, 'resolve', 'runs', '304', 'brief.md')).read())
+        self.assertIn('Stand-in resolution instructions', open(self.path(paths.runs(B, '304', 'resolve'), 'brief.md')).read())
         post(f'/chat/{AG}/304/stop')
         until(lambda: not get(f'/chat/{AG}/304/state')['running'])
 
@@ -164,12 +167,12 @@ class Sequences(Lab):
         done = self.wait_chain('301')
         self.assertEqual((done['state'], done['error']), ('stopped', 'stopped from the page'))
         self.assertEqual([r['step'] for r in self.standin_log('run.py') if r['n'] == '301'], ['analysis'])
-        self.assertFalse(os.path.exists(self.path('agents', AG, 'chain', '301.stop')))
+        self.assertFalse(os.path.exists(self.path(paths.chain(B, '301', 'stop'))))
 
     def test_failed_step_ends_it(self):
         lab_env = dict(self.env, STANDIN_FAIL='strategy')
         subprocess.run([sys.executable, self.path('chain.py'), AG, '300', '--steps', 'analysis,strategy,context', '--pages', self.run_dir], env=lab_env, check=True, timeout=30)
-        st = self.load('agents', AG, 'chain', '300.json')
+        st = self.load(paths.chain(B, '300'))
         self.assertEqual((st['state'], st['error']), ('failed', 'strategy: stand-in failure'))
 
 
@@ -188,7 +191,7 @@ class Ledger(Lab):
         self.assertAlmostEqual(after['cost'] - before['cost'], 1.75, places=6)
         self.assertEqual(after['runs'], before['runs'] + 2)
         self.assertAlmostEqual(after['steps']['resolve'] - before['steps'].get('resolve', 0), 1.5, places=6)
-        self.write(f'agents/{AG}/resolve/302.status.json', {'state': 'working', 'pid': os.getpid(), 'usage': {'cost': 0.5}, 'turn': 'agent'})
+        self.write(paths.step_file(B, '302', 'resolve', 'status.json'), {'state': 'working', 'pid': os.getpid(), 'usage': {'cost': 0.5}, 'turn': 'agent'})
         cost = get('/steps/' + AG)['cost']['302']
         self.assertAlmostEqual(cost['cost'], after['cost'] + 0.5, places=6)
         self.assertEqual(cost['runs'], after['runs'] + 1)
@@ -202,7 +205,7 @@ class Ledger(Lab):
         self.assertNotEqual(subprocess.run(stage + ['review', 'holds', '--step', 'analysis'] + pages, capture_output=True).returncode, 0)
         self.assertNotEqual(subprocess.run(stage + ['fix', 'misguided', '--step', 'resolve'] + pages, capture_output=True).returncode, 0)
         self.assertEqual(subprocess.run(stage + ['review', 'wrong', '--step', 'analysis'] + pages, capture_output=True).returncode, 0)
-        last = self.load('agents', AG, 'resolve', '302.stage.json')[-1]
+        last = self.load(paths.step_file(B, '302', 'resolve', 'stage.json'))[-1]
         self.assertEqual((last['stage'], last['state'], last['step']), ('review', 'wrong', 'analysis'))
         self.assertEqual(get('/steps/' + AG)['resolve']['302']['stage']['step'], 'analysis')
 
@@ -211,7 +214,7 @@ class SessionHost(Lab):
     name = 'host'
 
     def events(self):
-        return [json.loads(l) for l in open(self.path('agents', AG, 'resolve', 'runs', '304', 'out.jsonl'))]
+        return [json.loads(l) for l in open(self.path(paths.runs(B, '304', 'resolve'), 'out.jsonl'))]
 
     def test_send_abort_ui_ask_stop_resume(self):
         code, r = post(f'/chat/{AG}/304/start', {'model': 'gpt-5.6-terra', 'effort': 'low'})
@@ -238,16 +241,16 @@ class SessionHost(Lab):
         ev = self.events()
         self.assertIn({'type': 'ui_answer', 'id': 'ui1', 'answer': {'confirmed': True}}, [{k: v for k, v in e.items() if k != 't'} for e in ev])
         self.assertEqual([e['mode'] for e in ev if e['type'] == 'sent'][:4], ['prompt', 'prompt', 'steer', 'follow_up'])
-        entries = len(json.load(open(self.path('agents', AG, 'cost', '304.json'))))
+        entries = len(json.load(open(self.path(paths.cost(B, '304')))))
         self.assertEqual(post(f'/chat/{AG}/304/stop')[0], 202)
         until(lambda: not get(f'/chat/{AG}/304/state')['running'])
         st = get(f'/chat/{AG}/304/state')
         self.assertEqual((st['status']['state'], st['status']['error']), ('failed', 'stopped from the page'))
         self.assertTrue(st['resumable'])
         self.assertEqual(get('/steps/' + AG)['steps']['304']['resolve'], 'stopped')
-        self.assertEqual(len(json.load(open(self.path('agents', AG, 'cost', '304.json')))), entries + 1)
+        self.assertEqual(len(json.load(open(self.path(paths.cost(B, '304'))))), entries + 1)
         self.assertEqual(self.events()[-1]['type'], 'exit')
-        self.assertFalse(os.path.exists(self.path('agents', AG, 'resolve', 'runs', '304', 'sock')))
+        self.assertFalse(os.path.exists(self.path(paths.runs(B, '304', 'resolve'), 'sock')))
         self.assertEqual(post(f'/chat/{AG}/304/send', {'message': 'x'})[0], 409)
         n = len(self.events())
         self.assertEqual(post(f'/chat/{AG}/304/start', {'resume': True, 'model': 'gpt-5.6-terra', 'effort': 'low'})[0], 202)
@@ -262,13 +265,13 @@ class SessionHost(Lab):
 
     def test_sim_run_counts(self):
         post(f'/chat/{AG}/297/start', {'model': 'gpt-5.6-terra', 'effort': 'low'})
-        runs = len(self.load('agents', AG, 'resolve', '297.runs.json'))
+        runs = len(self.load(paths.step_file(B, '297', 'resolve', 'runs.json')))
         post(f'/chat/{AG}/297/send', {'message': 'SIM SLOW'})
         until(lambda: get('/steps/' + AG)['resolve']['297'].get('live'))
-        until(lambda: len(self.load('agents', AG, 'resolve', '297.runs.json')) == runs + 1)
-        last = self.load('agents', AG, 'resolve', '297.runs.json')[-1]
+        until(lambda: len(self.load(paths.step_file(B, '297', 'resolve', 'runs.json'))) == runs + 1)
+        last = self.load(paths.step_file(B, '297', 'resolve', 'runs.json'))[-1]
         self.assertEqual((last['passed'], last['total'], last['green'], last['sims'], last['file']), (8, 10, 1, 2, 'sim.json'))
-        sims = [e for e in map(json.loads, open(self.path('agents', AG, 'log', '297.jsonl'))) if e['who'] == 'sims']
+        sims = [e for e in map(json.loads, open(self.path(paths.log(B, '297')))) if e['who'] == 'sims']
         self.assertTrue(sims[-1]['what'].startswith('sim.json: 8/10 runs passed, 1/2 sims green'), sims[-1]['what'])
         until(lambda: not get('/steps/' + AG)['resolve']['297'].get('live'))
         post(f'/chat/{AG}/297/stop')
@@ -276,7 +279,11 @@ class SessionHost(Lab):
     def test_direct_socket(self):
         post(f'/chat/{AG}/300/start', {'model': 'gpt-5.6-terra', 'effort': 'low'})
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.connect(self.path('agents', AG, 'resolve', 'runs', '300', 'sock'))
+        here = os.getcwd(); os.chdir(self.run_dir)  # a socket path is capped near 104 bytes: connect by the pages-relative one
+        try:
+            s.connect(os.path.join(paths.runs(B, '300', 'resolve'), 'sock'))
+        finally:
+            os.chdir(here)
         s.sendall(b'{"cmd": "state"}\n')
         self.assertEqual(json.loads(s.makefile().readline())['running'], True)
         s.close()
@@ -284,7 +291,7 @@ class SessionHost(Lab):
         until(lambda: not get(f'/chat/{AG}/300/state')['running'])
 
     def test_history_points_into_the_session_log(self):
-        runs, log = self.path('agents', AG, 'resolve', 'runs', '300'), self.path('agents', AG, 'log', '300.jsonl')
+        runs, log = self.path(paths.runs(B, '300', 'resolve')), self.path(paths.log(B, '300'))
         before = len(open(log).readlines()) if os.path.exists(log) else 0
         for rnd in range(2):
             post(f'/chat/{AG}/300/start', {'model': 'gpt-5.6-terra', 'effort': 'low'})
@@ -329,47 +336,47 @@ class Reruns(Lab):
     extra = {'STANDIN_SECONDS': '0.4'}
 
     def wt(self, n):
-        return self.load('agents', AG, 'setup', n + '.status.json')['worktree']
+        return self.load(paths.step_file(B, n, 'setup', 'status.json'))['worktree']
 
     def git(self, n, *a):
         return subprocess.run(['git', '-C', self.wt(n)] + list(a), capture_output=True, text=True, env=self.env, check=True).stdout.strip()
 
     def test_refused_while_another_step_runs(self):
-        self.write(f'agents/{AG}/analysis/301.status.json', {'state': 'working', 'pid': os.getpid()})
+        self.write(paths.step_file(B, '301', 'analysis', 'status.json'), {'state': 'working', 'pid': os.getpid()})
         try:
             self.assertEqual(post(f'/run/{AG}/301/context', {}), (409, {'error': 'analysis is running: wait for it or stop it'}))
         finally:
-            os.remove(self.path('agents', AG, 'analysis', '301.status.json'))
+            os.remove(self.path(paths.step_file(B, '301', 'analysis', 'status.json')))
         self.assertEqual(post(f'/run/{AG}/301/context', {})[0], 202)
 
     def test_feedback_reaches_the_first_step_and_the_live_session(self):
         self.assertEqual(post(f'/chat/{AG}/304/start', {'model': 'gpt-5.6-terra', 'effort': 'low'})[0], 202)
         code, st = post(f'/chain/{AG}/304', {'steps': ['context', 'strategy'], 'feedback': 'The guard misses the second question.'})
         self.assertEqual((code, st['steps']), (202, ['strategy', 'context']))
-        done = until(lambda: (lambda c: c.get('state') == 'done' and 'notified' in c and c)(self.load('agents', AG, 'chain', '304.json')), timeout=20)
+        done = until(lambda: (lambda c: c.get('state') == 'done' and 'notified' in c and c)(self.load(paths.chain(B, '304'))), timeout=20)
         self.assertTrue(done['notified'])
         runs = [r for r in self.standin_log('run.py') if r['n'] == '304']
         self.assertEqual([(r['step'], r['feedback']) for r in runs], [('strategy', 'The guard misses the second question.'), ('context', None)])
-        out = self.path('agents', AG, 'resolve', 'runs', '304', 'out.jsonl')
+        out = self.path(paths.runs(B, '304', 'resolve'), 'out.jsonl')
         sent = until(lambda: [e for e in map(json.loads, open(out)) if e.get('type') == 'sent' and 'reran' in e['text']])
         self.assertEqual(sent[0]['text'], 'The engineer reran strategy, context with feedback.\n'
-                         f'strategy: done, new answer in agents/{AG}/strategy/304.json.\ncontext: done, new answer in agents/{AG}/context/304.json.\nReview them again.')
+                         f'strategy: done, new answer in {paths.answer(B, "304", "strategy")}.\ncontext: done, new answer in {paths.answer(B, "304", "context")}.\nReview them again.')
         post(f'/chat/{AG}/304/stop')
 
     def test_run_with_feedback_is_a_one_step_sequence(self):
         code, st = post(f'/run/{AG}/297/analysis', {'feedback': 'Look at turn 12.'})
         self.assertEqual((code, st['steps']), (202, ['analysis']))
-        done = until(lambda: (lambda c: c.get('state') == 'done' and 'notified' in c and c)(self.load('agents', AG, 'chain', '297.json')), timeout=20)
+        done = until(lambda: (lambda c: c.get('state') == 'done' and 'notified' in c and c)(self.load(paths.chain(B, '297'))), timeout=20)
         self.assertFalse(done['notified'])
         self.assertEqual([r['feedback'] for r in self.standin_log('run.py') if r['n'] == '297'], ['Look at turn 12.'])
 
     def test_stale_answers(self):
         a = f'agents/{AG}'
         for step, age in (('analysis', 30), ('strategy', 20), ('context', 10)):
-            p = self.path(a, step, '300.json')
+            p = self.path(paths.answer(a, '300', step))
             os.utime(p, (time.time() - age, time.time() - age))
         self.assertNotIn('300', get('/steps/' + AG)['stale'])
-        os.utime(self.path(a, 'analysis', '300.json'))
+        os.utime(self.path(paths.answer(a, '300', 'analysis')))
         self.assertEqual(get('/steps/' + AG)['stale']['300'], {'strategy': 'analysis is newer', 'context': 'analysis is newer'})
 
 
@@ -378,7 +385,7 @@ class OlderScripts(Lab):
     name = 'older'
 
     def test_feedback_refused_plain_runs_as_before(self):
-        wt = self.load('agents', AG, 'setup', '301.status.json')['worktree']
+        wt = self.load(paths.step_file(B, '301', 'setup', 'status.json'))['worktree']
         open(os.path.join(wt, 'README'), 'a').write('work in progress\n')
         try:
             for path, body in ((f'/run/{AG}/301/strategy', {'feedback': 'x'}), (f'/chain/{AG}/301', {'steps': ['context'], 'feedback': 'x'})):

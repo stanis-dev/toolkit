@@ -3,7 +3,7 @@
 
   reopen.py <agent> <n> --batch <batch> --evidence <file> [--pages <dir>] [--server <url>]
 
-Appends {"t", "batch", "evidence"} (the file's text) to <pages>/agents/<agent>/resolve/<n>.reopen.json, records
+Appends {"t", "batch", "evidence"} (the file's text) to <pages>/agents/<agent>/cards/<n>/resolve/reopen.json, records
 `review reopened` with a one-line note in the card's stage log, then hands the evidence to the card's resolution session
 through the issues page's server (default http://127.0.0.1:8489): the session is resumed on its last file when it is not
 running, and the evidence goes in as the next prompt, after the current turn when one is running. Exit 1 when the server is down or refuses; the card's files are

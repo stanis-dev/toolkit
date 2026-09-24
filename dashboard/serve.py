@@ -12,7 +12,7 @@ batch's cards to no batch. Status in agents/<agent>/batches/<MMDD>.status.json. 
 branches, each with the worktree that has it checked out. Setup forks the issue's worktree from the batch's branch and
 refuses without it.
 POST /setup/<agent>/<n> starts the skill's setup.py: the issue's own worktree under <repo>/.claude/worktrees/ and its own Studio
-workspace, both named <prefix>-<n>; status in agents/<agent>/setup/<n>.status.json. Every step below runs in that worktree and
+workspace, both named <prefix>-<n>; status in agents/<agent>/cards/<n>/setup/status.json. Every step below runs in that worktree and
 refuses (409) until it is there.
 POST /reset/<agent>/<n> archives every step's answer (analysis, strategy, context, resolve) and the card to the steps'
 history/ folders with the sidebar's stage history, drops the step status files and leaves the card with its state comments
@@ -32,7 +32,7 @@ for the resolver the step reruns with the ruling, for the step the resolution se
 steps.rule records review ruled and a skill gap in agents/<agent>/skill-gaps.json. The sequence runs in chain.py, a process of its own;
 state in agents/<agent>/chain/<n>.json, and in /steps as "chains".
 POST /run/<agent>/<n>/<step> (analysis, strategy or context) starts the sierra skill's run.py for that issue and step, detached,
-in the issue's worktree; the card's button calls it and then polls agents/<agent>/<step>/<n>.status.json. A runner's own
+in the issue's worktree; the card's button calls it and then polls agents/<agent>/cards/<n>/<step>/status.json. A runner's own
 stdout and stderr land in serve.log next to this file (setup.py's in its run.log, which it fills on purpose).
 A step is refused (409, the reason) while another of the three runs for that issue; steps leave git alone, the card's
 work stays uncommitted until merge. Both routes take {feedback}: /run with it starts a one-step sequence, /chain gives it
@@ -51,7 +51,7 @@ GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes an
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
 "stale": {"<n>": {"<step>": why}} (answers whose input answer is newer)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
-stage (resolve/<n>.stage.json), the last three pass counts per stage (resolve/<n>.runs.json, which the session's reader
+stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files
 (a working state whose pid is gone is written back as failed) and from the answers where no status file is left.
 GET /request/<agent>/<conversation>[/<logEntryId>] is the compiled request the agent model saw at that turn (the first
@@ -65,7 +65,7 @@ end offset in the file, so a stream that reconnects (Last-Event-ID) carries on w
 POST /chat/<agent>/<n>/send {message, mode?} forwards a prompt; while the agent runs it is queued as a steer unless
 mode says follow_up; while it is idle, any mode starts a turn. POST /chat/<agent>/<n>/abort interrupts the current turn; /stop ends the process;
 /ui {id, ...} answers an extension's confirm/select/input request; GET …/state is {running, streaming, resumable,
-status}. Status: agents/<agent>/resolve/<n>.status.json.
+status}. Status: agents/<agent>/cards/<n>/resolve/status.json.
 
 The server re-executes itself when one of its own modules changes (serve.py, steps.py, and the scripts it imports),
 once the new code imports cleanly and no request is in flight; open event streams reconnect. `serve.py --check`
@@ -561,6 +561,7 @@ class H(SimpleHTTPRequestHandler):
             with open(path + '.tmp', 'w', encoding='utf-8') as f:
                 f.write(text)
             os.replace(path + '.tmp', path)
+            paths.link_source(paths.agent('', agent), n)
             self.reply(204); return
         rs = RESET.match(self.path)
         if rs:

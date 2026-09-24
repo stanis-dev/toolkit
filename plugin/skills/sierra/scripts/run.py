@@ -15,7 +15,7 @@ on it (json mode, prompt on stdin, read and bash tools, no skills, extensions or
 the skill's schema.json, once asking the same session to correct it, keep the previous answer and the previous card under
 `<step>/history/`, write the new JSON to `agents/<agent>/<step>/<n>.json` and splice the section into the card with
 card.py.
-Progress lives in `agents/<agent>/<step>/<n>.status.json`, which the issues page polls: state working, done or
+Progress lives in `agents/<agent>/cards/<n>/<step>/status.json`, which the issues page polls: state working, done or
 failed, with times, the repo commit, token usage, how long the model has been silent and the error tail. Run files sit
 in `<step>/runs/<n>/`: prompt.md (the whole message sent), system.md (the system prompt), out.jsonl (every pi event, deltas coalesced), err.log.
 When the run ends, done or failed, those files and the answer are copied to `<step>/runs/<n>/<start stamp>/`, which later

@@ -1,11 +1,24 @@
-"""Where the pages dir keeps each file: an agent's issues and calls, a card's step files, a batch's. Every script and the
-dashboard build their paths here, so the layout lives in one place. `base` is an agent's folder, agent(pages, a); the
-dashboard, which runs in the pages dir, passes agent('', a). `n` is a card's number, `step` one of setup, analysis,
-strategy, context, resolve; `driver` keys its files by batch the same way."""
+"""Where the pages dir keeps each file: an agent's issues and calls, a card's folder, a batch's files. Every script and
+the dashboard build their paths here, so the layout lives in one place. `base` is an agent's folder, agent(pages, a);
+the dashboard, which runs in the pages dir, passes agent('', a). `n` is a card's number, `step` one of setup, analysis,
+strategy, context, resolve; `driver` keys its files by batch the same way.
+
+    issues/<n>.json               the tracker's issue, sync.py's
+    conversations/<call>/         a call's files, sync.py's; one call can belong to several issues
+    cards/<n>/
+      card.html  log.jsonl  cost.json  chain.json  chain.stop  chain.log
+      source.json -> ../../issues/<n>.json,  conversations/<call> -> ../../../conversations/<call>
+      <step>/  status.json  answer.json  report.md  stage.json  runs.json  reopen.json  runs/  history/
+    batches.json  batches/<batch>.status.json  batches/<batch>/  driver/<batch>.<ext>  driver/runs/<batch>/
+"""
 import glob
 import json
 import os
 import re
+
+
+STEPS = ("setup", "analysis", "strategy", "context", "resolve")
+NAME = {"json": "answer.json", "md": "report.md"}  # a step file's name in the step's folder, by its old extension
 
 
 def pages_dir(override=None):
@@ -23,6 +36,12 @@ def issue(base, n):
     return os.path.join(base, "issues", f"{n}.json")
 
 
+def issues(base):
+    """The numbers of the issues sync.py has written, sorted."""
+    d = os.path.join(base, "issues")
+    return sorted((f[:-5] for f in os.listdir(d) if re.fullmatch(r"\d+\.json", f)), key=int) if os.path.isdir(d) else []
+
+
 def conversation(base, cid):
     return os.path.join(base, "conversations", cid)
 
@@ -33,20 +52,39 @@ def sop(base):
 
 # ---------- a card ----------
 
+def card_dir(base, n):
+    return os.path.join(base, "cards", str(n))
+
+
 def card(base, n):
-    return os.path.join(base, "cards", f"{n}.html")
-
-
-def issues(base):
-    """The numbers of the issues sync.py has written, sorted."""
-    d = os.path.join(base, "issues")
-    return sorted((f[:-5] for f in os.listdir(d) if re.fullmatch(r"\d+\.json", f)), key=int) if os.path.isdir(d) else []
+    return os.path.join(card_dir(base, n), "card.html")
 
 
 def cards(base):
     """The numbers of the agent's cards, sorted."""
     d = os.path.join(base, "cards")
-    return sorted((f[:-5] for f in os.listdir(d) if re.fullmatch(r"\d+\.html", f)), key=int) if os.path.isdir(d) else []
+    return sorted((f for f in os.listdir(d) if f.isdigit() and os.path.isfile(card(base, f))), key=int) if os.path.isdir(d) else []
+
+
+def link_source(base, n):
+    """The card folder's links to what it came from: source.json to the issue, conversations/<call> to each linked call
+    sync.py has fetched. Idempotent."""
+    d = card_dir(base, n)
+    os.makedirs(d, exist_ok=True)
+    src = os.path.join(d, "source.json")
+    if os.path.exists(issue(base, n)) and not os.path.lexists(src):
+        os.symlink(os.path.relpath(issue(base, n), d), src)
+    try:
+        iss = json.load(open(issue(base, n), encoding="utf-8"))
+        iss = json.loads(iss) if isinstance(iss, str) else iss
+    except (OSError, ValueError):
+        return
+    for link in iss.get("linkedLogs") or []:
+        conv = conversation(base, link["id"])
+        dst = os.path.join(d, "conversations", link["id"])
+        if os.path.isdir(conv) and not os.path.lexists(dst):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            os.symlink(os.path.relpath(conv, os.path.dirname(dst)), dst)
 
 
 def status(base, n, step):
@@ -58,54 +96,60 @@ def answer(base, n, step):
 
 
 def step_file(base, n, step, ext):
-    """One of the step's files of the card: `status.json`, `json` (the answer), and for resolve `stage.json`,
-    `runs.json`, `reopen.json`, `md` (the report)."""
-    return os.path.join(base, step, f"{n}.{ext}")
+    """One of the step's files of the card, by its kind: `status.json`, `json` (the answer), and for resolve
+    `stage.json`, `runs.json`, `reopen.json`, `md` (the report). The driver's are per batch, in driver/."""
+    if step == "driver":
+        return os.path.join(base, "driver", f"{n}.{ext}")
+    return os.path.join(card_dir(base, n), step, NAME.get(ext, ext))
 
 
 def numbers(base, kind, ext="status.json"):
-    """The card numbers (batches for driver) that have that file: a step's (`status.json`, `json`, `stage.json`, …),
-    `cost`'s or `chain`'s `json`, `log`'s `jsonl`. Sorted as strings."""
-    d = os.path.join(base, kind)
-    suffix = "." + ext
-    return sorted(f[:-len(suffix)] for f in os.listdir(d)
-                  if f.endswith(suffix) and re.fullmatch(r"\d+(?:-\d)?", f[:-len(suffix)])) if os.path.isdir(d) else []
+    """The card numbers (batches for driver and batches) that have that file: a step's (`status.json`, `json`,
+    `stage.json`, …), `cost`'s or `chain`'s `json`, `log`'s `jsonl`. Sorted as strings."""
+    if kind in ("driver", "batches"):
+        d = os.path.join(base, kind)
+        suffix = "." + ext
+        return sorted(f[:-len(suffix)] for f in os.listdir(d)
+                      if f.endswith(suffix) and re.fullmatch(r"\d+(?:-\d)?", f[:-len(suffix)])) if os.path.isdir(d) else []
+    d = os.path.join(base, "cards")
+    at = {"cost": lambda n: cost(base, n), "log": lambda n: log(base, n), "chain": lambda n: chain(base, n, ext)}.get(
+        kind, lambda n: step_file(base, n, kind, ext))
+    return sorted(f for f in os.listdir(d) if f.isdigit() and os.path.exists(at(f))) if os.path.isdir(d) else []
 
 
 def runs(base, n, step):
     """The step's working folder for the card: the current run's files, and one folder per ended run."""
-    return os.path.join(base, step, "runs", str(n))
+    if step == "driver":
+        return os.path.join(base, "driver", "runs", str(n))
+    return os.path.join(card_dir(base, n), step, "runs")
 
 
 def history(base, n, step, stamp, ext):
     """An earlier version of the step's answer (`json`) or of the card (`card.html`), kept when a run replaced it."""
-    return os.path.join(base, step, "history", f"{n}.{stamp}.{ext}")
+    return os.path.join(card_dir(base, n), step, "history", f"{stamp}.{ext}")
 
 
 def histories(base, n, step):
     """The card's history files of the step, oldest first."""
-    return sorted(glob.glob(os.path.join(base, step, "history", f"{n}.*")))
+    return sorted(glob.glob(os.path.join(card_dir(base, n), step, "history", "*")))
 
 
 def log(base, n):
     """The card's history, one event per line."""
-    return os.path.join(base, "log", f"{n}.jsonl")
+    return os.path.join(card_dir(base, n), "log.jsonl")
 
 
 def cost(base, n):
-    return os.path.join(base, "cost", f"{n}.json")
+    return os.path.join(card_dir(base, n), "cost.json")
 
 
 def chain(base, n, ext="json"):
     """The step sequence's state (`json`) and stop request (`stop`)."""
-    return os.path.join(base, "chain", f"{n}.{ext}")
+    return os.path.join(card_dir(base, n), f"chain.{ext}")
 
 
 def chain_log(base, n):
-    return os.path.join(base, "chain", "runs", f"{n}.log")
-
-
-STEPS = ("setup", "analysis", "strategy", "context", "resolve")
+    return os.path.join(card_dir(base, n), "chain.log")
 
 
 def card_files(base, n):
@@ -121,6 +165,7 @@ def card_files(base, n):
                 dirs.sort()
                 out.extend((group, os.path.join(root, f)) for f in sorted(files))
     add("source", issue(base, n))
+    d = card_dir(base, n)
     try:
         iss = json.load(open(issue(base, n), encoding="utf-8"))
         iss = json.loads(iss) if isinstance(iss, str) else iss
@@ -128,14 +173,16 @@ def card_files(base, n):
         iss = {}
     for link in iss.get("linkedLogs") or []:
         add("source", conversation(base, link["id"]))
-    for p in (card(base, n), log(base, n), cost(base, n), chain(base, n), chain(base, n, "stop"), chain_log(base, n)):
-        add("card", p)
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        if f not in STEPS and f not in ("source.json", "conversations"):
+            add("card", os.path.join(d, f))
     for step in STEPS:
-        for p in sorted(glob.glob(os.path.join(base, step, f"{n}.*"))):
-            add(step, p)
+        sd = os.path.join(d, step)
+        for f in sorted(os.listdir(sd)) if os.path.isdir(sd) else []:
+            if f not in ("runs", "history"):
+                add(step, os.path.join(sd, f))
         add(step, runs(base, n, step))
-        for p in histories(base, n, step):
-            add(step, p)
+        add(step, os.path.join(sd, "history"))
     return out
 
 

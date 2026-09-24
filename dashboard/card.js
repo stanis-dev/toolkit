@@ -5,12 +5,13 @@
   var cache={};
   // Where the pages dir keeps each file, as paths.py builds them; every fetch of a card's file goes through here.
   var Paths={
-    status:function(a,n,step){return 'agents/'+a+'/'+step+'/'+n+'.status.json'},
-    answer:function(a,n,step){return 'agents/'+a+'/'+step+'/'+n+'.json'},
-    file:function(a,n,step,ext){return 'agents/'+a+'/'+step+'/'+n+'.'+ext},
-    runs:function(a,n,step){return 'agents/'+a+'/'+step+'/runs/'+n+'/'},
-    chain:function(a,n){return 'agents/'+a+'/chain/'+n+'.json'},
-    log:function(a,n){return 'agents/'+a+'/log/'+n+'.jsonl'}
+    card:function(a,n){return 'agents/'+a+'/cards/'+n+'/'},
+    file:function(a,n,step,ext){return step==='driver'?'agents/'+a+'/driver/'+n+'.'+ext:Paths.card(a,n)+step+'/'+({json:'answer.json',md:'report.md'}[ext]||ext)},
+    status:function(a,n,step){return Paths.file(a,n,step,'status.json')},
+    answer:function(a,n,step){return Paths.file(a,n,step,'json')},
+    runs:function(a,n,step){return step==='driver'?'agents/'+a+'/driver/runs/'+n+'/':Paths.card(a,n)+step+'/runs/'},
+    chain:function(a,n){return Paths.card(a,n)+'chain.json'},
+    log:function(a,n){return Paths.card(a,n)+'log.jsonl'}
   };
   var P=window.htmPreact, html=P.html, render=P.render, useState=P.useState, useEffect=P.useEffect, useLayoutEffect=P.useLayoutEffect, useRef=P.useRef, useMemo=P.useMemo;
   function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}}
@@ -23,8 +24,8 @@
       return Promise.all(nums.map(function(n){return fetch(base+'issues/'+n+'.json').then(function(r){return r.json()}).then(function(d){return typeof d==='string'?JSON.parse(d):d}).catch(function(){return null})}));
     });
     var list=fetch(base+'cards/').then(function(r){return r.ok?r.text():''}).catch(function(){return ''}).then(function(html){
-      var nums=[],m,re=/href="(\d+)\.html"/g; while((m=re.exec(html))) nums.push(+m[1]);
-      return Promise.all(nums.map(function(n){return fetch(base+'cards/'+n+'.html').then(function(r){return r.text()}).then(function(t){
+      var nums=[],m,re=/href="(\d+)\/"/g; while((m=re.exec(html))) nums.push(+m[1]);
+      return Promise.all(nums.map(function(n){return fetch(Paths.card(agent,n)+'card.html').then(function(r){return r.ok?r.text():null}).then(function(t){if(t==null)return null;
         var meta={},m2;while((m2=/^\s*<!--\s*(\w+):\s*(.*?)\s*-->/.exec(t))){meta[m2[1]]=m2[2];t=t.slice(m2[0].length)}
         // Green: the Sim Strategy has run counts and every one of them is full, repro and regressions alike.
         var res=Array.prototype.map.call(new DOMParser().parseFromString(t,'text/html').querySelectorAll('.ss .res'),function(e){return /(\d+)\s*\/\s*(\d+)/.exec(e.textContent)}).filter(Boolean);
@@ -36,7 +37,7 @@
     return Promise.all([raw,list,batches]).then(function(rr){
       var issues={}; rr[0].forEach(function(d){var r=d&&d.issue;if(!r)return;var c=r.createdTime||'';issues[r.number]={num:r.number,title:(r.name||'').trim(),state:r.status||'OPEN',sev:r.severity||'MINOR',owner:(r.owner&&r.owner.name)||'',created:c.length>=10?c.slice(8,10)+'/'+c.slice(5,7):'',body:r.description||'',comments:(r.comments||[]).map(function(x){return {author:x.creatorName||'',time:x.createdAt||'',text:x.body||''}}),calls:d.linkedLogs||[]}});
       Object.keys(issues).forEach(function(k){issues[k].agent=agent});
-      rr[1].forEach(function(c){var i=issues[c.num]||(issues[c.num]={num:c.num,title:'#'+c.num,state:'OPEN',sev:'MINOR',owner:'',created:'',body:'',comments:[],orphan:true});i.pr=c.pr;i.ws=c.ws;i.batch=c.batch;i.green=c.green;i.card=c.html});
+      rr[1].filter(Boolean).forEach(function(c){var i=issues[c.num]||(issues[c.num]={num:c.num,title:'#'+c.num,state:'OPEN',sev:'MINOR',owner:'',created:'',body:'',comments:[],orphan:true});i.pr=c.pr;i.ws=c.ws;i.batch=c.batch;i.green=c.green;i.card=c.html});
       return (cache[agent]={issues:issues,list:Object.keys(issues).map(function(k){return issues[k]}),batches:rr[2]||{}});
     });
   }
@@ -126,7 +127,7 @@
     if(odd.length)card.insertBefore(el('<div class="lint" title="Markup the page does not know; it renders unstyled">'+esc(odd.join(' '))+'</div>'),card.firstChild);
   }
   // Run: the play button in the Issue Analysis header starts the issue-analysis skill on the server, the one in the Sim
-  // Strategy header the sim-strategy skill; the chip next to each follows agents/<agent>/<step>/<n>.status.json, fetched
+  // Strategy header the sim-strategy skill; the chip next to each follows agents/<agent>/cards/<n>/<step>/status.json, fetched
   // again when the page's poll brings a new state for that step and every 2 s while the run works. The bars are
   // components mounted once per card, so a poll updates them in place.
   var STEP_LABEL={analysis:'issue analysis',strategy:'sim strategy',context:'context edit',resolve:'resolution'};
@@ -169,7 +170,7 @@
   // sequence («rerun + later steps»). run.py first moves the issue branch back to where the step started; the server
   // refuses while the worktree has uncommitted changes and says why, shown here. When it ends and the issue's
   // resolution session is live, the server tells the session. In the resolution panel the step and the feedback come
-  // prefilled from the session's latest blame in resolve/<n>.stage.json.
+  // prefilled from the session's latest blame in cards/<n>/resolve/stage.json.
   var PREP_STEPS=['analysis','strategy','context'];
   function blameOf(entries){
     for(var k=(entries||[]).length-1;k>=0;k--){var e=entries[k]||{};
@@ -595,7 +596,7 @@
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
     return {toggle:toggle,close:close,state:state};
   })();
-  // History drawer: the card's events as the agents' briefs index them (agents/<agent>/log/<n>.jsonl), newest first, read
+  // History drawer: the card's events as the agents' briefs index them (agents/<agent>/cards/<n>/log.jsonl), newest first, read
   // again every 3 s while open; each pointer opens its file, git: commits show as text.
   var History=(function(){
     var dw=Drawer(), cur=null, want=null;
