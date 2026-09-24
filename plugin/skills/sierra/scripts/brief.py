@@ -3,6 +3,7 @@
 Usage:
   brief.py <agent> <n> [--step analysis|strategy|context|resolve] [--pages <dir>] [--repo <dir>] [--calls <k>]
   brief.py <agent> --batch <batch> [--pages <dir>] [--repo <dir>]
+  brief.py <agent> --replay <result-dir>
 
 Static first, so a prompt cache shares the prefix across issues of one agent. For `analysis` (the default):
   1. the agent's Studio content as blocks.py prints it, path, text and JSON pointer per item, render order;
@@ -34,6 +35,8 @@ With --batch, the batch driver's opening message: the batch's values, then per c
 regression list and every run of it (the strategy's before the fix, the resolution's), each with its time, the main
 commit its workspace held then (main's merges reach every workspace as they land) and per-simulation counts; then
 main's merges since the oldest of those runs.
+With --replay, one simulation replay (a results/<result> folder of a downloaded run) as a transcript, each line
+addressed by its debug.log seq.
 Everything comes from the pages dir ($BBVA_ISSUES_DIR, else ~/.claude/bbva-issues) except the tree and the
 simulation files, read from the repository given by --repo, the working directory by default.
 """
@@ -192,6 +195,52 @@ def transcript(conv_dir, details):
         out.append(f"{turn} {who} `{m.get('logEntryId')}`: {(m.get('text') or '').replace(chr(10), ' ')}")
         out.extend(aside.get(i, []))
     tags = [t for t in details.get("metadata", {}).get("tags", []) if not t.startswith(("^", "~"))]
+    out.append("")
+    out.append("tags: " + ", ".join(tags))
+    return "\n".join(out) + "\n"
+
+
+def replay_transcript(result_dir):
+    """A simulation replay as a numbered transcript, each line addressed by its debug.log seq, tool calls and activated
+    observations inline as for a call, tags at the end."""
+    out, pending, tools, invoked = [], [], [], {}
+    turn, role, last_obs = 0, None, None
+    for r in debug_rows(result_dir):
+        k = r["event_type"]
+        if k in ("USER_MSG", "AGENT_MSG"):
+            out += pending
+            if k == "AGENT_MSG":
+                out += [f"    tools[{j}] {t['name']}" + (f" {json.dumps(t['args'], ensure_ascii=False)}" if t.get("args") is not None else "")
+                        for j, t in enumerate(tools)]
+                tools = []
+            pending = []
+            if k != role:
+                turn += 1
+                role = k
+            who = "A" if k == "AGENT_MSG" else "U"
+            out.append(f"{turn} {who} `{r['seq']}`: {r['message'].replace(chr(10), ' ')}")
+        elif k == "TOOL_CALL":
+            tools.append({"name": r["message"], "args": invoked.pop(r["message"], None)})
+        elif k == "AGENT_LOG" and "Invoking tool: " in r["message"]:
+            m = re.match(r".*Invoking tool: (\S+) (\{.*\})\s*$", r["message"], re.S)
+            if m:
+                try:
+                    args = json.loads(m.group(2))
+                except ValueError:
+                    args = m.group(2)
+                t = next((t for t in reversed(tools) if t["name"] == m.group(1) and t.get("args") is None), None)
+                if t:
+                    t["args"] = args
+                else:
+                    invoked[m.group(1)] = args
+        elif k == "OBSERVATIONS" and r["message"].startswith("Activated"):
+            if r["message"] != last_obs:
+                pending.append(f"    [obs] {r['message'][len('Activated: '):]}")
+            last_obs = r["message"]
+    out += pending + [f"    tools[{j}] {t['name']}" + (f" {json.dumps(t['args'], ensure_ascii=False)}" if t.get("args") is not None else "")
+                      for j, t in enumerate(tools)]
+    p = os.path.join(result_dir, "result.json")
+    tags = [t for t in (load(p).get("tags") or [] if os.path.exists(p) else []) if not t.startswith(("^", "~"))]
     out.append("")
     out.append("tags: " + ", ".join(tags))
     return "\n".join(out) + "\n"
@@ -441,6 +490,10 @@ def call_of_analysis(base, iss, analysis):
 def main(argv):
     if len(argv) < 2:
         fail(__doc__)
+    if argv[1] == "--replay":
+        d = os.path.abspath(argv[2])
+        sys.stdout.write(f"# Replay {os.path.basename(d)}\n\ncached at `{d}/`\n\n" + replay_transcript(d))
+        return
     if argv[1] == "--batch":
         opts = dict(zip(argv[1::2], argv[2::2]))
         sys.stdout.write(batch_brief(argv[0], opts["--batch"], os.path.join(pages_dir(opts.get("--pages")), "agents", argv[0])))
