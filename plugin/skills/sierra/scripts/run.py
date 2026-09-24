@@ -527,7 +527,8 @@ def main(argv):
                     cmd = base_cmd + ["The instructions, the schema and the brief are the text above."]
                 else:
                     cmd = base_cmd + ["-c", "Your reply was not the JSON object schema.json describes. Problems: "
-                                      + "; ".join(errors[:12]) + ". Return only the corrected JSON object, nothing else."]
+                                      + "; ".join(errors[:12]) + ". These are format problems, not feedback on your answer: `feedback` stays as it was. "
+                                      "Return only the corrected JSON object, nothing else."]
                     out.write(json.dumps({"type": "retry", "problems": errors[:12], "t": now()}, ensure_ascii=False) + "\n")
                 final.update(text=None, stop=None, error=None)
                 act.update(last=time.time(), tools=0)
