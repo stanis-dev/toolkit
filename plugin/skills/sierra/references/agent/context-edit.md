@@ -1,10 +1,10 @@
 # Studio Context and its Edit
 
 Step 4 of the issue workflow is the `context-edit` skill (`plugin/skills/context-edit/SKILL.md`), run on `<agent> <n>` once
-the Issue Analysis JSON is at `agents/<agent>/analysis/<n>.json`, and the Sim Strategy JSON when step 2 has run. It
+the Issue Analysis JSON is at `agents/<agent>/cards/<n>/analysis/answer.json`, and the Sim Strategy JSON when step 2 has run. It
 reads the request the model saw at the failure turn, the Studio content and the agent code and returns JSON: the
 cause, the responsible context with its roles, the edit as old and new text on a JSON pointer, alternatives, and
-flags. Save it as `agents/<agent>/context/<n>.json` in the pages dir. It edits nothing: the edit is a proposal until I
+flags. Save it as `agents/<agent>/cards/<n>/context/answer.json` in the pages dir. It edits nothing: the edit is a proposal until I
 approve it, then step 5 applies it against [agent-design.md](./agent-design.md).
 
 ## The card
