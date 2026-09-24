@@ -428,6 +428,8 @@ def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=N
         return None, NO_RERUNS
     first = next((x for x in ORDER if x in steps), None)
     repo = repo_of(agent, n)
+    if not repo and first != 'setup':
+        return None, 'not set up yet: add setup to the steps'
     if first in PREP and repo:
         why = prep_refusal(agent, n, first, repo)
         if why:

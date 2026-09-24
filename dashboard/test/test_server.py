@@ -175,8 +175,7 @@ class Sequences(Lab):
         self.assertEqual(post(f'/chain/{AG}/302', {'steps': []})[0], 400)
         post(f'/chain/{AG}/302', {'steps': ['setup', 'analysis']})
         self.assertEqual(self.wait_chain('302')['error'], 'setup: no batch: put the card in a batch first')
-        post(f'/chain/{AG}/303', {'steps': ['analysis']})
-        self.assertEqual(self.wait_chain('303')['error'], 'analysis: no worktree: set the issue up first')
+        self.assertEqual(post(f'/chain/{AG}/303', {'steps': ['analysis']}), (409, {'error': 'not set up yet: add setup to the steps'}))
 
     def test_keep_alive_after_a_body_the_route_ignores(self):
         import http.client

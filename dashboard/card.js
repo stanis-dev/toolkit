@@ -274,7 +274,7 @@
     if(fetched!==undefined&&(!st||(fetched&&fetched.started>=st.started)))st=fetched;
     useEffect(function(){if(local&&!local.sticky&&st&&st.state==='working')loc[1](null)},[st&&st.state,st&&st.at]);
     var working=!!(st&&st.state==='working'), chip=null;
-    if(st&&!(st.state==='done'&&!working)){var at=st.steps.indexOf(st.at);chip={cls:st.state==='stopped'?'':st.state,text:working?(at+1)+'/'+st.steps.length+' · '+STEP_SHORT[st.at]:st.state==='stopped'?'sequence stopped':'sequence failed',title:st.steps.map(function(k){return STEP_SHORT[k]}).join(' → ')+(st.error?'\n'+st.error:'')}}
+    if(st&&!(st.state==='done'&&!working)){var at=st.steps.indexOf(st.at);chip={cls:st.state==='stopped'?'':st.state,text:working?(at+1)+'/'+st.steps.length+' · '+STEP_SHORT[st.at]:st.state==='stopped'?'sequence stopped':st.error?'failed · '+(st.error.length>90?st.error.slice(0,90)+'…':st.error):'sequence failed',title:st.steps.map(function(k){return STEP_SHORT[k]}).join(' → ')+(st.error?'\n'+st.error:'')}}
     if(local&&local.chip)chip=local.chip;
     function go(){var steps=chosenSteps();if(!steps.length)return;pop[1](false);loc[1]({chip:{cls:'working',text:'starting'},k:Date.now()});
       postJSON('chain/'+agent+'/'+i.num,Object.assign({steps:steps},runOpts())).then(function(x){return x.json().catch(function(){return {}}).then(function(j){if(!x.ok){loc[1]({chip:{cls:'failed',text:j.error||('server said '+x.status)},sticky:true});return}setTimeout(function(){loc[1]({k:Date.now()})},1000)})}).catch(function(){loc[1]({chip:{cls:'failed',text:'server unreachable'},sticky:true})})}
