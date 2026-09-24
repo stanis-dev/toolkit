@@ -109,7 +109,7 @@ main{min-width:0}
 .review-navigation nav{display:flex;gap:14px;align-items:center}
 .review-navigation a{color:var(--text-accent)}
 @media (max-width:760px){.app{grid-template-columns:1fr;padding:10px;gap:10px}nav.side{position:static;max-height:none}.gut{display:none}}
-/* Run button and status chip in the Issue Analysis header */
+/* Run button and status chip in the Analysis header */
 .ia>.runbar{display:flex;justify-content:flex-start;align-items:center;padding:4px 10px;border-bottom:1px solid var(--border);background:var(--surface-0)}
 .sh .runbar{display:inline-flex;align-items:center;gap:6px;margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
 .runbar .run{display:inline-flex;align-items:center;gap:6px}

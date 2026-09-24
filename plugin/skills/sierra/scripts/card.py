@@ -6,7 +6,7 @@ Usage:
   card.py oc <agent> <n> [--context <file>] [--out <file>|-] [--pages <dir>] [--repo <dir>] [--state proposed|applied]
   card.py rs <agent> <n> [--report <file>] [--out <file>|-] [--pages <dir>]
 
-`ia` renders the Issue Analysis section (sections/issue-analysis.html) from the issue-analysis skill's JSON
+`ia` renders the Analysis section (sections/issue-analysis.html) from the issue-analysis skill's JSON
 and the pages-dir cache, and, until the context step has answered, the Studio Context section with the two items the
 answer names (the instruction meant to produce the good turn as A, the one that won as B): the issue file for the
 reported line, the conversation (source.py) for the turns and tags, debug.log for the tool calls. `call_rows()` gives the whole call

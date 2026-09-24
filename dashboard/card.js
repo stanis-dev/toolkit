@@ -48,7 +48,7 @@
   var roots=[];
   function mount(el,vnode){render(vnode,el);roots.push(el)}
   function unmount(view){roots=roots.filter(function(el){if(!el.isConnected||(view&&view.contains(el))){render(null,el);return false}return true})}
-  // Chrome is the page's: the Issue Analysis header, section titles, folds, block-entry folds and legacy class names.
+  // Chrome is the page's: the Analysis header, section titles, folds, block-entry folds and legacy class names.
   // Cards hold content; whatever chrome a card brings is replaced, so every card renders the current design.
   var TITLES={ss:'Sim Strategy',so:'Simulation Replay',si:'Simulation Iteration',oc:'Studio Context',oce:'Studio Context Edit',rs:'Resolution'};
   var TITLE_RE=/^(sim strategy|studio context( edit)?|simulation (replay|iteration)|regressions?)$/i;
@@ -72,7 +72,7 @@
       if(type)h.firstChild.appendChild(type); h.firstChild.appendChild(el('<span>'+esc(i.title)+'</span>'));
       if(old)old.replaceWith(h); else ia.insertBefore(h,ia.querySelector(':scope>.top2')||ia.firstChild);
       var bar=el('<div class="runbar"></div>'); h.after(bar); mount(bar,html`<${TopBar} i=${i}/>`);
-      if(i.agent){var ahd=el('<div class="ahd">Issue analysis<span class="runbar"></span></div>'); bar.after(ahd); mount(ahd.lastChild,html`<${RunStrip} i=${i} step="analysis"/>`)}
+      if(i.agent){var ahd=el('<div class="ahd">Analysis<span class="runbar"></span></div>'); bar.after(ahd); mount(ahd.lastChild,html`<${RunStrip} i=${i} step="analysis"/>`)}
     }
     // Every step has its header once the analysis is there, so each run strip has a place: empty sections stand in.
     if(ia&&!card.querySelector('.ss'))card.appendChild(el('<div class="ss"></div>'));
@@ -123,11 +123,11 @@
     if(known){var seen={};card.querySelectorAll('[class]').forEach(function(e){if(e.closest('.runbar'))return;e.classList.forEach(function(c){if(!known[c]&&!/^ti-/.test(c))seen[c]=1})});Object.keys(seen).forEach(function(c){odd.push('.'+c)})}
     if(odd.length)card.insertBefore(el('<div class="lint" title="Markup the page does not know; it renders unstyled">'+esc(odd.join(' '))+'</div>'),card.firstChild);
   }
-  // Run: the play button in the Issue Analysis header starts the issue-analysis skill on the server, the one in the Sim
+  // Run: the play button in the Analysis header starts the issue-analysis skill on the server, the one in the Sim
   // Strategy header the sim-strategy skill; the chip next to each follows agents/<agent>/cards/<n>/<step>/status.json, fetched
   // again when the page's poll brings a new state for that step and every 2 s while the run works. The bars are
   // components mounted once per card, so a poll updates them in place.
-  var STEP_LABEL={analysis:'issue analysis',strategy:'sim strategy',context:'context edit',resolve:'resolution'};
+  var STEP_LABEL={analysis:'analysis',strategy:'sim strategy',context:'context edit',resolve:'resolution'};
   var MODELS=['gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'];
   function fmtK(n){return n>=1000?Math.round(n/1000)+'k':String(n)}
   // in counts every input token the model read, the cached share in brackets; reasoning is part of out.
@@ -632,7 +632,7 @@
   // holding one file shows as that file, a folder every file of the group is in is left out); a file opens below the list as text, JSON indented.
   var Files=(function(){
     var dw=Drawer(), cur=null, CAP=300000;
-    var GROUP={source:'Source',card:'Card',setup:'Setup',analysis:'Issue Analysis',strategy:'Sim Strategy',context:'Studio Context Edit',resolve:'Resolution'};
+    var GROUP={source:'Source',card:'Card',setup:'Setup',analysis:'Analysis',strategy:'Sim Strategy',context:'Studio Context Edit',resolve:'Resolution'};
     function close(){dw.close();cur=null}
     function size(b){return b>=1048576?(b/1048576).toFixed(1)+' MB':b>=1024?Math.round(b/1024)+' KB':b+' B'}
     function tree(files){var root={dirs:{},files:[]}, top=files[0].path.split('/')[0], cut=files.every(function(f){return f.path.indexOf(top+'/')===0})?1:0;

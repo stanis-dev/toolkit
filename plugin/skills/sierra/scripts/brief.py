@@ -22,12 +22,12 @@ For `strategy`:
   2. the tags the agent can emit: every tag literal in the agent's source with the file that declares it, and the
      tags the suite already asserts;
   3. the source as above;
-  4. the Issue Analysis answer, `agents/<agent>/cards/<n>/analysis/answer.json` in the pages dir (the step fails without it);
+  4. the Analysis answer, `agents/<agent>/cards/<n>/analysis/answer.json` in the pages dir (the step fails without it);
   5. the conversation the analysis names, the one holding its failure turn, as a transcript; <k> is 1 here.
 For `context`:
   1. the Studio content as for `analysis`;
   2. the source;
-  3. the Issue Analysis answer, and the Sim Strategy answer when it exists;
+  3. the Analysis answer, and the Sim Strategy answer when it exists;
   4. the conversation the analysis names, as a transcript with the activated observations inline;
   5. the compiled request at the failure turn the analysis names, as for `analysis`.
 For `resolve`, the opening message of the interactive session: where everything lives, the source, and the three
@@ -549,13 +549,13 @@ def run_text(agent, n, base, repo, step):
 def strategy_brief(agent, n, base, repo, iss):
     analysis_path = paths.answer(base, n, "analysis")
     if not os.path.exists(analysis_path):
-        fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
+        fail(f"no Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     analysis = load(analysis_path)
     files = suite_files(repo, agent)
     parts = [f"# Simulations · {agent}\n\n" + suite_index(repo, agent, files),
              f"# Tags · {agent}\n\n" + tags_text(repo, agent, files),
              source_text(iss),
-             f"# Issue Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n" + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
+             f"# Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n" + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
     for cid in call_of_analysis(base, iss, analysis):
         parts.append(conversation_part(base, iss, cid))
     parts.append(run_text(agent, n, base, repo, "strategy"))
@@ -596,11 +596,11 @@ def before_fix(base, n):
 def context_brief(agent, n, base, repo, iss):
     analysis_path = paths.answer(base, n, "analysis")
     if not os.path.exists(analysis_path):
-        fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
+        fail(f"no Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     analysis = load(analysis_path)
     parts = [f"# Studio content · {agent} · outline\n\n" + tree(repo, agent),
              source_text(iss),
-             f"# Issue Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n"
+             f"# Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n"
              + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
     strategy_path = paths.answer(base, n, "strategy")
     if os.path.exists(strategy_path):
@@ -622,7 +622,7 @@ def context_brief(agent, n, base, repo, iss):
 def resolve_brief(agent, n, base, repo, iss):
     analysis_path = paths.answer(base, n, "analysis")
     if not os.path.exists(analysis_path):
-        fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
+        fail(f"no Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     agent_dir = os.path.join(repo, AGENT_DIR.get(agent, agent))
     scripts = os.path.dirname(os.path.abspath(__file__))
     st = load(paths.status(base, n, "setup")) if os.path.exists(paths.status(base, n, "setup")) else {}
@@ -651,7 +651,7 @@ def resolve_brief(agent, n, base, repo, iss):
              f"- `<scripts>`: `{scripts}`\n"
              f"- `<references>`: `{os.path.abspath(os.path.join(scripts, '..', 'references'))}`\n",
              source_text(iss)]
-    for step, title in (("analysis", "Issue Analysis"), ("strategy", "Sim Strategy"), ("context", "Studio Context Edit")):
+    for step, title in (("analysis", "Analysis"), ("strategy", "Sim Strategy"), ("context", "Studio Context Edit")):
         path = paths.answer(base, n, step)
         if os.path.exists(path):
             mtime = datetime.fromtimestamp(os.path.getmtime(path), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

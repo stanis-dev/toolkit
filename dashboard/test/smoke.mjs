@@ -109,14 +109,14 @@ try {
     await P.click('.flt .chpop .cgo');
     await P.waitFor(`/1\\/3 · analysis/.test(document.querySelector('#cardv .run.chain .chip').textContent)`, 8000, 'chip 1/3 · analysis');
     await P.waitFor(`document.querySelector('#tree a.it[data-n="304"] .who .spin')`, 5000, 'row spinner');
-    await P.waitFor(`${strip('issue analysis')}.querySelector('.chip').classList.contains('working')`, 5000, 'analysis chip working');
+    await P.waitFor(`${strip('analysis')}.querySelector('.chip').classList.contains('working')`, 5000, 'analysis chip working');
     await P.click('#cardv .run.chain .kbtn');
     await P.waitFor(`/sequence stopped/.test(document.querySelector('#cardv .run.chain .chip').textContent)`, 12000, 'sequence stopped');
     await P.waitFor(`!document.querySelector('#tree a.it[data-n="304"] .who .spin')`, 5000, 'row spinner gone');
-    const k = await P.eval(`({analysis:${strip('issue analysis')}.querySelector('.chip').textContent,strategy:${strip('sim strategy')}.querySelector('.chip').className})`);
+    const k = await P.eval(`({analysis:${strip('analysis')}.querySelector('.chip').textContent,strategy:${strip('sim strategy')}.querySelector('.chip').className})`);
     ok(/done|\d/.test(k.analysis), 'analysis ran: ' + k.analysis);
-    await P.eval(`${strip('issue analysis')}.querySelector('.sbtn2').click()`);
-    await P.waitFor(`document.querySelector('aside.sess .ttl')?.textContent==='#304 · issue analysis'&&document.querySelectorAll('aside.sess details.prm .pl').length>=2`, 5000, 'analysis session drawer with its prompt');
+    await P.eval(`${strip('analysis')}.querySelector('.sbtn2').click()`);
+    await P.waitFor(`document.querySelector('aside.sess .ttl')?.textContent==='#304 · analysis'&&document.querySelectorAll('aside.sess details.prm .pl').length>=2`, 5000, 'analysis session drawer with its prompt');
     eq(await P.eval(`[...document.querySelectorAll('aside.sess details.prm .pl')].map(x=>x.textContent.replace(/\\d+/,'N'))`), ['System prompt · N chars', 'Message · N chars'], 'analysis prompt fold');
     ok(await P.eval(`/Stand-in system prompt for analysis/.test(document.querySelector('aside.sess details.prm .pp').textContent)`), 'system.md text shown');
     await P.eval(`document.querySelector('aside.sess header button[aria-label="Close"]').click()`);
@@ -130,7 +130,7 @@ try {
     await P.waitFor(`document.querySelector('#tree a.it[data-n="304"] .stl')`, 6000, 'stale mark on the sidebar row');
     eq(await P.eval(`document.querySelector('#tree a.it[data-n="304"] .stl').title`), 'Stale: Sim strategy (analysis is newer), Context edit (analysis is newer)', 'row mark title');
     await P.waitFor(`${strip('sim strategy')}.querySelector('.chip.stale')`, 4000, 'stale chip on the strategy strip');
-    eq(await P.eval(`[${strip('issue analysis')}.querySelector('.chip.stale'),${strip('context edit')}.querySelector('.chip.stale')?.title]`), [null, 'Out of date: analysis is newer'], 'stale chips');
+    eq(await P.eval(`[${strip('analysis')}.querySelector('.chip.stale'),${strip('context edit')}.querySelector('.chip.stale')?.title]`), [null, 'Out of date: analysis is newer'], 'stale chips');
     const f0 = await folds();
     await P.eval(`${strip('sim strategy')}.querySelector('.rrb1').click()`);
     await P.waitFor(`document.querySelector('.flt .rrn .rrf')`, 3000, 'rerun popover');
