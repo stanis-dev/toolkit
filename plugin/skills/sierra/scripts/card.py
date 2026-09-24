@@ -561,11 +561,13 @@ def render_ss(agent, n, strategy, pages, repo):
     def exp(body):
         return f'      <div class="exp"><span class="n"></span><span>{body}</span></div>'
 
+    x5 = '<button class="rbtn gx5" title="Run the guard 5× on the card\'s workspace" aria-label="Run the guard 5 times">×5</button>'
+
     def red_res():
         if not red:
-            return '<span class="res"></span>'
+            return '<span class="res"></span>' + x5
         tone = "ok" if red["passed"] == red["total"] else "flaky" if red["passed"] else "ko"
-        return f'<span class="res {tone}" title="before the fix · {esc(red["run"] or "")}">{red["passed"]}/{red["total"]}</span>'
+        return (f'<span class="res {tone}" title="run {esc(red["run"] or "")}">{red["passed"]}/{red["total"]}</span>' + x5)
 
     if guard and guard not in [x.get("id") for x in strategy.get("sims", [])] and guard in idx:
         name, group, rel = idx[guard]

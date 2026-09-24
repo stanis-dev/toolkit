@@ -11,6 +11,7 @@ changed branch drops the old pair. POST /batchdel/<agent>/<MMDD> starts batch.py
 batch's cards to no batch. Status in agents/<agent>/batches/<MMDD>.status.json. GET /branches lists the repository's local
 branches, each with the worktree that has it checked out. Setup forks the issue's worktree from the batch's branch and
 refuses without it.
+POST /guard/<agent>/<n> runs the card's guard 5× (guard.py); strategy/guard.json holds its state.
 POST /setup/<agent>/<n> starts the skill's setup.py: the issue's own worktree under <repo>/.claude/worktrees/ and its own Studio
 workspace, both named <prefix>-<n>; status in agents/<agent>/cards/<n>/setup/status.json. Every step below runs in that worktree and
 refuses (409) until it is there.
@@ -91,6 +92,7 @@ BATCH = re.compile(r'^/batch/' + A + r'/(\d+)$')
 KILL = re.compile(r'^/kill/' + A + r'/(\d+)/(analysis|strategy|context|setup)$')
 SETUP = re.compile(r'^/setup/' + A + r'/(\d+)$')
 RESET = re.compile(r'^/reset/' + A + r'/(\d+)$')
+GUARD = re.compile(r'^/guard/' + A + r'/(\d+)$')
 STEPSTATE = re.compile(r'^/steps/' + A + '$')
 REQUEST = re.compile(r'^/request/' + A + r'/(\d+)/([\w-]+)(?:/([\w-]+))?$')
 CALL = re.compile(r'^/call/' + A + r'/(\d+)/([\w-]+)$')
@@ -527,6 +529,16 @@ class H(SimpleHTTPRequestHandler):
             agent = y.group(1)
             self.spawn(os.path.join('agents', agent, 'sync.status.json'), None,
                        [os.path.join(SCRIPTS, 'sync.py'), agent, '--pages', os.getcwd(), '--repo', REPO]); return
+        gu = GUARD.match(self.path)
+        if gu:
+            agent, n = gu.groups()
+            base = paths.agent('', agent)
+            if not os.path.exists(paths.answer(base, n, 'strategy')):
+                self.reply(409, {'error': 'no sim strategy yet'}); return
+            state = os.path.join(paths.card_dir(base, n), 'strategy', 'guard.json')
+            err = steps.spawn_proc(state, os.path.join(paths.runs(base, n, 'strategy'), 'guard.log'),
+                                   [os.path.join(SCRIPTS, 'guard.py'), agent, n, '--pages', os.getcwd()])[0]
+            self.reply(409, {'error': err}) if err else self.reply(202); return
         su = SETUP.match(self.path)
         if su:
             err = start_step(*su.groups(), 'setup')

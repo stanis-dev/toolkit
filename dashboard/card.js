@@ -55,10 +55,21 @@
   var CHEV='<i class="ti ti-chevron-right" aria-hidden="true"></i>';
   var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt'].forEach(function(c){known[c]=1})});
   function el(html){var t=document.createElement('template');t.innerHTML=html;return t.content.firstElementChild}
+  // The guard's ×5: runs it on the card's workspace; while strategy/guard.json says working the button waits, then the card reloads.
+  function guardButton(b,i){var u=Paths.card(i.agent,i.num)+'strategy/guard.json';
+    var row=b.closest('summary')&&b.closest('summary').querySelector('.nmrow'); if(row)row.appendChild(b);
+    function wait(){b.disabled=true;b.classList.add('working');b.textContent='running';getJSON(u).then(function(g){
+      if(g&&g.state==='working'){setTimeout(wait,3000);return}
+      b.disabled=false;b.classList.remove('working');b.textContent='×5';if(g&&g.state==='failed'){b.title=g.error||'failed';b.classList.add('failed');return}
+      delete cache[i.agent];window.dispatchEvent(new Event('hashchange'))})}
+    getJSON(u).then(function(g){if(g&&g.state==='working')wait()});
+    b.addEventListener('click',function(e){e.stopPropagation();e.preventDefault();b.disabled=true;
+      postJSON('guard/'+i.agent+'/'+i.num).then(function(r){if(r.ok){wait();return}return r.json().catch(function(){return {}}).then(function(j){b.disabled=false;b.title=j.error||('server said '+r.status);b.classList.add('failed')})}).catch(function(){b.disabled=false;b.title='server unreachable'})})}
   function isEdit(s){return s.classList.contains('edit')||!!s.querySelector('.state, .row .del, .row .ins')}
   function norm(view,i){
     var card=view.querySelector('.card'), odd=[]; if(!card||card.classList.contains('rep')) return;
     card.querySelectorAll('.ss .sim>summary').forEach(function(s){var n=s.querySelector(':scope>.n'),nm=s.querySelector('.nm');if(n&&n.firstChild&&n.firstChild.nodeType===3)n.firstChild.textContent=n.firstChild.textContent.replace(/^\s*[+~\-\u2212]\s*/,'');if(!nm)return;var was=nm.querySelector(':scope>.was'),res=n&&n.querySelector('.res');if(was&&res&&s.parentElement.classList.contains('reg')&&was.href){var b=/(\d+)/.exec(was.textContent);var a=document.createElement('a');a.className='res';a.href=was.href;a.textContent=(b?b[1]+'\u203a':'')+res.textContent.trim();res.replaceWith(a)}nm.querySelectorAll(':scope>.sep, :scope>.was').forEach(function(e){e.remove()})});
+    card.querySelectorAll('.ss .gx5').forEach(function(b){guardButton(b,i)});
     card.querySelectorAll('.ss .sim>summary .crumb code').forEach(function(e){var p=e.previousElementSibling;if(p&&p.classList.contains('sep'))p.remove();e.remove()});
     card.querySelectorAll('.ia .row>span>a.hl:first-child').forEach(function(e){if(!/marcad[oa] por/i.test(e.textContent))return;var b=e.nextSibling;if(b&&b.tagName==='BR')b.remove();e.remove()});
     card.querySelectorAll('.ia .row.good>.n, .ia .row.bad>.n').forEach(function(n){var l=n.lastChild;if(l&&l.nodeType===3)l.textContent=l.textContent.replace(/\s*[+\-\u2212]\s*$/,'')});
