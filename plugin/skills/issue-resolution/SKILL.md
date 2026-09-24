@@ -23,9 +23,9 @@ card's history; open an event's files only when it bears on what you are doing. 
 - `<batch>`: the batch's MMDD; `<batch-branch>`, `<batch-workspace>`, `<batch-worktree>`: the batch's branch, its
   Studio workspace and the worktree that has the branch checked out and Ghostwriter bound to that workspace;
   `<batch-agent-dir>`, the agent's directory in that worktree, its CLI at `<batch-agent-dir>/node_modules/.bin/sierra`.
-- `<pages>`: the pages dir; the card `cards/<n>.html`, the issue `issues/<n>.json`, the linked calls under
-  `conversations/<id>/` (details.json, debug.log, traces/), the answers `analysis/<n>.json`, `strategy/<n>.json`,
-  `context/<n>.json`.
+- `<pages>`: the pages dir; the card's folder `cards/<n>/`: `card.html`, the issue as `source.json`, the linked calls
+  under `conversations/<id>/` (details.json, debug.log, traces/), the answers `analysis/answer.json`,
+  `strategy/answer.json`, `context/answer.json`.
 
 The strategy step wrote the guard and ran it red, the context step applied the edit and pushed it to `<workspace>`;
 both left their changes uncommitted in `<checkout>`. Everything uncommitted there is the card's work; HEAD is the branch
@@ -93,7 +93,7 @@ no regression left and the guard still 5/5.
 
 ## 4. Report
 
-Write `<pages>/resolve/<n>.md` and render it with `python3 <scripts>/card.py rs <agent> <n>`:
+Write `<pages>/cards/<n>/resolve/report.md` and render it with `python3 <scripts>/card.py rs <agent> <n>`:
 
 - the guard's count before and after the edit, with the run ids;
 - the regression list's count on the baseline and after the edit, with the run ids, each regression with its cause and
