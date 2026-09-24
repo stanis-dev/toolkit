@@ -522,6 +522,25 @@ def sim_index(agent_dir):
     return idx
 
 
+def sim_definition(agent_dir, rel, sid):
+    """The simulation's persona, mock user, expectations and tags as its *.tests.ts writes them, the persona's
+    template literal kept as written."""
+    t = open(os.path.join(agent_dir, rel), encoding="utf-8").read()
+    m = re.search(r'\bid:\s*"' + re.escape(sid) + r'"', t)
+    if not m:
+        return {}
+    nxt = re.search(r'\n\s*(?:scenarioSimulation|test)\(', t[m.end():])
+    block = t[m.end():m.end() + nxt.start()] if nxt else t[m.end():]
+
+    def strings(key):
+        a = re.search(r'\b' + key + r':\s*\[([\s\S]*?)\]', block)
+        return [json.loads(x) for x in re.findall(r'"(?:[^"\\]|\\.)*"', a.group(1))] if a else []
+    ins = re.search(r'\binstructions:\s*`([\s\S]*?)`', block)
+    mock = re.search(r'\bmockUserId:\s*"([^"]+)"', block)
+    return {"instructions": ins.group(1) if ins else None, "mockUserId": mock.group(1) if mock else None,
+            "expectations": strings("expectedOutcomes"), "tags": strings("assertions")}
+
+
 def text_diff(old, new):
     return f'<span class="del">{esc(old)}</span> <span class="ins">{esc(new)}</span>'
 
@@ -542,6 +561,31 @@ def render_ss(agent, n, strategy, pages, repo):
     def exp(body):
         return f'      <div class="exp"><span class="n"></span><span>{body}</span></div>'
 
+    def red_res():
+        if not red:
+            return '<span class="res"></span>'
+        tone = "ok" if red["passed"] == red["total"] else "flaky" if red["passed"] else "ko"
+        return f'<span class="res {tone}" title="before the fix · {esc(red["run"] or "")}">{red["passed"]}/{red["total"]}</span>'
+
+    if guard and guard not in [x.get("id") for x in strategy.get("sims", [])] and guard in idx:
+        name, group, rel = idx[guard]
+        d = sim_definition(os.path.join(repo, AGENT_DIR.get(agent, agent)), rel, guard)
+        out.append(head("keep", esc(name), group, red_res(), "", open_=True))
+        prow = []
+        if d.get("instructions"):
+            prow.append(exp(esc(d["instructions"])))
+        if d.get("mockUserId"):
+            prow.append(f'      <div class="exp"><span class="n"></span><span class="tags"><span class="k">mock user</span><span class="tag">{esc(d["mockUserId"])}</span></span></div>')
+        if prow:
+            out.append('  <div class="so">\n  <details class="part">\n    <summary><h4>' + chev + 'Persona</h4></summary>\n    <div class="body">')
+            out += prow
+            out.append('    </div>\n  </details>\n  </div>')
+        rows = [exp(esc(e)) for e in d.get("expectations") or []]
+        if d.get("tags"):
+            rows.append('      <div class="exp"><span class="n"></span><span class="tags">' + "".join(f'<span class="tag">{esc(t)}</span>' for t in d["tags"]) + '</span></div>')
+        out.append('  <div class="so">\n  <details class="part">\n    <summary><h4>' + chev + 'Expectations</h4></summary>\n    <div class="body">')
+        out += rows
+        out.append('    </div>\n  </details>\n  </div>\n</details>')
     for k, sim in enumerate(strategy.get("sims", [])):
         known = idx.get(sim.get("id") or "", (None, None, None))
         name = sim.get("name") or {}
@@ -555,10 +599,7 @@ def render_ss(agent, n, strategy, pages, repo):
             name_html = f'{esc(new)} <s class="old">{esc(old)}</s>'
         else:
             name_html = esc(old or new or sim.get("id"))
-        res = '<span class="res"></span>'
-        if red and sim.get("id") == guard:
-            tone = "ok" if red["passed"] == red["total"] else "flaky" if red["passed"] else "ko"
-            res = f'<span class="res {tone}" title="before the fix · {esc(red["run"] or "")}">{red["passed"]}/{red["total"]}</span>'
+        res = red_res() if sim.get("id") == guard else '<span class="res"></span>'
         out.append(head(cls, name_html, group, res if action != "delete" else "", sim.get("gist") or "", open_=k == 0))
         if action == "delete":
             out.append(f'  <div class="body">\n    <div class="line"><span class="k">covered by</span><span class="gist">{esc(sim.get("covered_by"))}</span></div>\n  </div>\n</details>')
