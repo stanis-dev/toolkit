@@ -219,16 +219,17 @@ class Steps(unittest.TestCase):
         stages = json.load(open(paths.step_file(paths.agent(self.run_dir, AG), N, 'resolve', 'stage.json')))
         self.assertEqual(stages[-1]['t'], ev[0]['t'])
 
-    def test_briefs_end_with_the_history(self):
+    def test_history_index_only_in_the_strategy_brief(self):
         sys.path.insert(0, self.scripts)
         import cardlog
         for k in range(35):
             cardlog.add(self.run_dir, AG, N, 'engineer' if k % 2 else 'strategy', f'event {k}', [paths.rel(paths.agent(self.run_dir, AG), os.path.join(paths.runs(paths.agent(self.run_dir, AG), N, 'strategy'), f'x{k}', 'answer.json'))])
         os.makedirs(os.path.join(self.wt, 'agents', 'hipotecarios', '.composer', 'blocks'), exist_ok=True)
-        out = subprocess.run([sys.executable, os.path.join(SCRIPTS, 'brief.py'), AG, N, '--step', 'context', '--pages', self.run_dir, '--repo', self.wt],
+        ctx = subprocess.run([sys.executable, os.path.join(SCRIPTS, 'brief.py'), AG, N, '--step', 'context', '--pages', self.run_dir, '--repo', self.wt],
                              capture_output=True, text=True, env=self.env)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        hist = out.stdout[out.stdout.index('# Card history · hipotecarios 900'):].splitlines()
+        self.assertEqual(ctx.returncode, 0, ctx.stderr)
+        self.assertNotIn('# Card history', ctx.stdout)
+        hist = cardlog.index(self.run_dir, AG, N).splitlines()
         self.assertTrue(hist[4].startswith('earlier: strategy ×3, engineer ×2'), hist[4])
         self.assertEqual(len([l for l in hist if ' event ' in l and not l.startswith('earlier')]), 30)
         self.assertTrue(hist[-1].endswith(f'event 34 → cards/{N}/strategy/runs/x34/answer.json'), hist[-1])

@@ -31,7 +31,6 @@ Everything you need is in the brief below this text. In it:
   blocks as `<reference_information>`, glossary as `<glossary>`; tool descriptions as function schemas, verbatim from
   code; progress indicators as assistant turns.
 - In a conversation, each line carries its `turn`; `tools[k]` is the k-th tool call of the next agent turn.
-- In the card's history, open an event's files when it bears on your task.
 
 For another turn's request: in the conversation's folder (the brief's `cached at`), that turn's `GOALSDK_RESPOND` row in
 `debug.log` names `traces/<seq>.trace`, whose `traces[0].llm_chat.raw_request` is the request. Whether a predicate fired

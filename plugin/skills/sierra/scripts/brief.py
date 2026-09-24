@@ -497,7 +497,7 @@ def main(argv):
     iss = source.load(base, n)
     if not iss:
         fail(f"{agent} {n} has no source: no issue in the cache and no source.json in the card")
-    history = cardlog.index(pages, agent, n) if opts.get("--history") != "0" else ""
+    history = cardlog.index(pages, agent, n) if step in ("strategy", "resolve") and opts.get("--history") != "0" else ""
     history = "\n" + history if history else ""
     if step == "strategy":
         sys.stdout.write(strategy_brief(agent, n, base, repo, iss) + history)

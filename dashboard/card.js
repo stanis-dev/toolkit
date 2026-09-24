@@ -167,7 +167,7 @@
   function usePref(k,def){useStore();var v=pref(k)||def;return [v,function(x){pref(k,x);Store.set({})}]}
   function ModelSelect(p){var v=usePref(p.k,p.def);
     return html`<select class="rsel" id=${p.id} aria-label=${p.label} title=${p.title} value=${v[0]} onChange=${function(e){v[1](e.target.value)}}>${p.list.map(function(x){return html`<option value=${x}>${x}</option>`})}</select>`}
-  function Models(){return html`<span class="run models"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model" title="Model for the runs started here"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort" title="Reasoning effort for the runs started here"/><${ModelSelect} k="runHistory" def="history" list=${HISTORY} label="Card history" title="Whether the step runs started here read the card's history"/></span>`}
+  function Models(){return html`<span class="run models"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model" title="Model for the runs started here"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort" title="Reasoning effort for the runs started here"/><${ModelSelect} k="runHistory" def="history" list=${HISTORY} label="Card history" title="Whether the Sim Strategy runs started here read the card's history; analysis and context never do"/></span>`}
   function runOpts(){return {model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high',history:pref('runHistory')!=='no history'}}
   function Icon(p){return html`<i class=${'ti '+p.n} aria-hidden="true"></i>`}
   function Chip(p){var c=p.c;return c?html`<span class=${'chip'+(c.cls?' '+c.cls:'')} title=${c.title||''}>${c.text}</span>`:html`<span class="chip" hidden></span>`}
