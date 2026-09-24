@@ -131,6 +131,7 @@
   var MODELS=['gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'], HISTORY=['history','no history'];
   function fmtK(n){return n>=1000?Math.round(n/1000)+'k':String(n)}
   // in counts every input token the model read, the cached share in brackets; reasoning is part of out.
+  function whenText(t){var d=new Date(t);return isNaN(d)?'':d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}
   function usageLine(u){return (u.context?'context '+fmtK(u.context)+' · ':'')+fmtK((u.in||0)+(u.cached||0))+' in'+(u.cached?' ('+fmtK(u.cached)+' cached)':'')+' · '+fmtK(u.out)+' out'+(u.reasoning?' ('+fmtK(u.reasoning)+' reasoning)':'')+(u.cost?' · $'+u.cost.toFixed(2):'')+' · '+(u.commands||0)+' commands'}
   function getJSON(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
   function postJSON(u,body){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})})}
@@ -431,6 +432,11 @@
   }
   // pi json events (docs/json.md), folded one line at a time: one row per content part or tool call, streamed deltas
   // appended as they land. rows is the timeline; a row that changes is replaced by a new object in its place.
+  // A tool call as it reads: a bash command as a shell line, any other tool as its name and arguments.
+  function callHtml(name,args){args=args||{};
+    if(name==='bash'&&typeof args.command==='string')return '<pre class="sh"><span class="ps">$ </span>'+esc(args.command)+'</pre>';
+    var rest=Object.keys(args).map(function(k){return typeof args[k]==='string'?args[k]:k+'='+JSON.stringify(args[k])}).join(' ');
+    return '<code>'+esc(name||'')+(rest?' '+esc(rest):'')+'</code> '}
   function PiTimeline(){
     var items={}, out=[], parts={}, msg=0, calls={}, argbuf={}, pending={};
     function row(t,icon,cls,h){return {t:t,icon:icon,cls:cls,html:h}}
@@ -454,17 +460,17 @@
       else if(k==='stderr')out.push(row(e.t,'ti-terminal','error',esc(e.text||'')));
       else if(k==='retry')out.push(row(e.t,'ti-repeat','error','answer off schema, asking again: '+esc((e.problems||[]).join('; '))));
       else if(k==='message_start'&&m.role==='assistant')msg++;
-      else if(k==='message_end'&&m.role==='assistant'){var u=m.usage||{};out.push({t:e.t,sep:true,title:'model turn done · '+fmtK0(u.input)+' in'+(u.cacheRead?' ('+fmtK0(u.cacheRead)+' cached)':'')+' · '+fmtK0(u.output)+' out'+(u.reasoning?' · '+fmtK0(u.reasoning)+' reasoning':'')+(u.cost&&u.cost.total?' · $'+u.cost.total.toFixed(3):'')+(m.stopReason&&m.stopReason!=='stop'&&m.stopReason!=='toolUse'?' · '+m.stopReason:'')+(m.errorMessage?' · '+m.errorMessage:'')})}
+      else if(k==='message_end'&&m.role==='assistant'){var u=m.usage||{};out.ctx=(u.input||0)+(u.cacheRead||0)+(u.output||0);out.push({t:e.t,sep:true,title:'model turn done · '+fmtK0(u.input)+' in'+(u.cacheRead?' ('+fmtK0(u.cacheRead)+' cached)':'')+' · '+fmtK0(u.output)+' out'+(u.reasoning?' · '+fmtK0(u.reasoning)+' reasoning':'')+(u.cost&&u.cost.total?' · $'+u.cost.total.toFixed(3):'')+(m.stopReason&&m.stopReason!=='stop'&&m.stopReason!=='toolUse'?' · '+m.stopReason:'')+(m.errorMessage?' · '+m.errorMessage:'')})}
       else if(k==='message_update'){
         var t=a.type||'', ci=a.contentIndex;
-        if(/^thinking_/.test(t)){var id=partKey(ci);parts[id]=(t==='thinking_end'&&a.content!=null)?a.content:(parts[id]||'')+(a.delta||'');put(id,e,'ti-brain','reasoning',esc(parts[id])||'<i>thinking</i>')}
+        if(/^thinking_/.test(t)){var id=partKey(ci);parts[id]=(t==='thinking_end'&&a.content!=null)?a.content:(parts[id]||'')+(a.delta||'');put(id,e,'ti-brain','reasoning',esc(parts[id].replace(/\*\*/g,''))||'<i>thinking</i>')}
         else if(/^text_/.test(t)){var id2=partKey(ci);parts[id2]=(t==='text_end'&&a.content!=null)?a.content:(parts[id2]||'')+(a.delta||'');put(id2,e,'ti-message','agent_message',msgHtml(parts[id2]||''))}
         else if(t==='toolcall_start'){var cid=a.id;calls[partKey(ci)]=cid;argbuf[cid]='';put(cid,e,'ti-terminal-2','command_execution','<code>'+esc(a.toolName||'')+'</code> <small>preparing</small>')}
         else if(t==='toolcall_delta'){var cid2=calls[partKey(ci)];if(cid2){argbuf[cid2]+=(a.delta||'');put(cid2,e,'ti-terminal-2','command_execution','<code>'+esc(argbuf[cid2].slice(0,300))+'</code> <small>preparing</small>')}}
-        else if(t==='toolcall_end'){var tc=a.toolCall||{};put(tc.id,e,'ti-terminal-2','command_execution','<code>'+esc(tc.name+' '+JSON.stringify(tc.arguments||{}))+'</code> <small>queued</small>')}
+        else if(t==='toolcall_end'){var tc=a.toolCall||{};put(tc.id,e,'ti-terminal-2','command_execution',callHtml(tc.name,tc.arguments)+'<small>queued</small>')}
       }
-      else if(k==='tool_execution_start'){put(e.toolCallId,e,'ti-terminal-2','command_execution','<code>'+esc(e.toolName+' '+JSON.stringify(e.args||{}))+'</code> <small>running</small>');calls['args:'+e.toolCallId]=e.toolName+' '+JSON.stringify(e.args||{})}
-      else if(k==='tool_execution_end'){var o=(e.result&&e.result.text)||'', cmd=calls['args:'+e.toolCallId]||e.toolName;put(e.toolCallId,e,'ti-terminal-2',e.isError?'error':'command_execution','<code>'+esc(cmd)+'</code> <small>'+(e.isError?'error':'done')+' · '+fmtK0(o.length)+' chars</small>'+(o?'<details><summary>output</summary><pre>'+esc(o.slice(0,4000))+(o.length>4000?'\n…':'')+'</pre></details>':''))}
+      else if(k==='tool_execution_start'){put(e.toolCallId,e,'ti-terminal-2','command_execution',callHtml(e.toolName,e.args)+'<small>running</small>');calls['args:'+e.toolCallId]=callHtml(e.toolName,e.args)}
+      else if(k==='tool_execution_end'){var o=(e.result&&e.result.text)||'', cmd=calls['args:'+e.toolCallId]||callHtml(e.toolName,{});put(e.toolCallId,e,'ti-terminal-2',e.isError?'error':'command_execution',cmd+'<small>'+(e.isError?'error':'done')+' · '+fmtK0(o.length)+' chars</small>'+(o?'<details><summary>output</summary><pre>'+esc(o.slice(0,4000))+(o.length>4000?'\n…':'')+'</pre></details>':''))}
       else if(k==='agent_end')out.push(row(e.t,'ti-check','sys','agent finished'));
       else if(k==='error')out.push(row(e.t,'ti-alert-triangle','error',esc(e.message||JSON.stringify(e))));
     }
@@ -481,8 +487,8 @@
       else if(k==='item.started'||k==='item.completed'){
         var id=it.id||(out.length+''), done=k==='item.completed', h='', icon='ti-dots', cls=it.type||'';
         if(it.type==='command_execution'){var cmd=(it.command||'').replace(/^\/bin\/zsh -lc /,'');var o=it.aggregated_output||'';icon='ti-terminal-2';
-          h='<code>'+esc(cmd)+'</code>'+(done?' <small>exit '+esc(it.exit_code)+' · '+fmtK0(o.length)+' chars</small>'+(o?'<details><summary>output</summary><pre>'+esc(o.slice(0,4000))+(o.length>4000?'\n…':'')+'</pre></details>':''):' <small>running</small>')}
-        else if(it.type==='reasoning'){icon='ti-brain';h=it.text?esc(it.text):'<i>reasoning</i>'}
+          h=callHtml('bash',{command:cmd})+(done?'<small>exit '+esc(it.exit_code)+' · '+fmtK0(o.length)+' chars</small>'+(o?'<details><summary>output</summary><pre>'+esc(o.slice(0,4000))+(o.length>4000?'\n…':'')+'</pre></details>':''):' <small>running</small>')}
+        else if(it.type==='reasoning'){icon='ti-brain';h=it.text?esc(it.text.replace(/\*\*/g,'')):'<i>reasoning</i>'}
         else if(it.type==='agent_message'){icon='ti-message';h=msgHtml(it.text||'')}
         else if(it.type==='error'){icon='ti-alert-triangle';cls='error';h=esc(it.message||'')}
         else if(it.type==='mcp_tool_call'){icon='ti-plug';h=esc((it.server||'')+' '+(it.tool||''))+(done?' <small>'+esc(it.status||'')+'</small>':'')}
@@ -565,7 +571,7 @@
       useLayoutEffect(function(){var tl=tlRef.current;if(!tl)return;if(want&&ready){settle(box.current);return}if(stick.current)tl.scrollTop=tl.scrollHeight},[rows.length,n[0],info]);
       useEffect(function(){if(chat&&!want&&ta.current)ta.current.focus()},[]);
       var st=info.st, t0=st?Date.parse(st.started):0, secs=st?(st.state==='working'?Math.max(0,Math.round((Date.now()-t0)/1000)):st.seconds):null, u=(st&&st.usage)||{};
-      var hd=st?'<div>'+esc(st.model||'')+' · '+esc(st.effort||'')+' · commit '+esc(st.commit||'')+'</div><div>started '+esc((st.started||'').replace('T',' ').replace('Z',' UTC'))+(secs!=null?' · '+secs+' s':'')+'</div>'+(st.usage?'<div>'+usageLine(u)+'</div>'+(st.usage_all?'<div>all sessions of this issue · '+usageLine(st.usage_all)+'</div>':''):'')+(st.state==='working'&&st.live?'<div class="'+(st.live.quiet>=20&&!st.live.tool?'err':'')+'">'+(st.live.tool?'a tool is running · ':'')+(st.live.quiet>=20?'no event for '+st.live.quiet+' s':'events flowing')+' · sampled '+esc((st.live.at||'').slice(11,19))+'</div>':'')+(st.error?'<div class="err">'+esc(st.error.split('\n')[0])+'</div>':''):'';
+      var hd=st?'<div>'+esc(st.model||'')+' · '+esc(st.effort||'')+(rows.ctx?' · context '+fmtK(rows.ctx):'')+'</div><div>started '+esc(whenText(st.started))+(secs!=null?' · '+secs+' s':'')+'</div>'+(st.usage?'<div>'+usageLine(u)+'</div>'+(st.usage_all?'<div>all sessions of this issue · '+usageLine(st.usage_all)+'</div>':''):'')+(st.state==='working'&&st.live?'<div class="'+(st.live.quiet>=20&&!st.live.tool?'err':'')+'">'+(st.live.tool?'a tool is running · ':'')+(st.live.quiet>=20?'no event for '+st.live.quiet+' s':'events flowing')+' · sampled '+esc((st.live.at||'').slice(11,19))+'</div>':'')+(st.error?'<div class="err">'+esc(st.error.split('\n')[0])+'</div>':''):'';
       var wait=!chat&&st&&st.state==='working'&&info.last&&Date.now()-info.last>8000;
       var tail=(info.err||'').split('\n').filter(Boolean).slice(-12).join('\n'), ans=info.ans&&st&&st.state==='done'?info.ans:null;
       var sent=!!(st&&st.asked), note=useState(null), prm=useState(null), pk=(st&&st.started||'')+'|'+(st&&st.asked||'');

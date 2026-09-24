@@ -162,6 +162,8 @@ main{min-width:0}
 .sess .ev.sys .b{color:var(--text-muted)}
 .sess .ev .b{min-width:0;overflow-wrap:anywhere}
 .sess .ev code{font-family:var(--font-mono);font-size:11.5px}
+.sess .ev pre.sh{margin:0 0 2px;max-height:none;padding:4px 8px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-primary)}
+.sess .ev pre.sh .ps{color:var(--text-muted);user-select:none}
 .sess .ev small{color:var(--text-muted);font-family:var(--font-mono);font-size:11px}
 .sess pre{font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0;max-height:40vh;overflow:auto;background:var(--surface-0);padding:6px;border-radius:6px}
 .sess details>summary{cursor:pointer;color:var(--text-secondary)}
