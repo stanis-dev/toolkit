@@ -20,7 +20,7 @@
   // again only when the card's file changes; its live parts update themselves from the store.
   var P=htmPreact, html=P.html, NONE='No batch yet';
   var esc=Cards.esc, cache=Cards.cache, Store=Cards.store;
-  var ui={agent:null,open:{},lastSel:null,sig:{},pick:false,sel:{},del:null,arch:null,only:null,views:{},batch:'',edit:null,newb:false,newname:'',newbranch:'',newnote:'',branches:[],picknote:'',pickbusy:false,fpop:false,data:null,err:null,sync:null,syncBusy:false};
+  var ui={agent:null,open:{},lastSel:null,sig:{},pick:false,sel:{},del:null,arch:null,only:null,views:{},batch:'',edit:null,newb:false,newname:'',newbranch:'',newnote:'',branches:[],picknote:'',pickres:null,pickbusy:false,fpop:false,data:null,err:null,sync:null,syncBusy:false};
   function money(c){return '$'+(c>=10?c.toFixed(0):c.toFixed(2))}
   function costOf(a,n){return (Store.get().cost[a]||{})[n]||null}
   function costTitle(t){return t?money(t.cost)+' over '+t.runs+' run'+(t.runs===1?'':'s')+': '+Object.keys(t.steps).map(function(k){return (PREP[k]||'Resolution')+' '+money(t.steps[k])}).join(', '):''}
@@ -167,38 +167,45 @@
   // Selection: the list-check button turns the sidebar into a picker; a click on a card toggles it, a click on a batch row
   // toggles the whole batch. The bar runs the chosen steps on every selected card through the same route the cards' sequence uses.
   function picked(){var s=ui.sel[ui.agent]||{};return Object.keys(s).map(Number).sort(function(a,b){return b-a})}
-  function pickRun(){
-    var a=ui.agent, steps=Cards.chosenSteps(), nums=picked(), step=steps.map(function(k){return k==='resolve'?'resolution':k}).join(' → ');
-    if(!steps.length){ui.picknote='choose one or more steps';draw();return}
-    var body=JSON.stringify({steps:steps,model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high',history:pref('runHistory')!=='no history'});
-    ui.pickbusy=true; ui.picknote='starting '+step+' on '+nums.length+'…'; draw();
-    var started=[], skipped=[];
+  // A selected card that is busy: a sequence or a step of it is working.
+  function busy(a,n){var S=Store.get(),ch=((S.chains||{})[a]||{})[n],st=((S.steps||{})[a]||{})[n]||{};
+    return (ch&&ch.state==='working')||Object.keys(st).some(function(k){return st[k]==='working'})}
+  // Runs one POST per selected card in turn; the note counts them while it goes, then lists what was skipped and why.
+  function perCard(verb,url,body,after){
+    var a=ui.agent, nums=picked(), done=[], skipped=[];
+    ui.pickbusy=true; ui.pickres=null; draw();
     (function next(k){
-      if(k>=nums.length){ui.picknote=(started.length?'started '+step+' on '+started.length:'nothing started')+(skipped.length?' · skipped '+skipped.join(', '):'');ui.pickbusy=false;draw();return}
+      ui.picknote=k<nums.length?verb+' '+(k+1)+'/'+nums.length+'…':''; draw();
+      if(k>=nums.length){ui.pickbusy=false;ui.pickres={head:verb+' '+done.length+' of '+nums.length,skipped:skipped};if(after)after(a);draw();return}
       var n=nums[k];
-      fetch('chain/'+a+'/'+n,{method:'POST',headers:{'Content-Type':'application/json'},body:body}).then(function(r){
-        if(r.ok)started.push(n); else return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}skipped.push('#'+n+' ('+(j.error||(r.status===409?'already running or not set up':'server said '+r.status))+')')});
-      }).catch(function(){skipped.push('#'+n+' (server unreachable)')}).then(function(){next(k+1)});
+      fetch(url(a,n),body?{method:'POST',headers:{'Content-Type':'application/json'},body:body}:{method:'POST'}).then(function(r){
+        if(r.ok){done.push(n);return}
+        return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}skipped.push({n:n,why:j.error||('server said '+r.status)})});
+      }).catch(function(){skipped.push({n:n,why:'server unreachable'})}).then(function(){next(k+1)});
     })(0);
   }
-  // Reset on every selected card, as the card's own Reset does; two clicks, the first arms the button for four seconds.
+  function pickRun(){
+    var steps=Cards.chosenSteps();
+    if(!steps.length){ui.pickres={head:'choose one or more steps',skipped:[]};draw();return}
+    perCard('started',function(a,n){return 'chain/'+a+'/'+n},JSON.stringify({steps:steps,model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high',history:pref('runHistory')!=='no history'}));
+  }
+  // Reset on every selected card, as the card's own Reset does. Two clicks: the first arms it for four seconds, for
+  // exactly the cards selected then; a change of selection disarms it.
   var pickArm=null;
+  function selSig(){return ui.agent+':'+picked().join(',')}
   function pickReset(){
-    if(!pickArm){pickArm=setTimeout(function(){pickArm=null;draw()},4000);draw();return}
-    clearTimeout(pickArm);pickArm=null;
-    var a=ui.agent, nums=picked(), done=[], skipped=[];
-    ui.pickbusy=true; ui.picknote='resetting '+nums.length+'…'; draw();
-    (function next(k){
-      if(k>=nums.length){ui.picknote=(done.length?'reset '+done.length:'nothing reset')+(skipped.length?' · skipped '+skipped.join(', '):'');ui.pickbusy=false;delete cache[a];draw();window.dispatchEvent(new Event('hashchange'));return}
-      var n=nums[k];
-      fetch('reset/'+a+'/'+n,{method:'POST'}).then(function(r){
-        if(r.ok)done.push(n); else return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}skipped.push('#'+n+' ('+(j.error||('server said '+r.status))+')')});
-      }).catch(function(){skipped.push('#'+n+' (server unreachable)')}).then(function(){next(k+1)});
-    })(0);
+    if(!pickArm||pickArm.sig!==selSig()){if(pickArm)clearTimeout(pickArm.t);pickArm={sig:selSig(),t:setTimeout(function(){pickArm=null;draw()},4000)};draw();return}
+    clearTimeout(pickArm.t);pickArm=null;
+    perCard('reset',function(a,n){return 'reset/'+a+'/'+n},null,function(a){delete cache[a];window.dispatchEvent(new Event('hashchange'))});
   }
   function PickBar(){
-    var n=picked().length, d=ui.data, names=d?d.list.map(function(i){return i.batch}).filter(function(b,k,arr){return b&&arr.indexOf(b)===k}).sort().reverse():[];
-    return html`<div id="pickbar" class="pickbar" hidden=${!ui.pick}><span class="cnt" id="pickcnt">${n?n+' selected':'none selected'}</span><select class="rsel" id="pickbatch" aria-label="Select a whole batch" title="Add every card of a batch to the selection" value="" onChange=${function(e){var b=e.target.value;e.target.value='';if(!b||!ui.data)return;var sel=ui.sel[ui.agent]=ui.sel[ui.agent]||{};ui.data.list.forEach(function(i){if((i.batch||NONE)===b)sel[i.num]=true});draw()}}><option value="">+ batch…</option>${names.map(function(b){return html`<option value=${b}>${'Batch '+b}</option>`})}<option value=${NONE}>${NONE}</option></select><${Cards.StepToggles} id="picksteps"/><${Cards.ModelSelect} id="pickmodel" k="runModel" def="gpt-5.6-terra" list=${Cards.MODELS} label="Model"/><${Cards.ModelSelect} id="pickeffort" k="runEffort" def="high" list=${Cards.EFFORTS} label="Reasoning effort"/><${Cards.ModelSelect} id="pickhistory" k="runHistory" def="history" list=${Cards.HISTORY} label="Card history" title="Whether the Sim Strategy runs started here read the card's history"/><button class="rbtn" id="pickrun" title="Run the chosen steps on every selected card: on each card one after another, in this order" aria-label="Run on selected" disabled=${!n||ui.pickbusy} onClick=${pickRun}><i class="ti ti-player-play" aria-hidden="true"></i></button><button class=${'rbtn lbl rstb'+(pickArm?' arm':'')} id="pickreset" title=${pickArm?'Click again to reset every selected card':'Reset every selected card: its answers and card go to history, uncommitted changes to a git stash'} aria-label="Reset selected" disabled=${!n||ui.pickbusy} onClick=${pickReset}>${pickArm?'Click again':'Reset'}</button><button class="rbtn" id="pickclear" title="Clear the selection" aria-label="Clear selection" onClick=${function(){ui.sel[ui.agent]={};ui.picknote='';draw()}}><i class="ti ti-x" aria-hidden="true"></i></button><div class="note" id="picknote">${ui.picknote}</div></div>`;
+    var a=ui.agent, nums=picked(), n=nums.length, d=ui.data, names=d?d.list.map(function(i){return i.batch}).filter(function(b,k,arr){return b&&arr.indexOf(b)===k}).sort().reverse():[];
+    var running=nums.filter(function(k){return busy(a,k)}).length, armed=!!(pickArm&&pickArm.sig===selSig()), res=ui.pickres;
+    return html`<div id="pickbar" class="pickbar" hidden=${!ui.pick}>
+      <div class="prow"><span class="cnt" id="pickcnt">${n?n+' selected':'none selected'}${running?html`<span class="prun">${' · '+running+' running'}</span>`:null}</span><select class="rsel" id="pickbatch" aria-label="Select a whole batch" title="Add every card of a batch to the selection" value="" onChange=${function(e){var b=e.target.value;e.target.value='';if(!b||!ui.data)return;var sel=ui.sel[ui.agent]=ui.sel[ui.agent]||{};ui.data.list.forEach(function(i){if((i.batch||NONE)===b)sel[i.num]=true});draw()}}><option value="">+ batch…</option>${names.map(function(b){return html`<option value=${b}>${'Batch '+b}</option>`})}<option value=${NONE}>${NONE}</option></select><button class="rbtn plink" id="pickclear" title="Clear the selection" aria-label="Clear selection" disabled=${!n} onClick=${function(){ui.sel[ui.agent]={};ui.picknote='';ui.pickres=null;draw()}}>clear</button></div>
+      <fieldset class="pgrp"><legend>Run on the selected cards</legend><${Cards.StepToggles} id="picksteps"/><div class="prow"><${Cards.ModelSelect} id="pickmodel" k="runModel" def="gpt-5.6-terra" list=${Cards.MODELS} label="Model"/><${Cards.ModelSelect} id="pickeffort" k="runEffort" def="high" list=${Cards.EFFORTS} label="Reasoning effort"/><${Cards.ModelSelect} id="pickhistory" k="runHistory" def="history" list=${Cards.HISTORY} label="Card history" title="Whether the Sim Strategy runs started here read the card's history; shared with the card's top bar"/></div><button class="rbtn pgo" id="pickrun" title="Run the chosen steps on every selected card: on each card one after another, in this order" disabled=${!n||ui.pickbusy} onClick=${pickRun}><i class="ti ti-player-play" aria-hidden="true"></i>${n?'Run on '+n:'Run'}</button></fieldset>
+      <div class="prow pdanger"><button class=${'rbtn preset'+(armed?' arm':'')} id="pickreset" title="Reset every selected card: its answers and card go to history, a live session stops, uncommitted changes go to a git stash" disabled=${!n||ui.pickbusy} onClick=${pickReset}><i class="ti ti-restore" aria-hidden="true"></i>${armed?'Click again to reset '+n+(running?' ('+running+' running, they stop)':''):n?'Reset '+n:'Reset'}</button></div>
+      <div class="note" id="picknote" aria-live="polite">${ui.picknote||(res?html`<div>${res.head+(res.skipped.length?' · skipped '+res.skipped.length+':':'')}</div>${res.skipped.map(function(x){return html`<div class="pskip"><a href=${href({a:a,i:x.n})}>${'#'+x.n}</a>${' '+x.why}</div>`})}`:'')}</div></div>`;
   }
   // New batch: a name (today's MMDD by default) and an existing branch, offered from GET branches with where each one is
   // checked out; the server starts batch.py create, and the batch row shows its progress.
@@ -245,7 +252,7 @@
     var a=ui.agent, d=ui.data, q=route(), sk=syncLook(), anyF=flag('hideWait')||flag('hideTesting')||flag('hideMerged')||flag('hideNoRepro');
     var g=d?groups(d):null, cur=d&&q.i?d.issues[+q.i]:null;
     return html`<div class="hd"><h1><select id="agent" aria-label="Agent" value=${a||'openpay'} onChange=${function(e){ui.only=null;location.hash=href({a:e.target.value})}}><option value="openpay">Openpay</option><option value="cobranzas">Cobranzas</option><option value="hipotecarios">Hipotecarios</option></select><span class="shown" id="shown">${g&&g.shown<g.all&&!ui.only?g.shown+' of '+g.all:''}</span></h1>
-      <div class="fltw" style="display:flex;gap:2px"><button class=${'sbtn'+sk.cls} id="sync" aria-label="Refresh issues from the tracker" title=${sk.title} disabled=${!!sk.dis} onClick=${syncClick}><i class="ti ti-refresh" aria-hidden="true"></i></button><button class="sbtn" id="newb" aria-label="New batch" title="New batch: its own worktree and Studio workspace on an existing branch" onClick=${newBatch}><i class="ti ti-folder-plus" aria-hidden="true"></i></button><button class=${'sbtn'+(ui.pick?' on':'')} id="pick" aria-label="Select cards" title="Select cards to run steps on all of them" aria-pressed=${ui.pick?'true':'false'} onClick=${function(){ui.pick=!ui.pick;if(!ui.pick){ui.picknote='';ui.sel={}}draw()}}><i class="ti ti-list-check" aria-hidden="true"></i></button><button class=${'fbtn'+(anyF?' on':'')} id="fbtn" aria-label="Filters" aria-expanded=${ui.fpop?'true':'false'} onClick=${function(e){e.stopPropagation();ui.fpop=!ui.fpop;draw()}}><i class="ti ti-filter" aria-hidden="true"></i></button><button class="sbtn" id="hide" aria-label="Hide sidebar" title="Hide sidebar"><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>
+      <div class="fltw" style="display:flex;gap:2px"><button class=${'sbtn'+sk.cls} id="sync" aria-label="Refresh issues from the tracker" title=${sk.title} disabled=${!!sk.dis} onClick=${syncClick}><i class="ti ti-refresh" aria-hidden="true"></i></button><button class="sbtn" id="newb" aria-label="New batch" title="New batch: its own worktree and Studio workspace on an existing branch" onClick=${newBatch}><i class="ti ti-folder-plus" aria-hidden="true"></i></button><button class=${'sbtn'+(ui.pick?' on':'')} id="pick" aria-label="Select cards" title="Select cards to run steps on or reset all of them" aria-pressed=${ui.pick?'true':'false'} onClick=${function(){ui.pick=!ui.pick;if(!ui.pick){ui.picknote='';ui.pickres=null;ui.sel={}}draw()}}><i class="ti ti-list-check" aria-hidden="true"></i></button><button class=${'fbtn'+(anyF?' on':'')} id="fbtn" aria-label="Filters" aria-expanded=${ui.fpop?'true':'false'} onClick=${function(e){e.stopPropagation();ui.fpop=!ui.fpop;draw()}}><i class="ti ti-filter" aria-hidden="true"></i></button><button class="sbtn" id="hide" aria-label="Hide sidebar" title="Hide sidebar"><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>
       <div class="pop" id="fpop" hidden=${!ui.fpop} onClick=${function(e){e.stopPropagation()}}><label><input type="checkbox" data-f="hideWait" checked=${flag('hideWait')} onChange=${function(e){pref('hideWait',e.target.checked?'1':'0');draw()}}/> Hide waiting <span>blocked, needs clarification</span></label><label><input type="checkbox" data-f="hideTesting" checked=${flag('hideTesting')} onChange=${function(e){pref('hideTesting',e.target.checked?'1':'0');draw()}}/> Hide testing</label><label><input type="checkbox" data-f="hideMerged" checked=${flag('hideMerged')} onChange=${function(e){pref('hideMerged',e.target.checked?'1':'0');draw()}}/> Hide merged</label><label><input type="checkbox" data-f="hideNoRepro" checked=${flag('hideNoRepro')} onChange=${function(e){pref('hideNoRepro',e.target.checked?'1':'0');draw()}}/> Hide doesn't reproduce</label></div></div>
     </div>
     <${Strip}/><${PickBar}/><${NewForm}/>

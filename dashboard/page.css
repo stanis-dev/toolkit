@@ -252,14 +252,24 @@ main{min-width:0}
 .side .it.sel .pk{color:var(--text-accent)}
 .side.pick .grp>.row{cursor:copy}
 .sbtn.on,.fbtn.on{color:var(--text-accent)}
-.pickbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 10px 10px;font-size:12px;color:var(--text-secondary)}
+.pickbar{position:sticky;top:0;z-index:3;display:flex;flex-direction:column;gap:8px;padding:6px 10px 10px;margin-bottom:6px;font-size:12px;color:var(--text-secondary);background:var(--surface-0);border-bottom:1px solid var(--border)}
 .pickbar[hidden]{display:none}
-.pickbar .cnt{min-width:80px}
-.pickbar .rsel{font-family:var(--font-mono);font-size:11px;height:22px;padding:0 4px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-secondary)}
-.pickbar .rbtn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-secondary);cursor:pointer;font-size:13px;padding:0}
+.pickbar .prow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pickbar .cnt{margin-right:auto;color:var(--text-primary)}
+.pickbar .prun{color:var(--text-muted)}
+.pickbar .pgrp{margin:0;padding:6px 8px 8px;border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.pickbar .pgrp legend{padding:0 4px;font-size:11px;color:var(--text-muted)}
+.pickbar .stps{display:flex;flex-wrap:wrap;gap:3px}
+.pickbar .rsel{font-family:var(--font-mono);font-size:11px;height:22px;padding:0 4px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-secondary);min-width:0}
+.pickbar .rbtn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:24px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text-secondary);cursor:pointer;font:inherit;font-size:12px;padding:0 8px;white-space:nowrap}
 .pickbar .rbtn:hover{color:var(--text-primary)}
 .pickbar .rbtn:disabled{opacity:.4;cursor:default}
-.pickbar .note{flex-basis:100%;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);white-space:normal}
+.pickbar .pgo{align-self:flex-start;color:var(--text-primary);border-color:var(--text-accent)}
+.pickbar .plink{border-color:transparent;background:none;padding:0 4px;height:22px;color:var(--text-muted)}
+.pickbar .preset{color:var(--text-muted)}
+.pickbar .preset.arm{color:var(--text-danger);border-color:var(--text-danger);background:color-mix(in srgb,var(--text-danger) 10%,var(--surface-2));white-space:normal;height:auto;min-height:24px;text-align:left}
+.pickbar .note{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);white-space:normal;display:flex;flex-direction:column;gap:2px}
+.pickbar .note .pskip a{color:var(--text-secondary)}
 .pickbar .note:empty{display:none}
 .runbar .rstb{margin-left:14px;color:var(--text-muted)}
 .runbar .rstb.arm{color:var(--text-danger);border-color:color-mix(in srgb,var(--text-danger) 50%,transparent)}
@@ -351,7 +361,6 @@ main{min-width:0}
 .side .it .gsh.ok{color:var(--text-success, var(--green))}
 .side .it .gsh.flaky{color:var(--text-warning, var(--orange))}
 .side .it .gsh.ko{color:var(--text-danger, var(--destructive))}
-.pickbar #pickreset{white-space:nowrap}
 .side .grp>.row .base .barch{margin-left:auto;width:20px;height:18px;font-size:12px;visibility:hidden}
 .side .grp>.row .base .barch+.bdel{margin-left:0}
 .side .grp>.row:hover .base .barch{visibility:visible}
