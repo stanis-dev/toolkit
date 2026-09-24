@@ -8,27 +8,29 @@ Usage:
 Static first, so a prompt cache shares the prefix across issues of one agent. For `analysis` (the default):
   1. the agent's Studio content as blocks.py prints it, path, text and JSON pointer per item, render order;
   2. the agent's SOP (agents/<agent>/sop/sop.md in the pages dir) when it has one, without its example conversations;
-  3. the issue, readable: name, status, description, comments, and per linked call the reporter's highlighted
-     lines with their logEntryId;
-  3. up to <k> linked calls (3 by default), the one with the highlighted line first, then newest first, each as a
-     numbered transcript with logEntryIds, tool calls and activated observations inline, tags at the end;
-  4. the compiled request the model saw at the reported turn: its system part and tool schemas, from the trace the
-     GOALSDK_RESPOND row names in debug.log.
+  3. the card's source (source.py), readable: for an issue its name, status, description, comments, and per linked
+     call the reporter's highlighted lines with their turn; for a failing simulation its name, what failed and its
+     definition;
+  3. up to <k> of the source's conversations (3 by default), the one with the highlighted line first, then newest
+     first, each as a numbered transcript with each line's turn, tool calls and activated observations inline, tags
+     at the end; a simulation's one replay;
+  4. the compiled request the model saw at the reported turn, when the source marks one: its system part and tool
+     schemas, from the trace the GOALSDK_RESPOND row names in debug.log.
 For `strategy`:
   1. the agent's suite as an index, one line per simulation, id, name and categories as `sierra test --list` reports
      them, under the file that declares it; then `simulations/harness.ts` verbatim;
   2. the tags the agent can emit: every tag literal in the agent's source with the file that declares it, and the
      tags the suite already asserts;
-  3. the issue as above;
+  3. the source as above;
   4. the Issue Analysis answer, `agents/<agent>/cards/<n>/analysis/answer.json` in the pages dir (the step fails without it);
-  5. the call the analysis names, the one holding its failure logEntryId, as a transcript; <k> is 1 here.
+  5. the conversation the analysis names, the one holding its failure turn, as a transcript; <k> is 1 here.
 For `context`:
   1. the Studio content as for `analysis`;
-  2. the issue;
+  2. the source;
   3. the Issue Analysis answer, and the Sim Strategy answer when it exists;
-  4. the call the analysis names, as a transcript with the activated observations inline;
+  4. the conversation the analysis names, as a transcript with the activated observations inline;
   5. the compiled request at the failure turn the analysis names, as for `analysis`.
-For `resolve`, the opening message of the interactive session: where everything lives, the issue, and the three
+For `resolve`, the opening message of the interactive session: where everything lives, the source, and the three
 step answers in full; the analysis must exist, the other two are marked when missing.
 Every step's brief ends with the card's history as cardlog.py indexes it, when the card has one.
 With --batch, the batch driver's opening message: the batch's values, then per card its state, branch, guard,
@@ -40,6 +42,7 @@ addressed by its debug.log seq.
 Everything comes from the pages dir ($BBVA_ISSUES_DIR, else ~/.claude/bbva-issues) except the tree and the
 simulation files, read from the repository given by --repo, the working directory by default.
 """
+import ast
 import contextlib
 import csv
 import glob
@@ -56,6 +59,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import blocks  # noqa: E402
 import cardlog  # noqa: E402
 import paths  # noqa: E402
+import source  # noqa: E402
 
 AGENT_DIR = {"cobranzas": "agents/base", "openpay": "agents/openpay", "hipotecarios": "agents/hipotecarios"}
 
@@ -110,31 +114,64 @@ def tree(repo, agent, at=None):
     return buf.getvalue()
 
 
-# ---------- 2. the issue ----------
+# ---------- 2. the source ----------
 
-def issue_text(iss):
-    d = iss["issue"]
-    out = [f"# Issue #{d.get('number')} · {d.get('name') or ''}".rstrip(" ·"), f"status: {d.get('status')}"]
-    if d.get("severity"):
-        out.append(f"severity: {d['severity']}")
-    if d.get("issueCategoryLabel"):
-        out.append(f"category: {d['issueCategoryLabel']}")
+def listed(v):
+    """A test ref's list field, which the CLI writes as a list, as JSON text or as Python list text."""
+    if isinstance(v, str) and v.startswith("["):
+        for parse in (json.loads, ast.literal_eval):
+            try:
+                return parse(v)
+            except (ValueError, SyntaxError):
+                pass
+    return v if isinstance(v, list) else ([v] if v else [])
+
+
+def source_text(src):
+    """The card's source, readable: an issue's name, status, description, comments and highlighted lines; a failing
+    simulation's name, what failed and its definition."""
+    ref = src.get("ref") or {}
+    if src.get("kind") == "sim":
+        out = [f"# Simulation · {src.get('title') or ''}".rstrip(" ·"),
+               f"run: {ref.get('run')} · result: {ref.get('result')} · {ref.get('status')}",
+               "", "## What failed", "", src.get("description") or "(nothing recorded)"]
+        d = src.get("definition") or {}
+        if d:
+            out += ["", "## Definition", "", f"group: {d.get('groupDescription') or ''} · categories: {', '.join(d.get('categories') or [])}",
+                    "", "### Persona instructions", ""] + [str(m) for m in listed(d.get("messages"))]
+            out += ["", "### Expected outcomes", ""] + [f"- {x}" for x in listed(d.get("expectedOutcomes"))]
+            out += ["", "### Tag expectations", "", ", ".join(listed(d.get("tagExpectations"))) or "(none)"]
+        out += ["", "## Replay"] + [f"- {c['id']}" for c in src.get("conversations") or []]
+        return "\n".join(out) + "\n"
+    out = [f"# Issue #{src.get('number')} · {src.get('title') or ''}".rstrip(" ·"), f"status: {ref.get('status')}"]
+    if ref.get("severity"):
+        out.append(f"severity: {ref['severity']}")
+    if ref.get("category"):
+        out.append(f"category: {ref['category']}")
     out.append("")
-    out.append(d.get("description") or "(no description)")
-    for c in d.get("comments") or []:
-        who = (c.get("author") or {}).get("name") if isinstance(c.get("author"), dict) else c.get("author") or c.get("authorName") or ""
-        when = c.get("createdTime") or c.get("created") or ""
-        body = c.get("body") or c.get("text") or c.get("content") or ""
+    out.append(src.get("description") or "(no description)")
+    for c in src.get("comments") or []:
         out.append("")
-        out.append(f"## Comment · {who} · {when}".rstrip(" ·"))
-        out.append(body)
+        out.append(f"## Comment · {c.get('author')} · {c.get('time')}".rstrip(" ·"))
+        out.append(c.get("text") or "")
     out.append("")
     out.append("## Linked calls and highlighted lines")
-    for l in iss.get("linkedLogs", []):
-        out.append(f"- {l['id']}")
-        for x in l.get("examples", []):
-            out.append(f"    - {x.get('author')} `{x.get('logEntryId')}`: {x.get('text')}")
+    for c in src.get("conversations") or []:
+        out.append(f"- {c['id']}")
+        for x in c.get("marked") or []:
+            out.append(f"    - {x.get('author')} `{x.get('turn')}`: {x.get('text')}")
     return "\n".join(out) + "\n"
+
+
+def conversation_part(base, src, cid):
+    """One conversation of the source as the briefs print it: header, where it is cached, the transcript."""
+    d = source.conv_dir(base, src["number"], cid)
+    what = "Replay" if src.get("kind") == "sim" else "Call"
+    if not os.path.isdir(d):
+        return f"# {what} {cid}\n\n(not cached)\n"
+    det = source.details(d)
+    rel = det["metadata"].get("release")
+    return f"# {what} {cid}" + (f" · release {rel}" if rel else "") + f"\n\ncached at `{d}/`\n\n" + transcript(d, det)
 
 
 # ---------- 3. the calls ----------
@@ -154,6 +191,7 @@ def transcript(conv_dir, details):
     aside = {}  # details message index -> list of aside lines that came after it
     di, last_obs = 0, None
     pending, tools = [], []  # tools: the calls of the agent turn being built, numbered tools[0], tools[1], …
+    args = source.tool_args(conv_dir)
     def flush(with_tools):
         # observations go under the line they followed; tool calls wait for the agent turn they belong to (a
         # customer line can land between the call and that turn)
@@ -172,15 +210,7 @@ def transcript(conv_dir, details):
                 aside.setdefault(j - 1, []).extend(flush(k == "AGENT_MSG"))
                 di = j + 1
         elif k == "TOOL_CALL":
-            tools.append({"name": r["message"]})
-        elif k == "AGENT_LOG" and "Invoking tool: " in r["message"]:
-            m = re.match(r".*Invoking tool: (\S+) (\{.*\})\s*$", r["message"], re.S)
-            t = next((t for t in reversed(tools) if m and t["name"] == m.group(1) and "args" not in t), None)
-            if t:
-                try:
-                    t["args"] = json.loads(m.group(2))
-                except ValueError:
-                    t["args"] = m.group(2)
+            tools.append({"name": r["message"], **({"args": args[r["seq"]]} if r["seq"] in args else {})})
         elif k == "OBSERVATIONS" and r["message"].startswith("Activated"):
             if r["message"] != last_obs:
                 pending.append(f"    [obs] {r['message'][len('Activated: '):]}")
@@ -193,7 +223,7 @@ def transcript(conv_dir, details):
             turn += 1
             role = m.get("role")
         who = "A" if role == "assistant" else "U"
-        out.append(f"{turn} {who} `{m.get('logEntryId')}`: {(m.get('text') or '').replace(chr(10), ' ')}")
+        out.append(f"{turn} {who} `{m.get('turn')}`: {(m.get('text') or '').replace(chr(10), ' ')}")
         out.extend(aside.get(i, []))
     tags = [t for t in details.get("metadata", {}).get("tags", []) if not t.startswith(("^", "~"))]
     out.append("")
@@ -202,49 +232,8 @@ def transcript(conv_dir, details):
 
 
 def replay_transcript(result_dir):
-    """A simulation replay as a numbered transcript, each line addressed by its debug.log seq, tool calls and activated
-    observations inline as for a call, tags at the end."""
-    out, pending, tools, invoked = [], [], [], {}
-    turn, role, last_obs = 0, None, None
-    for r in debug_rows(result_dir):
-        k = r["event_type"]
-        if k in ("USER_MSG", "AGENT_MSG"):
-            out += pending
-            if k == "AGENT_MSG":
-                out += [f"    tools[{j}] {t['name']}" + (f" {json.dumps(t['args'], ensure_ascii=False)}" if t.get("args") is not None else "")
-                        for j, t in enumerate(tools)]
-                tools = []
-            pending = []
-            if k != role:
-                turn += 1
-                role = k
-            who = "A" if k == "AGENT_MSG" else "U"
-            out.append(f"{turn} {who} `{r['seq']}`: {r['message'].replace(chr(10), ' ')}")
-        elif k == "TOOL_CALL":
-            tools.append({"name": r["message"], "args": invoked.pop(r["message"], None)})
-        elif k == "AGENT_LOG" and "Invoking tool: " in r["message"]:
-            m = re.match(r".*Invoking tool: (\S+) (\{.*\})\s*$", r["message"], re.S)
-            if m:
-                try:
-                    args = json.loads(m.group(2))
-                except ValueError:
-                    args = m.group(2)
-                t = next((t for t in reversed(tools) if t["name"] == m.group(1) and t.get("args") is None), None)
-                if t:
-                    t["args"] = args
-                else:
-                    invoked[m.group(1)] = args
-        elif k == "OBSERVATIONS" and r["message"].startswith("Activated"):
-            if r["message"] != last_obs:
-                pending.append(f"    [obs] {r['message'][len('Activated: '):]}")
-            last_obs = r["message"]
-    out += pending + [f"    tools[{j}] {t['name']}" + (f" {json.dumps(t['args'], ensure_ascii=False)}" if t.get("args") is not None else "")
-                      for j, t in enumerate(tools)]
-    p = os.path.join(result_dir, "result.json")
-    tags = [t for t in (load(p).get("tags") or [] if os.path.exists(p) else []) if not t.startswith(("^", "~"))]
-    out.append("")
-    out.append("tags: " + ", ".join(tags))
-    return "\n".join(out) + "\n"
+    """A simulation replay as a numbered transcript, each line addressed by its debug.log seq."""
+    return transcript(result_dir, source.details(result_dir))
 
 
 SOP_EXAMPLE = re.compile(r"(?ms)^#+ Ejemplo de conversación.*?(?=^#+ |^\*\*\d)")
@@ -257,34 +246,34 @@ def sop_text(base):
     return SOP_EXAMPLE.sub("", open(p, encoding="utf-8").read()).strip() + "\n" if os.path.exists(p) else ""
 
 
-def call_order(iss, base, k):
-    ids = [l["id"] for l in iss.get("linkedLogs", [])]
-    with_line = [l["id"] for l in iss.get("linkedLogs", []) if l.get("examples")]
+def call_order(src, base, k):
+    ids = [c["id"] for c in src.get("conversations") or []]
+    with_line = [c["id"] for c in src.get("conversations") or [] if c.get("marked")]
     rest = [i for i in ids if i not in with_line]
 
     def ts(cid):
-        p = os.path.join(paths.conversation(base, cid), "details.json")
-        return load(p)["metadata"].get("timestamp") or "" if os.path.exists(p) else ""
+        d = source.conv_dir(base, src["number"], cid)
+        return source.details(d)["metadata"].get("timestamp") or "" if os.path.isdir(d) else ""
     rest.sort(key=ts, reverse=True)
     return (with_line + rest)[:k]
 
 
 # ---------- 4. the request ----------
 
-def request_at(conv_dir, log_entry_id=None):
-    """The compiled request of one agent turn: (request dict, trace seq, the agent message, error). With no
-    log_entry_id, the call's first agent turn; with a customer line's id, the first agent turn after it (or the last
-    agent turn when the line is the call's tail)."""
-    details = load(os.path.join(conv_dir, "details.json"))
+def request_at(conv_dir, turn=None):
+    """The compiled request of one agent turn: (request dict, trace seq, the agent message, error). With no turn, the
+    conversation's first agent turn; with a customer line's, the first agent turn after it (or the last agent turn when
+    the line is the tail)."""
+    details = source.details(conv_dir)
     msgs = [e for e in details["events"] if e.get("type") == "message"]
-    if log_entry_id is None:
+    if turn is None:
         idx = next((i for i, m in enumerate(msgs) if m.get("role") == "assistant"), None)
         if idx is None:
             return None, None, None, "no agent turn in the call"
     else:
-        idx = next((i for i, m in enumerate(msgs) if m.get("logEntryId") == log_entry_id), None)
+        idx = next((i for i, m in enumerate(msgs) if m.get("turn") == turn), None)
         if idx is None:
-            return None, None, None, f"line {log_entry_id} not in details.json"
+            return None, None, None, f"line {turn} not in the conversation"
     start = idx
     while idx < len(msgs) and msgs[idx].get("role") != "assistant":
         idx += 1
@@ -303,12 +292,12 @@ def request_at(conv_dir, log_entry_id=None):
         elif r["event_type"] == "AGENT_MSG":
             if seen == k:
                 if not same(r["message"], target.get("text")):
-                    return None, None, target, f"debug.log agent message {seen} does not match {target.get('logEntryId')}"
+                    return None, None, target, f"debug.log agent message {seen} does not match {target.get('turn')}"
                 seq = last
                 break
             seen += 1
     if not seq:
-        return None, None, target, f"no GOALSDK_RESPOND row before agent message {target.get('logEntryId')}"
+        return None, None, target, f"no GOALSDK_RESPOND row before agent message {target.get('turn')}"
     trace = load(os.path.join(conv_dir, "traces", f"{seq}.trace"))
     for ev in trace.get("traces", []):
         lc = ev.get("llm_chat")
@@ -325,24 +314,24 @@ def message_text(m):
     return c or ""
 
 
-def compiled_request(base, conv_id, log_entry_id=None):
-    """The request as the page explores it: the system parts, the tools, the conversation messages, and the call's
-    agent turns so the page can step through them."""
-    conv_dir = paths.conversation(base, conv_id)
-    details = load(os.path.join(conv_dir, "details.json"))
-    turns = [{"logEntryId": e.get("logEntryId"), "text": e.get("text") or ""}
+def compiled_request(base, n, conv_id, turn=None):
+    """The request as the page explores it: the system parts, the tools, the conversation messages, and the
+    conversation's agent turns so the page can step through them."""
+    conv_dir = source.conv_dir(base, n, conv_id)
+    details = source.details(conv_dir)
+    turns = [{"turn": e.get("turn"), "text": e.get("text") or ""}
              for e in details["events"] if e.get("type") == "message" and e.get("role") == "assistant"]
-    if log_entry_id is None:  # the first agent turn the model produced; scripted greetings have no request
+    if turn is None:  # the first agent turn the model produced; scripted greetings have no request
         rr = seq = target = err = None
         for t in turns:
-            rr, seq, target, err = request_at(conv_dir, t["logEntryId"])
+            rr, seq, target, err = request_at(conv_dir, t["turn"])
             if rr is not None:
                 break
     else:
-        rr, seq, target, err = request_at(conv_dir, log_entry_id)
+        rr, seq, target, err = request_at(conv_dir, turn)
     if err and err.startswith("no GOALSDK_RESPOND row"):
         err = "no model call before this agent line: a scripted or verbatim turn"
-    out = {"conversation": conv_id, "turn": target.get("logEntryId") if target else None, "trace": seq, "turns": turns, "error": err}
+    out = {"conversation": conv_id, "turn": target.get("turn") if target else None, "trace": seq, "turns": turns, "error": err}
     if rr is None:
         return out
     msgs = rr.get("messages") or rr.get("input") or []
@@ -358,19 +347,19 @@ def compiled_request(base, conv_id, log_entry_id=None):
     return out
 
 
-def request_at_reported(base, iss, conv_id, log_entry_id=None):
+def request_at_reported(base, src, conv_id, turn=None):
     """The compiled request of the agent turn the reporter pointed at: the highlighted line when it is the agent's,
-    else the first agent message after it. With log_entry_id, that turn instead."""
-    conv_dir = paths.conversation(base, conv_id)
-    if log_entry_id is None:
-        ex = next((x for l in iss.get("linkedLogs", []) if l["id"] == conv_id for x in l.get("examples", [])), None)
+    else the first agent message after it. With turn, that turn instead."""
+    conv_dir = source.conv_dir(base, src["number"], conv_id)
+    if turn is None:
+        ex = next((x for c in src.get("conversations") or [] if c["id"] == conv_id for x in c.get("marked") or []), None)
         if not ex:
-            return None, "no highlighted line in this call"
-        log_entry_id = ex.get("logEntryId")
-    rr, seq, target, err = request_at(conv_dir, log_entry_id)
+            return None, "no highlighted line in this conversation"
+        turn = ex.get("turn")
+    rr, seq, target, err = request_at(conv_dir, turn)
     if err:
         return None, err
-    out = [f"turn: `{target.get('logEntryId')}` · trace: `{os.path.join(conv_dir, 'traces', f'{seq}.trace')}`", ""]
+    out = [f"turn: `{target.get('turn')}` · trace: `{os.path.join(conv_dir, 'traces', f'{seq}.trace')}`", ""]
     for m in rr.get("messages") or rr.get("input") or []:
         if m.get("role") in ("system", "developer"):
             out.append(f"## {m['role']}")
@@ -474,16 +463,15 @@ def tags_text(repo, agent, files):
     return "\n".join(out) + "\n"
 
 
-def call_of_analysis(base, iss, analysis):
-    """The linked call that holds the analysis's failure logEntryId, else the first of call_order."""
-    want = ((analysis.get("failure") or {}).get("logEntryId")) if isinstance(analysis, dict) else None
-    for l in iss.get("linkedLogs", []):
-        p = os.path.join(paths.conversation(base, l["id"]), "details.json")
-        if want and os.path.exists(p):
-            d = load(p)
-            if any(e.get("logEntryId") == want for e in d.get("events", []) if e.get("type") == "message"):
-                return [l["id"]]
-    return call_order(iss, base, 1)
+def call_of_analysis(base, src, analysis):
+    """The conversation that holds the analysis's failure turn, else the first of call_order."""
+    want = source.failure_turn(analysis) if isinstance(analysis, dict) else None
+    for c in src.get("conversations") or []:
+        d = source.conv_dir(base, src["number"], c["id"])
+        if want and os.path.isdir(d):
+            if any(e.get("turn") == want for e in source.details(d)["events"] if e.get("type") == "message"):
+                return [c["id"]]
+    return call_order(src, base, 1)
 
 
 # ---------- main ----------
@@ -506,7 +494,9 @@ def main(argv):
     repo = opts.get("--repo") or os.getcwd()
     k = int(opts.get("--calls") or 3)
     base = os.path.join(pages, "agents", agent)
-    iss = load(paths.issue(base, n))
+    iss = source.load(base, n)
+    if not iss:
+        fail(f"{agent} {n} has no source: no issue in the cache and no source.json in the card")
     history = cardlog.index(pages, agent, n)
     history = "\n" + history if history else ""
     if step == "strategy":
@@ -525,17 +515,11 @@ def main(argv):
     sop = sop_text(base)
     if sop:
         parts.append(f"# SOP · {agent}\n\n" + sop)
-    parts.append(issue_text(iss))
+    parts.append(source_text(iss))
     calls = call_order(iss, base, k)
     for cid in calls:
-        conv_dir = paths.conversation(base, cid)
-        p = os.path.join(conv_dir, "details.json")
-        if not os.path.exists(p):
-            parts.append(f"# Call {cid}\n\n(not cached)\n")
-            continue
-        d = load(p)
-        parts.append(f"# Call {cid} · release {d['metadata'].get('release')}\n\ncached at `{conv_dir}/`\n\n" + transcript(conv_dir, d))
-    if calls:
+        parts.append(conversation_part(base, iss, cid))
+    if calls and any(c.get("marked") for c in iss.get("conversations") or []):
         req, err = request_at_reported(base, iss, calls[0])
         parts.append("# Request at the reported turn\n\n" + (req if req else f"(unavailable: {err})\n"))
     sys.stdout.write("\n".join(parts) + history)
@@ -570,16 +554,10 @@ def strategy_brief(agent, n, base, repo, iss):
     files = suite_files(repo, agent)
     parts = [f"# Simulations · {agent}\n\n" + suite_index(repo, agent, files),
              f"# Tags · {agent}\n\n" + tags_text(repo, agent, files),
-             issue_text(iss),
+             source_text(iss),
              f"# Issue Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n" + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
     for cid in call_of_analysis(base, iss, analysis):
-        conv_dir = paths.conversation(base, cid)
-        p = os.path.join(conv_dir, "details.json")
-        if not os.path.exists(p):
-            parts.append(f"# Call {cid}\n\n(not cached)\n")
-            continue
-        d = load(p)
-        parts.append(f"# Call {cid} · release {d['metadata'].get('release')}\n\ncached at `{conv_dir}/`\n\n" + transcript(conv_dir, d))
+        parts.append(conversation_part(base, iss, cid))
     parts.append(run_text(agent, n, base, repo, "strategy"))
     before = before_fix(base, n)
     if before:
@@ -621,7 +599,7 @@ def context_brief(agent, n, base, repo, iss):
         fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     analysis = load(analysis_path)
     parts = [f"# Studio content · {agent} · outline\n\n" + tree(repo, agent),
-             issue_text(iss),
+             source_text(iss),
              f"# Issue Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n"
              + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
     strategy_path = paths.answer(base, n, "strategy")
@@ -632,15 +610,9 @@ def context_brief(agent, n, base, repo, iss):
         parts.append(f"# Sim Strategy · {agent} {n}\n\n(not run yet)\n")
     calls = call_of_analysis(base, iss, analysis)
     for cid in calls:
-        conv_dir = paths.conversation(base, cid)
-        p = os.path.join(conv_dir, "details.json")
-        if not os.path.exists(p):
-            parts.append(f"# Call {cid}\n\n(not cached)\n")
-            continue
-        d = load(p)
-        parts.append(f"# Call {cid} · release {d['metadata'].get('release')}\n\ncached at `{conv_dir}/`\n\n" + transcript(conv_dir, d))
+        parts.append(conversation_part(base, iss, cid))
     if calls:
-        want = (analysis.get("failure") or {}).get("logEntryId")
+        want = source.failure_turn(analysis)
         req, err = request_at_reported(base, iss, calls[0], want)
         parts.append("# Request at the failure turn\n\n" + (req if req else f"(unavailable: {err})\n"))
     parts.append(run_text(agent, n, base, repo, "context"))
@@ -678,7 +650,7 @@ def resolve_brief(agent, n, base, repo, iss):
              f"- `<pages>`: `{base}`\n"
              f"- `<scripts>`: `{scripts}`\n"
              f"- `<references>`: `{os.path.abspath(os.path.join(scripts, '..', 'references'))}`\n",
-             issue_text(iss)]
+             source_text(iss)]
     for step, title in (("analysis", "Issue Analysis"), ("strategy", "Sim Strategy"), ("context", "Studio Context Edit")):
         path = paths.answer(base, n, step)
         if os.path.exists(path):
@@ -733,14 +705,14 @@ def batch_brief(agent, batch, base):
         m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(paths.card(base, n), encoding="utf-8").read(400))
         if not m or m.group(1) != batch:
             continue
-        iss = load(paths.issue(base, n)) if os.path.exists(paths.issue(base, n)) else {}
+        iss = source.load(base, n) or {}
         setup = load(paths.status(base, n, "setup")) if os.path.exists(paths.status(base, n, "setup")) else {}
         stage = load(paths.step_file(base, n, "resolve", "stage.json")) if os.path.exists(paths.step_file(base, n, "resolve", "stage.json")) else []
         strat = load(paths.answer(base, n, "strategy")) if os.path.exists(paths.answer(base, n, "strategy")) else {}
         guard = strat.get("guard") or {}
         gid = next((x.get("id") for x in strat.get("sims") or [] if x.get("action") != "delete"), None) or guard.get("existing")
         last = stage[-1] if stage else {}
-        lines = [f"## #{n} · {(iss.get('issue') or {}).get('name', '')}",
+        lines = [f"## #{n} · {iss.get('title', '')}",
                  f"- state: " + (f"{last.get('stage')} {last.get('state')}" + (f" ({last['note']})" if last.get("note") else "") if last else "no resolution yet"),
                  f"- branch: `{setup.get('branch')}`, worktree `{setup.get('worktree')}`",
                  f"- guard: " + (f"`{gid}`" if gid else "none"),

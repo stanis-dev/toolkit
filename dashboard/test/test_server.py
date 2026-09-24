@@ -110,6 +110,41 @@ class StepStates(Lab):
         self.assertEqual(s['304']['setup'], 'done')
 
 
+class SimCards(Lab):
+    """A card opened from one failing replay reads as an issue card does: listed with the issues, its replay served as
+    a conversation, the request at one of its turns."""
+    name = 'simcards'
+
+    def test_replay_card(self):
+        sims = self.path('sims', 'replaytestrunset-X', 'results', 'replaytestresult-X')
+        os.makedirs(os.path.join(sims, 'traces'))
+        with open(os.path.join(sims, 'debug.log'), 'w') as f:
+            f.write('seq,timestamp,event_type,message\n1,t,AGENT_MSG,Hola.\n2,t,USER_MSG,No soy yo.\n'
+                    '3,t,GOALSDK_RESPOND,Tool calls: EndCall\n4,t,AGENT_LOG,[INFO] Invoking tool: EndCall {}\n'
+                    '5,t,AGENT_MSG,Disculpá la molestia.\n6,t,TOOL_CALL,EndCall\n')
+        json.dump({'id': 'replaytestresult-X', 'replayTestId': 'replaytestmeta-Y', 'runSetId': 'replaytestrunset-X', 'status': 'FAILED',
+                   'tags': ['tool:end-call'], 'tagExpectations': {'present': ['resultado:no-reconoce'], 'absent': []},
+                   'outcomeEvalResults': [{'expectedOutcome': 'Se despide.', 'metExpectation': False, 'reasoning': 'No se despidió.'}]},
+                  open(os.path.join(sims, 'result.json'), 'w'))
+        json.dump({'traces': [{'llm_chat': {'raw_request': {'model': 'm', 'messages': [{'role': 'system', 'content': 'Sé breve.'}], 'tools': []}}}]},
+                  open(os.path.join(sims, 'traces', '3.trace'), 'w'))
+        with open(self.path('sims', 'test-names.json'), 'w') as f:
+            json.dump({'replaytestmeta-Y': 'No reconoce al titular'}, f)
+        out = subprocess.run([sys.executable, os.path.join(lab.TOOLKIT, 'simcard.py'), AG, sims, '--pages', self.run_dir],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(out, '10001')
+        src = get(f'/sources/{AG}')['10001']
+        self.assertEqual((src['kind'], src['title'], src['conversations'][0]['id']), ('sim', 'No reconoce al titular', 'replaytestresult-X'))
+        self.assertIn('Missing tags: resultado:no-reconoce', src['description'])
+        rows = get(f'/call/{AG}/10001/replaytestresult-X')['rows']
+        self.assertEqual([(r.get('turn'), r.get('text')) for r in rows if r.get('role')], [('1', 'Hola.'), ('2', 'No soy yo.'), ('5', 'Disculpá la molestia.')])
+        self.assertEqual(rows[-1]['tools'], [{'name': 'EndCall', 'args': '{}'}])
+        req = get(f'/request/{AG}/10001/replaytestresult-X/5')
+        self.assertEqual((req['error'], req['turn'], req['trace'], req['system'][0]['text']), (None, '5', '3', 'Sé breve.'))
+        files = [f['path'] for f in get(f'/files/{AG}/10001')]
+        self.assertIn('cards/10001/conversations/replaytestresult-X/debug.log', files)
+
+
 class Sequences(Lab):
     name = 'chain'
     extra = {'STANDIN_SECONDS': '0.6'}

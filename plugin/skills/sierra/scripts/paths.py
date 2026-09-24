@@ -7,7 +7,7 @@ strategy, context, resolve; `driver` keys its files by batch the same way.
     conversations/<call>/         a call's files, sync.py's; one call can belong to several issues
     cards/<n>/
       card.html  log.jsonl  cost.json  chain.json  chain.stop  chain.log
-      source.json -> ../../issues/<n>.json,  conversations/<call> -> ../../../conversations/<call>
+      source.json (source.py's), conversations/<id>: a link to a call in conversations/, or a replay's own copy
       <step>/  status.json  answer.json  report.md  stage.json  runs.json  reopen.json  runs/  history/
     batches.json  batches/<batch>.status.json  batches/<batch>/  driver/<batch>.<ext>  driver/runs/<batch>/
 """
@@ -64,27 +64,6 @@ def cards(base):
     """The numbers of the agent's cards, sorted."""
     d = os.path.join(base, "cards")
     return sorted((f for f in os.listdir(d) if f.isdigit() and os.path.isfile(card(base, f))), key=int) if os.path.isdir(d) else []
-
-
-def link_source(base, n):
-    """The card folder's links to what it came from: source.json to the issue, conversations/<call> to each linked call
-    sync.py has fetched. Idempotent."""
-    d = card_dir(base, n)
-    os.makedirs(d, exist_ok=True)
-    src = os.path.join(d, "source.json")
-    if os.path.exists(issue(base, n)) and not os.path.lexists(src):
-        os.symlink(os.path.relpath(issue(base, n), d), src)
-    try:
-        iss = json.load(open(issue(base, n), encoding="utf-8"))
-        iss = json.loads(iss) if isinstance(iss, str) else iss
-    except (OSError, ValueError):
-        return
-    for link in iss.get("linkedLogs") or []:
-        conv = conversation(base, link["id"])
-        dst = os.path.join(d, "conversations", link["id"])
-        if os.path.isdir(conv) and not os.path.lexists(dst):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            os.symlink(os.path.relpath(conv, os.path.dirname(dst)), dst)
 
 
 def status(base, n, step):
@@ -153,8 +132,8 @@ def chain_log(base, n):
 
 
 def card_files(base, n):
-    """Every file of the card as (group, path), in reading order: where it came from (the issue and its linked calls),
-    the card itself, then each step's own files, its runs and its history."""
+    """Every file of the card as (group, path), in reading order: where it came from (source.json, the tracker's issue
+    when there is one, the conversations), the card itself, then each step's own files, its runs and its history."""
     out = []
 
     def add(group, p):
@@ -164,15 +143,12 @@ def card_files(base, n):
             for root, dirs, files in os.walk(p):
                 dirs.sort()
                 out.extend((group, os.path.join(root, f)) for f in sorted(files))
-    add("source", issue(base, n))
     d = card_dir(base, n)
-    try:
-        iss = json.load(open(issue(base, n), encoding="utf-8"))
-        iss = json.loads(iss) if isinstance(iss, str) else iss
-    except (OSError, ValueError):
-        iss = {}
-    for link in iss.get("linkedLogs") or []:
-        add("source", conversation(base, link["id"]))
+    add("source", os.path.join(d, "source.json"))
+    add("source", issue(base, n))
+    cd = os.path.join(d, "conversations")
+    for c in sorted(os.listdir(cd)) if os.path.isdir(cd) else []:
+        add("source", os.path.join(cd, c))
     for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
         if f not in STEPS and f not in ("source.json", "conversations"):
             add("card", os.path.join(d, f))

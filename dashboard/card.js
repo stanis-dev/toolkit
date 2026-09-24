@@ -19,10 +19,7 @@
   function load(agent){
     if(cache[agent]) return Promise.resolve(cache[agent]);
     var base='agents/'+agent+'/';
-    var raw=fetch(base+'issues/').then(function(r){return r.ok?r.text():''}).catch(function(){return ''}).then(function(html){
-      var nums=[],m,re=/href="(\d+)\.json"/g; while((m=re.exec(html))) nums.push(+m[1]);
-      return Promise.all(nums.map(function(n){return fetch(base+'issues/'+n+'.json').then(function(r){return r.json()}).then(function(d){return typeof d==='string'?JSON.parse(d):d}).catch(function(){return null})}));
-    });
+    var raw=fetch('sources/'+agent,{cache:'no-store'}).then(function(r){return r.ok?r.json():{}}).catch(function(){return {}});
     var list=fetch(base+'cards/').then(function(r){return r.ok?r.text():''}).catch(function(){return ''}).then(function(html){
       var nums=[],m,re=/href="(\d+)\/"/g; while((m=re.exec(html))) nums.push(+m[1]);
       return Promise.all(nums.map(function(n){return fetch(Paths.card(agent,n)+'card.html').then(function(r){return r.ok?r.text():null}).then(function(t){if(t==null)return null;
@@ -35,7 +32,7 @@
     });
     var batches=fetch(base+'batches.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():{}}).catch(function(){return {}});
     return Promise.all([raw,list,batches]).then(function(rr){
-      var issues={}; rr[0].forEach(function(d){var r=d&&d.issue;if(!r)return;var c=r.createdTime||'';issues[r.number]={num:r.number,title:(r.name||'').trim(),state:r.status||'OPEN',sev:r.severity||'MINOR',owner:(r.owner&&r.owner.name)||'',created:c.length>=10?c.slice(8,10)+'/'+c.slice(5,7):'',body:r.description||'',comments:(r.comments||[]).map(function(x){return {author:x.creatorName||'',time:x.createdAt||'',text:x.body||''}}),calls:d.linkedLogs||[]}});
+      var issues={}; Object.keys(rr[0]||{}).forEach(function(k){var d=rr[0][k],r=d.ref||{},c=r.created||'';issues[d.number]={num:d.number,kind:d.kind,title:(d.title||'').trim(),state:r.status||'OPEN',sev:r.severity||'MINOR',owner:r.owner||'',created:c.length>=10?c.slice(8,10)+'/'+c.slice(5,7):'',body:d.description||'',comments:d.comments||[],calls:d.conversations||[]}});
       Object.keys(issues).forEach(function(k){issues[k].agent=agent});
       rr[1].filter(Boolean).forEach(function(c){var i=issues[c.num]||(issues[c.num]={num:c.num,title:'#'+c.num,state:'OPEN',sev:'MINOR',owner:'',created:'',body:'',comments:[],orphan:true});i.pr=c.pr;i.ws=c.ws;i.batch=c.batch;i.green=c.green;i.card=c.html});
       return (cache[agent]={issues:issues,list:Object.keys(issues).map(function(k){return issues[k]}),batches:rr[2]||{}});
@@ -343,15 +340,15 @@
     function Panel(p){
       var i=p.i, conv=p.conv, s=useState({loading:true}), d=s[0].d, box=useRef(null);
       function load(entry){s[1](function(x){return {loading:true,d:x.d}});
-        getJSON('request/'+i.agent+'/'+conv+(entry?'/'+entry:'')).then(function(j){data=j||{error:'server unreachable',turns:[]};s[1]({d:data})})}
+        getJSON('request/'+i.agent+'/'+i.num+'/'+conv+(entry?'/'+entry:'')).then(function(j){data=j||{error:'server unreachable',turns:[]};s[1]({d:data})})}
       useEffect(function(){api.load=load;load(p.entry)},[]);
       var parts=useMemo(function(){return d&&!d.error?partsOf(d):[]},[d]);
       useLayoutEffect(function(){var b=box.current;if(!b||!d)return;b._parts=parts;filter();
         if(want){var w=want;want=null;b.querySelectorAll('.cs').forEach(function(x,k){if(w.open&&k<w.open.length)x.open=!!w.open[k]});b.querySelector('.tl').scrollTop=w.scroll||0}},[parts]);
-      var turns=(d&&d.turns)||[], at=d?turns.map(function(t){return t.logEntryId}).indexOf(d.turn):-1;
+      var turns=(d&&d.turns)||[], at=d?turns.map(function(t){return t.turn}).indexOf(d.turn):-1;
       var sysChars=d?(d.system||[]).reduce(function(a,m){return a+m.text.length},0):0;
       var hd=s[0].loading?'loading…':d.error?null:[d.model,Object.keys(d.settings||{}).map(function(k){var v=d.settings[k];return k+' '+(typeof v==='object'?JSON.stringify(v):v)}).join(' · '),Math.round(sysChars/1000)+'k chars of system text',(d.tools||[]).length+' tools',(d.messages||[]).length+' messages','trace '+d.trace].filter(Boolean).join(' · ');
-      return html`<aside class=${'sess ctx'+(beside?' beside':'')} role="dialog" aria-label="Agent context" ref=${box}><header><span class="ttl">${d?'#'+i.num+' · context at agent turn '+(at+1)+' of '+turns.length:'#'+i.num+' · context'}</span><button class="rbtn prev" title="Previous agent turn" aria-label="Previous agent turn" disabled=${!d||at<=0} onClick=${function(){if(at>0)load(turns[at-1].logEntryId)}}><${Icon} n="ti-chevron-left"/></button><button class="rbtn next" title="Next agent turn" aria-label="Next agent turn" disabled=${!d||at<0||at>=turns.length-1} onClick=${function(){if(at<turns.length-1)load(turns[at+1].logEntryId)}}><${Icon} n="ti-chevron-right"/></button><input class="q" type="search" placeholder="filter" aria-label="Filter the context" defaultValue=${p.q||''} onInput=${filter}/><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
+      return html`<aside class=${'sess ctx'+(beside?' beside':'')} role="dialog" aria-label="Agent context" ref=${box}><header><span class="ttl">${d?'#'+i.num+' · context at agent turn '+(at+1)+' of '+turns.length:'#'+i.num+' · context'}</span><button class="rbtn prev" title="Previous agent turn" aria-label="Previous agent turn" disabled=${!d||at<=0} onClick=${function(){if(at>0)load(turns[at-1].turn)}}><${Icon} n="ti-chevron-left"/></button><button class="rbtn next" title="Next agent turn" aria-label="Next agent turn" disabled=${!d||at<0||at>=turns.length-1} onClick=${function(){if(at<turns.length-1)load(turns[at+1].turn)}}><${Icon} n="ti-chevron-right"/></button><input class="q" type="search" placeholder="filter" aria-label="Filter the context" defaultValue=${p.q||''} onInput=${filter}/><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
         <div class="hd2">${hd===null?html`<span class="err">${d.error}</span>`:hd}</div><div class="tl" data-n=${String(parts.length)}>${parts.map(function(x,k){return html`<details class=${'cs '+x.kind} data-k=${k} open=${x.kind==='sys'&&k<1} key=${(d&&d.turn)+'/'+k}><summary><${Icon} n="ti-chevron-right"/><span class="t">${x.title}</span><span class="cnt">${x.text.length>=1000?Math.round(x.text.length/1000)+'k':x.text.length}</span></summary><div class="cb" dangerouslySetInnerHTML=${{__html:x.html}}></div></details>`})}</div></aside>`;
     }
     var api={};
@@ -375,13 +372,13 @@
     function toolRow(t,q){return '<div class="row tcall"'+(q!=null?' title="tools['+q+'] of the turn below"':'')+'><span class="n"><i class="ti ti-tool" aria-hidden="true"></i></span><span>'+toolHtml(t)+'</span></div>'}
     function fmtDur(s){s=Math.round(s||0);return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
     function rowsOf(d,an,call){
-      var hl={}; (call.examples||[]).forEach(function(x){hl[x.logEntryId]=x.text||''});
-      var fid=(an.failure||{}).logEntryId||'', rows=[];
+      var hl={}; (call.marked||[]).forEach(function(x){hl[x.turn]=x.text||''});
+      var fid=(an.failure||{}).turn||(an.failure||{}).logEntryId||'', rows=[];
       (d.rows||[]).forEach(function(e){
         if(e.tags){rows.push('<div class="row tags"><span class="n"><i class="ti ti-tag" aria-hidden="true"></i></span><span>'+esc(e.tags.join(' · '))+'</span></div>');return}
         (e.tools||[]).forEach(function(t,q){rows.push(toolRow(t,e.role?q:null))});
         if(!e.role)return;
-        var text=e.text||'',h=esc(text),id=e.logEntryId||'',n=e.n||'';
+        var text=e.text||'',h=esc(text),id=e.turn||'',n=e.n||'';
         if(id in hl){var x=hl[id];h=x&&x!==text&&text.indexOf(x)>=0?esc(text.slice(0,text.indexOf(x)))+'<span class="hl">'+esc(x)+'</span>'+esc(text.slice(text.indexOf(x)+x.length)):'<span class="hl">'+h+'</span>'}
         if(e.cut)h+=' <span class="cut" title="The customer cut in here; the rest was never spoken"><i class="ti ti-scissors" aria-hidden="true"></i>'+esc(e.cut)+'</span>';
         var nn=e.role==='assistant'&&id?'<a class="tl" href="#" data-e="'+esc(id)+'" title="What the agent model saw at this turn">'+n+'<i class="ti ti-robot" aria-hidden="true"></i></a>':n+'<i class="ti '+(e.role==='user'?'ti-user':'ti-robot')+'" aria-hidden="true"></i>';
@@ -393,7 +390,7 @@
       var i=p.i, conv=p.conv, call=(i.calls||[]).filter(function(c){return c.id===conv})[0]||{}, s=useState(null), box=useRef(null);
       useEffect(function(){
         Promise.all([
-          fetch('call/'+i.agent+'/'+conv,{cache:'no-store'}).then(function(r){return r.json().then(function(j){return r.ok?j:{error:j.error||('server said '+r.status)}})}).catch(function(){return {error:'server unreachable'}}),
+          fetch('call/'+i.agent+'/'+i.num+'/'+conv,{cache:'no-store'}).then(function(r){return r.json().then(function(j){return r.ok?j:{error:j.error||('server said '+r.status)}})}).catch(function(){return {error:'server unreachable'}}),
           getJSON(Paths.answer(i.agent,i.num,'analysis'))
         ]).then(function(rr){s[1]({d:rr[0],an:rr[1]||{}})});
       },[]);

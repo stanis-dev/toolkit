@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths  # noqa: E402
+import source  # noqa: E402
 
 STEPS = paths.STEPS
 OLD_DIRS = STEPS + ("log", "cost", "chain")
@@ -188,7 +189,7 @@ def main(argv):
                 os.replace(p + ".tmp", p)
                 changed.append(paths.rel(base, p))
         for n in paths.cards(base):
-            paths.link_source(base, n)
+            source.link(base, n)
         for d in OLD_DIRS + tuple(f"{s}/runs" for s in STEPS) + tuple(f"{s}/history" for s in STEPS) + ("chain/runs",):
             p = os.path.join(base, d)
             if os.path.isdir(p) and not os.listdir(p):

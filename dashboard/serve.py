@@ -54,10 +54,11 @@ every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the 
 stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files
 (a working state whose pid is gone is written back as failed) and from the answers where no status file is left.
-GET /request/<agent>/<conversation>[/<logEntryId>] is the compiled request the agent model saw at that turn (the first
-agent turn without an id), from the cached trace: system parts, tools, messages, and the call's agent turns to step through.
-GET /call/<agent>/<conversation> is the whole call as card.py reads it (turns, tool calls, cut-off rests, tags) for the
-page's transcript drawer, so the card and the drawer come from one parse.
+GET /request/<agent>/<n>/<conversation>[/<turn>] is the compiled request the agent model saw at that turn of the card's
+conversation (the first agent turn without one), from the cached trace: system parts, tools, messages, and the
+conversation's agent turns to step through. GET /call/<agent>/<n>/<conversation> is the whole conversation as card.py
+reads it (turns, tool calls, cut-off rests, tags) for the page's transcript drawer, so the card and the drawer come from
+one parse. GET /sources/<agent> is {n: source} for every issue and every card of another source, as source.py gives them.
 GET /files/<agent>/<n> is every file of the card, [{group, path, size, t}] with paths under agents/<agent>/, as
 paths.card_files lists them, for the page's files drawer.
 GET /chat/<agent>/<n>/events is that log as server-sent events: the log so far, then live; each event's id is its
@@ -80,7 +81,7 @@ import steps
 from steps import (ORDER, STEPS, SCRIPTS, REPO, alive, now, write_json, load_json, settle, card_batch, batches_path, load_batches,
                    batch_base, repo_of, spawn_proc, start_step, status_path)
 sys.path.insert(0, SCRIPTS)
-import cardlog, ledger, paths
+import cardlog, ledger, paths, source
 
 A = '(openpay|cobranzas|hipotecarios)'
 GOLDEN = re.compile(r'^/(golden|drafts)/' + A + r'/(\d+)\.json$')
@@ -90,8 +91,9 @@ KILL = re.compile(r'^/kill/' + A + r'/(\d+)/(analysis|strategy|context|setup)$')
 SETUP = re.compile(r'^/setup/' + A + r'/(\d+)$')
 RESET = re.compile(r'^/reset/' + A + r'/(\d+)$')
 STEPSTATE = re.compile(r'^/steps/' + A + '$')
-REQUEST = re.compile(r'^/request/' + A + r'/(audit-[A-Z0-9]+)(?:/(auditentry-[A-Z0-9]+))?$')
-CALL = re.compile(r'^/call/' + A + r'/(audit-[A-Z0-9]+)$')
+REQUEST = re.compile(r'^/request/' + A + r'/(\d+)/([\w-]+)(?:/([\w-]+))?$')
+CALL = re.compile(r'^/call/' + A + r'/(\d+)/([\w-]+)$')
+SOURCES = re.compile(r'^/sources/' + A + r'$')
 FILES = re.compile(r'^/files/' + A + r'/(\d+)$')
 BATCHBASE = re.compile(r'^/batchbase/' + A + r'/(\d{4}(?:-\d)?)$')
 BATCHNEW = re.compile(r'^/batchnew/' + A + '$')
@@ -346,13 +348,16 @@ class H(SimpleHTTPRequestHandler):
             self.reply(200, branches()); return
         rq = REQUEST.match(path)
         if rq:
-            agent, conv, entry = rq.groups()
+            agent, n, conv, turn = rq.groups()
             import brief
             try:
-                self.reply(200, brief.compiled_request(os.path.join(os.getcwd(), 'agents', agent), conv, entry))
+                self.reply(200, brief.compiled_request(os.path.join(os.getcwd(), 'agents', agent), n, conv, turn))
             except Exception as ex:
                 self.reply(500, {'error': str(ex)[-400:]})
             return
+        so = SOURCES.match(path)
+        if so:
+            self.reply(200, source.all_sources(paths.agent('', so.group(1)))); return
         fl = FILES.match(path)
         if fl:
             agent, n = fl.groups()
@@ -368,11 +373,11 @@ class H(SimpleHTTPRequestHandler):
             self.reply(200, out); return
         cl = CALL.match(path)
         if cl:
-            agent, conv = cl.groups()
+            agent, n, conv = cl.groups()
             import card
-            d = paths.conversation(paths.agent(os.getcwd(), agent), conv)
-            if not os.path.exists(os.path.join(d, 'details.json')):
-                self.reply(404, {'error': 'call ' + conv + ' is not in the cache'}); return
+            d = source.conv_dir(paths.agent(os.getcwd(), agent), n, conv)
+            if not os.path.isdir(d):
+                self.reply(404, {'error': 'conversation ' + conv + ' is not in the cache'}); return
             try:
                 self.reply(200, card.call_rows(d))
             except Exception as ex:
@@ -561,7 +566,7 @@ class H(SimpleHTTPRequestHandler):
             with open(path + '.tmp', 'w', encoding='utf-8') as f:
                 f.write(text)
             os.replace(path + '.tmp', path)
-            paths.link_source(paths.agent('', agent), n)
+            source.link(paths.agent('', agent), n)
             self.reply(204); return
         rs = RESET.match(self.path)
         if rs:

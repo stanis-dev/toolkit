@@ -41,6 +41,7 @@ import threading
 import time
 from datetime import datetime, timezone
 import paths
+import source
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.environ.get("SIERRA_PLUGIN") or os.path.abspath(os.path.join(HERE, "..", "..", ".."))
@@ -145,14 +146,14 @@ def span_errors(step, answer, agent, repo, base, n):
         b = ctx.get("won") or {}
         item("$.context.won.span", b.get("file"), b.get("pointer"), b.get("span"))
         f = answer.get("failure") or {}
-        iss = brief.load(paths.issue(base, n))
-        for cid in brief.call_of_analysis(base, iss, answer):
-            conv_dir = paths.conversation(base, cid)
-            details = brief.load(os.path.join(conv_dir, "details.json"))
-            turns = card.turns_of(details)
-            turn, msg = card.locate(turns, f.get("logEntryId"))
+        src = source.load(base, n) or {"number": n}
+        key = "turn" if "turn" in f else "logEntryId"
+        for cid in brief.call_of_analysis(base, src, answer):
+            conv_dir = source.conv_dir(base, n, cid)
+            turns = card.turns_of(source.details(conv_dir))
+            turn, msg = card.locate(turns, f.get(key))
             if not turn:
-                out.append(f"$.failure.logEntryId {f.get('logEntryId')} is not a message of the linked call")
+                out.append(f"$.failure.{key} {f.get(key)} is not a message of the conversation")
                 break
             kind, k, _ = card.parse_path(f.get("path"))
             if kind == "text":

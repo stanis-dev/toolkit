@@ -9,7 +9,7 @@ Usage:
 `ia` renders the Issue Analysis section (sections/issue-analysis.html) from the issue-analysis skill's JSON
 and the pages-dir cache, and, until the context step has answered, the Studio Context section with the two items the
 answer names (the instruction meant to produce the good turn as A, the one that won as B): the issue file for the
-reported line, details.json for the turns and tags, debug.log for the tool calls. `call_rows()` gives the whole call
+reported line, the conversation (source.py) for the turns and tags, debug.log for the tool calls. `call_rows()` gives the whole call
 to the page's transcript drawer through the server, the same parse. By default the JSON is `agents/<agent>/cards/<n>/analysis/answer.json` and the section is spliced into
 `agents/<agent>/cards/<n>/card.html`, replacing the existing `.ia` block or opening the card after its state
 comments. `--out -` prints the section instead.
@@ -35,6 +35,7 @@ import re
 import subprocess
 import sys
 import paths
+import source
 
 TOOL_ICON = {"user": "ti-user", "assistant": "ti-robot"}
 
@@ -76,10 +77,10 @@ def turns_of(details):
     return turns
 
 
-def locate(turns, log_entry_id):
+def locate(turns, turn):
     for t in turns:
         for m in t["msgs"]:
-            if m.get("logEntryId") == log_entry_id:
+            if m.get("turn") == turn:
                 return t, m
     return None, None
 
@@ -88,7 +89,7 @@ def tool_calls(conv_dir, turns):
     """Tool calls from debug.log, {name, args}, keyed by the index of the message they follow. A call belongs to the
     agent turn it precedes, so it is keyed just before that turn's message, found by its spoken text: around a barge-in
     the log orders the customer's line differently from the transcript, so counting rows would drift. Arguments come
-    from the agent's own «Invoking tool» log line when it has one."""
+    from the agent's own «Invoking tool» log line when it has one (source.tool_args)."""
     path = os.path.join(conv_dir, "debug.log")
     out = {}
     if not os.path.exists(path):
@@ -96,19 +97,12 @@ def tool_calls(conv_dir, turns):
     flat = [m for t in turns for m in t["msgs"]]
     norm = lambda x: re.sub(r"\s+", " ", x or "").strip()
     pending, pos = [], 0
+    args = source.tool_args(conv_dir)
     with open(path, encoding="utf-8", newline="") as fh:
         for row in csv.DictReader(fh):
             kind, msg = row["event_type"], row["message"]
             if kind == "TOOL_CALL":
-                pending.append({"name": msg, "args": None})
-            elif kind == "AGENT_LOG" and "Invoking tool: " in msg:
-                m = re.match(r".*Invoking tool: (\S+) (\{.*\})\s*$", msg, re.S)
-                t = next((t for t in reversed(pending) if m and t["name"] == m.group(1) and t["args"] is None), None)
-                if t:
-                    try:
-                        t["args"] = json.loads(m.group(2))
-                    except ValueError:
-                        t["args"] = m.group(2)
+                pending.append({"name": msg, "args": args.get(row["seq"])})
             elif kind == "AGENT_MSG" and pending:
                 spoken = norm(msg)
                 j = next((k for k in range(pos, len(flat)) if flat[k].get("role") == "assistant" and norm(flat[k].get("text")) == spoken), None)
@@ -196,9 +190,9 @@ def message_index(turns, msg):
 
 def call_rows(conv_dir):
     """The whole call for the page's transcript drawer, one parse for both: rows in order, a message as {n (on a
-    turn's first message), role, logEntryId, text, cut (the unspoken rest), tools (the calls made right before it,
+    turn's first message), role, turn, text, cut (the unspoken rest), tools (the calls made right before it,
     {name, args} with args as JSON text)}, the agent's tags as {tags}, calls after the last line as a trailing {tools}."""
-    details = load_json(os.path.join(conv_dir, "details.json"))
+    details = source.details(conv_dir)
     turns = turns_of(details)
     tools = tool_calls(conv_dir, turns)
     cuts = unspoken(conv_dir, turns)
@@ -213,7 +207,7 @@ def call_rows(conv_dir):
             rows.append({"tags": e.get("tags") or []})
         elif e.get("type") == "message":
             i = index[id(e)]
-            rows.append({"n": first.get(id(e)), "role": e.get("role"), "logEntryId": e.get("logEntryId"), "text": e.get("text") or "",
+            rows.append({"n": first.get(id(e)), "role": e.get("role"), "turn": e.get("turn"), "text": e.get("text") or "",
                          "cut": cuts.get(i), "tools": calls(i - 1)})
     if flat and tools.get(len(flat) - 1):
         rows.append({"tools": calls(len(flat) - 1)})
@@ -323,39 +317,40 @@ def tags_row(details, analysis):
 
 def render_ia(agent, n, analysis, pages):
     base = os.path.join(pages, "agents", agent)
-    issue = load_json(paths.issue(base, n))
-    fid = analysis["failure"]["logEntryId"]
-    examples = [(l["id"], x) for l in issue.get("linkedLogs", []) for x in l.get("examples", [])]
-    conv_id = next((l["id"] for l in issue.get("linkedLogs", []) if any(x.get("logEntryId") == fid for x in l.get("examples", []))), None)
-    # the call that holds the failure turn: first try the one with the reported line, then every linked call
-    candidates = ([conv_id] if conv_id else []) + [l["id"] for l in issue.get("linkedLogs", []) if l["id"] != conv_id]
+    src = source.load(base, n) or {}
+    fid = source.failure_turn(analysis)
+    convs = src.get("conversations") or []
+    examples = [(c["id"], x) for c in convs for x in c.get("marked") or []]
+    conv_id = next((c["id"] for c in convs if any(x.get("turn") == fid for x in c.get("marked") or [])), None)
+    # the conversation that holds the failure turn: first the one with the reported line, then every other
+    candidates = ([conv_id] if conv_id else []) + [c["id"] for c in convs if c["id"] != conv_id]
     details = turns = ft = fm = None
     for cid in candidates:
-        p = os.path.join(paths.conversation(base, cid), "details.json")
-        if not os.path.exists(p):
+        p = source.conv_dir(base, n, cid)
+        if not os.path.isdir(p):
             continue
-        d = load_json(p)
+        d = source.details(p)
         t = turns_of(d)
         ft, fm = locate(t, fid)
         if ft:
             details, turns, conv_id = d, t, cid
             break
     if not ft:
-        fail(f"failure turn {fid} not found in any cached call of {agent} {n}")
-    conv_dir = paths.conversation(base, conv_id)
+        fail(f"failure turn {fid} not found in any cached conversation of {agent} {n}")
+    conv_dir = source.conv_dir(base, n, conv_id)
     tools = tool_calls(conv_dir, turns)
     cuts = unspoken(conv_dir, turns)
     flat = [m for t in turns for m in t["msgs"]]
     turn_of_msg = {id(m): t for t in turns for m in t["msgs"]}
     fi = message_index(turns, fm)
 
-    reported = {x["logEntryId"]: x for cid, x in examples if cid == conv_id}
+    reported = {x["turn"]: x for cid, x in examples if cid == conv_id}
     # the customer turn before the failure
     prev_i = next((i for i in range(fi - 1, -1, -1) if flat[i].get("role") == "user"), None)
 
     prev_turn = {message_index(turns, m) for m in turn_of_msg[id(flat[prev_i])]["msgs"]} if prev_i is not None else set()
-    before = sorted({i for i, m in enumerate(flat) if m.get("logEntryId") in reported and i < fi} | prev_turn)
-    after = sorted(i for i, m in enumerate(flat) if m.get("logEntryId") in reported and i > fi)
+    before = sorted({i for i, m in enumerate(flat) if m.get("turn") in reported and i < fi} | prev_turn)
+    after = sorted(i for i, m in enumerate(flat) if m.get("turn") in reported and i > fi)
 
     numbered = set()
 
@@ -364,7 +359,7 @@ def render_ia(agent, n, analysis, pages):
         t = turn_of_msg[id(m)]
         num = None if t["n"] in numbered else t["n"]
         numbered.add(t["n"])
-        ex = reported.get(m.get("logEntryId"))
+        ex = reported.get(m.get("turn"))
         body = mark_spans(m.get("text") or "", [ex["text"]] if ex and ex["text"] and ex["text"] != (m.get("text") or "") else [], "hl") if ex else esc(m.get("text") or "")
         if ex and ex.get("text") == (m.get("text") or ""):
             body = f'<span class="hl">{body}</span>'
@@ -999,7 +994,7 @@ def write_out(out, pages, agent, n, pieces):
         fh.write(text)
     print(card)
     if not out:
-        paths.link_source(paths.agent(pages, agent), n)
+        source.link(paths.agent(pages, agent), n)
 
 
 def pre_edit(repo, base, n):
