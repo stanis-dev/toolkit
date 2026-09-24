@@ -35,6 +35,7 @@ The engineer's notes for the step (`<step>/notes.md`, written from the card) end
 continued one's too; the run keeps the text it was sent as notes.md. The lines the step reports with progress.py
 (runs/<n>/progress.jsonl, emptied at each start) reach status.json's "progress" every 5 s, the latest with the count.
 """
+import glob
 import hashlib
 import json
 import os
@@ -398,6 +399,24 @@ def take_back(agent_dir, answer):
     return sorted(set(changed)), skipped
 
 
+def guard_run_file(runs, run):
+    """The run file under runs/ whose simulationRunId is run, or None."""
+    for f in sorted(glob.glob(os.path.join(runs, "*.json"))):
+        try:
+            if json.load(open(f, encoding="utf-8")).get("simulationRunId") == run:
+                return f
+        except (OSError, ValueError, AttributeError):
+            continue
+    return None
+
+
+def guard_run_errors(step, answer, runs):
+    run = step == "strategy" and (answer.get("guard_run") or {}).get("run")
+    if run and not guard_run_file(runs, run):
+        return [f"guard_run.run {run} matches no run file under {runs}: run the guard 5× into <runs>/guard-red.json"]
+    return []
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -645,7 +664,7 @@ def main(argv):
                 try:
                     candidate = parse_answer(final["text"])
                     errors = (violations(candidate, schema) or ("feedback" in (schema.get("properties") or {}) and feedback_errors(candidate, feedback, opts.get("--from")))
-                              or span_errors(step, candidate, agent, repo, base, n))
+                              or span_errors(step, candidate, agent, repo, base, n) or guard_run_errors(step, candidate, runs))
                 except ValueError as ex:
                     candidate, errors = None, [str(ex)]
                 if not errors:
@@ -661,6 +680,12 @@ def main(argv):
         if os.path.exists(card_path):
             shutil.copy(card_path, paths.history(base, n, step, started.replace(':', ''), "card.html"))
         write_json(answer_path, answer)
+        run = step == "strategy" and (answer.get("guard_run") or {}).get("run")
+        src = run and guard_run_file(runs, run)
+        if src and os.path.basename(src) != "guard-red.json":
+            shutil.copy(src, os.path.join(runs, "guard-red.json"))
+            with open(os.path.join(runs, "guard-red.id"), "w", encoding="utf-8") as f:
+                f.write(run + "\n")
         render = subprocess.run([sys.executable, os.path.join(HERE, "card.py"), s["view"], agent, n, "--pages", pages, "--repo", repo],
                                 capture_output=True, text=True)
         if render.returncode != 0:

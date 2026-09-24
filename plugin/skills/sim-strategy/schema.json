@@ -4,6 +4,7 @@
  "additionalProperties": false,
  "required": [
   "guard",
+  "guard_run",
   "regressions",
   "sims",
   "flags",
@@ -21,6 +22,68 @@
     "id": {
      "type": "string",
      "description": "Its simulation id."
+    }
+   }
+  },
+  "guard_run": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "description": "The guard's final 5× run and your reading of each of its replays; null when nothing could run.",
+   "additionalProperties": false,
+   "required": [
+    "run",
+    "replays"
+   ],
+   "properties": {
+    "run": {
+     "type": "string",
+     "description": "Its run id."
+    },
+    "replays": {
+     "type": "array",
+     "description": "Every replay of the run, passed ones included.",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "judge",
+       "reproduced",
+       "turn",
+       "why"
+      ],
+      "properties": {
+       "id": {
+        "type": "string",
+        "description": "The replay's result id."
+       },
+       "judge": {
+        "type": "string",
+        "enum": [
+         "passed",
+         "failed"
+        ],
+        "description": "What the judge ruled."
+       },
+       "reproduced": {
+        "type": "boolean",
+        "description": "Whether the reported failure happened in this conversation, read from its turns and tool calls, not from the judge."
+       },
+       "turn": {
+        "type": [
+         "integer",
+         "null"
+        ],
+        "description": "The turn that decides it; null when the conversation never reached the point."
+       },
+       "why": {
+        "type": "string",
+        "description": "What the agent did at that turn, one sentence."
+       }
+      }
+     }
     }
    }
   },
@@ -336,6 +399,7 @@
    "additionalProperties": false,
    "required": [
     "no_tag",
+    "guard_quality",
     "missing"
    ],
    "properties": {
@@ -345,6 +409,42 @@
       "null"
      ],
      "description": "The behaviour has no tag that can see it, so the guard rests on observations alone; say which tag the fix should add."
+    },
+    "guard_quality": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "A judge or persona problem left in the guard after you iterated on it; null when there is none.",
+     "additionalProperties": false,
+     "required": [
+      "judge",
+      "persona",
+      "replays"
+     ],
+     "properties": {
+      "judge": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "Where the judge rules against the conversation, what you tried, and why it remains."
+      },
+      "persona": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "Where the persona leaves the scenario, what you tried, and why it remains."
+      },
+      "replays": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "The replay ids that show it."
+      }
+     }
     },
     "fixture": {
      "type": [

@@ -552,6 +552,8 @@ def render_ss(agent, n, strategy, pages, repo):
     red = paths.guard_red(paths.agent(pages, agent), n)
     now_run = paths.guard_red(paths.agent(pages, agent), n, "guard-now")
     guard = (strategy.get("guard") or {}).get("id")
+    audit = (strategy.get("guard_run") or {}).get("replays") or []
+    wrong = [r for r in audit if (r.get("judge") == "passed") == bool(r.get("reproduced"))]
 
     def head(cls, name_html, group, res="", gist="", open_=False):
         return (f'<details class="sim {cls}"{" open" if open_ else ""}>\n  <summary>\n    <div class="n">{res}</div>\n'
@@ -572,7 +574,13 @@ def render_ss(agent, n, strategy, pages, repo):
         title = f'before the fix · run {red["run"] or ""}' + (f'\nnow · run {now_run["run"] or ""}' if now_run else "")
         text = f'{red["passed"]}/{red["total"]}' + (f' › {now_run["passed"]}/{now_run["total"]}' if now_run else "")
         replays = '<button class="rbtn grp" title="The replays of these runs" aria-label="Show the guard replays"><i class="ti ti-player-play" aria-hidden="true"></i></button>'
-        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + x5 + replays
+        read = ""
+        if audit:
+            failed = sum(1 for r in audit if r.get("reproduced"))
+            why = "\n".join(f'{r["id"][-6:]} · judge {r["judge"]} · {r["why"]}' for r in wrong)
+            read = (f'<span class="res {"ko" if wrong else "ok"}" title="{esc(why or "the judge agrees on every replay")}">'
+                    f'agent failed {failed}/{len(audit)}' + (f' · judge wrong {len(wrong)}' if wrong else '') + '</span>')
+        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + read + x5 + replays
 
     if guard and guard not in [x.get("id") for x in strategy.get("sims", [])] and guard in idx:
         name, group, rel = idx[guard]
@@ -646,6 +654,14 @@ def render_ss(agent, n, strategy, pages, repo):
         out.append('  <div class="so">\n  <details class="part">\n    <summary><h4>' + chev + 'Expectations</h4></summary>\n    <div class="body">')
         out += rows
         out.append('    </div>\n  </details>\n  </div>\n</details>')
+    q = (strategy.get("flags") or {}).get("guard_quality")
+    if q:
+        out.append(head("reg", "Guard quality", "", '<span class="res ko"></span>'))
+        out.append('  <div class="body">' + "".join(
+            f'\n    <div class="line"><span class="k">{k}</span><span class="gist">{esc(q[k])}</span></div>'
+            for k in ("judge", "persona") if q.get(k))
+            + (f'\n    <div class="line"><span class="k">replays</span><span class="gist">{esc(", ".join(q["replays"]))}</span></div>' if q.get("replays") else "")
+            + '\n  </div>\n</details>')
     reg = strategy.get("regressions") or {}
     if reg.get("sims"):  # the simulations the change could break, with their baseline counts when the run file is there
         runs_dir = paths.runs(paths.agent(pages, agent), n, "strategy")
