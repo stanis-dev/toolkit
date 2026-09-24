@@ -17,36 +17,22 @@ Input: `<agent> <n>`, for example `cobranzas 321`. `cobranzas` is the repo's `ag
 `agents/openpay`, `hipotecarios` is `agents/hipotecarios`. The agent's simulations are the `*.tests.ts` files under its
 directory; `harness.ts` next to them holds the persona fixtures.
 
-You work from the brief that follows this text. It holds, in this order:
+Everything you need is in the brief below this text. In it:
 
-- The suite as an index: one line per simulation, id, display name and categories, under the file that declares it;
-  then `simulations/harness.ts` verbatim, the persona fixtures and the runner. A simulation's persona, expectations and
-  `assertions`, the tags it asserts, `!tag` a tag that must not appear, are read in its file; the `describe` it sits
-  in is its group.
-- The tags: the literals declared in the agent's source with the files that hold them, and those the suite asserts. A
-  tag in neither list exists nowhere.
-- The issue: its description, every comment, and per linked call the reporter's highlighted lines with their
-  `logEntryId`.
-- The Issue Analysis answer, `agents/<agent>/analysis/<n>.json`: the verdict, the failure turn, the good turn; the
-  behaviour to guard.
-- The linked call the analysis names, with its cache path, as a numbered transcript: turn number, speaker (A agent, U
-  customer), `logEntryId`, text; under a line, `[obs]` is an observation activated after it and `tools[k]` the k-th tool
-  call of the agent turn printed right after. The call's tags close it.
-- The lane: the values the Run section below names.
-- The card's history, when it has one: one line per event, oldest first, who acted, what happened, and the files
-  behind it. Open an event's files only when that event bears on your task; an answer marked superseded is one a later
-  run replaced.
+- The suite index gives id, name and categories only: read a simulation's persona, expectations and `assertions` in
+  its file. `!tag` is a tag that must not appear; the `describe` a simulation sits in is its group.
+- In a call, `tools[k]` is the k-th tool call of the next agent turn.
+- In the card's history, open an event's files only when it bears on your task.
 
 Read from disk the simulation files you need, `<agent-dir>/simulations/<file>`, and whatever else the run below
 needs. Call no tool that reaches the tracker or Studio.
 
 ## Read
 
-1. The analysis: the failing turn where the agent deviated from the wanted behaviour and what should have happened
-   instead.
-2. The linked call. The persona is built from it.
-3. The suite: the index gives every simulation's id, name and categories under its file. Read the file of the group
-   the scenario belongs to, whole, before deciding; read neighbouring groups when the journey point is shared.
+1. The analysis.
+2. The linked call. Build the persona from it.
+3. The suite. Read the file of the group the scenario belongs to, whole, before deciding; read neighbouring groups when
+   the journey point is shared.
 4. The tags the agent can emit. Never assert a tag that exists nowhere.
 
 ## Decide
@@ -70,10 +56,7 @@ Simulations should be deleted if:
 - bad behaviour was being evaluated positively and the change does not need all of them flipped (e.g. change removes
   behaviour and a group of sims focused on it is now redundant)
 
-For guidance about simulation best practices read [sim-design.md](../sierra/references/sims/sim-design.md): what the
-customer LLM must and must not know, tags before observations, no turn pinning, and the failure modes a persona causes;
-and [notes.md](../sierra/references/sims/notes.md): what a good suite and a good simulation look like, the review
-smells, and when a scenario is worth near-duplicating.
+Follow [sim-design.md](../sierra/references/sims/sim-design.md) and [notes.md](../sierra/references/sims/notes.md).
 
 ## Run
 
@@ -83,10 +66,8 @@ as it is, and the expectations must judge that turn. Name the run in `guard.run`
 the conversations took and what that settled.
 
 [tooling.md](../sierra/references/tooling.md), Simulation runs, gives the launch, the wait and the readers; use
-`--num-runs 3`. The brief's last section gives this issue's values: `<checkout>`, the issue's own git checkout the step
-runs in; `<agent-dir>`, the agent's directory in it; `<sierra>`, the CLI binary in that directory; `<workspace>`, the
-issue's own Studio workspace; `<runs>`, the folder for this step's files; `<scripts>`, where runset.py is. When the
-brief says the issue has no workspace, nothing can run: say in `guard.why` where a run would have settled the point.
+`--num-runs 3`. When the brief says the issue has no workspace, nothing can run: say in `guard.why` where a run would
+have settled the point.
 
 ## Guard red
 
@@ -114,10 +95,9 @@ baseline.
 
 ## Output
 
-Return only the JSON object that [schema.json](schema.json) describes, nothing before or after it; the schema carries
-each field's meaning and the runner enforces it. Persona text, expectations and tags are written in full for a new
-simulation and as changes for a modified one; the card shows a modification as the lines that change and nothing else.
-Pass counts outside `guard.red` are not yours: the resolution's runs fill them later. `sims` holds only the simulations that change; a `modify`
+Return only the JSON object that [schema.json](schema.json) describes, nothing before or after it. Persona text,
+expectations and tags are written in full for a new simulation and as changes for a modified one. Leave pass counts
+outside `guard.red` empty. `sims` holds only the simulations that change; a `modify`
 with nothing in `changes`, `reworded`, `added` and `removed` is not a modification, leave it out. A flag is `null` when
 it does not apply, otherwise one sentence with its proof.
 
