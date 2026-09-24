@@ -204,12 +204,20 @@ def cmd_run(args):
         fail(__doc__)
 
 
+def pages_dir():
+    return os.environ.get("BBVA_ISSUES_DIR") or os.path.expanduser("~/.claude/bbva-issues")
+
+
 def cmd_conv(args):
     if len(args) != 1:
         fail(__doc__)
     conv_id = args[0]
-    composer = find_composer(os.path.join("conversations", conv_id))
-    conv_dir = os.path.join(composer, "conversations", conv_id)
+    cached = glob.glob(os.path.join(pages_dir(), "agents", "*", "conversations", conv_id))
+    if cached:
+        conv_dir = cached[0]
+    else:
+        composer = find_composer(os.path.join("conversations", conv_id))
+        conv_dir = os.path.join(composer, "conversations", conv_id)
     summary_path = os.path.join(conv_dir, "summary.json")
     if os.path.exists(summary_path):
         s = json.load(open(summary_path, encoding="utf-8"))
