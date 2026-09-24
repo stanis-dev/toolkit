@@ -575,15 +575,14 @@ def baseline_files(base, n):
 
 def before_fix(base, n):
     """For a rerun of the Sim Strategy: the guard's red run and the regression runs recorded before the fix, which stay."""
-    prev = paths.answer(base, n, "strategy")
     files = baseline_files(base, n)
-    red = (load(prev).get("guard") or {}).get("red") if os.path.exists(prev) else None
-    if not files and not (red or {}).get("total"):
+    red = paths.guard_red(base, n)
+    if not files and not red:
         return ""
     lines = ["# Before the fix · already recorded", "",
              "An earlier run of this step recorded these on the agent before the fix; they stay the card's before counts."]
-    if (red or {}).get("total"):
-        lines.append(f"- guard red: {red.get('passed')}/{red['total']} · run {red.get('run')}" + (f" · {red['why']}" if red.get("why") else ""))
+    if red:
+        lines.append(f"- guard red: {red['passed']}/{red['total']} · run {red['run']}")
     for f in files:
         sims = [t.get("name") for t in (load(f).get("tests") or [])]
         lines.append(f"- `{f}`: " + ", ".join(x for x in sims if x))
@@ -709,8 +708,7 @@ def batch_brief(agent, batch, base):
         setup = load(paths.status(base, n, "setup")) if os.path.exists(paths.status(base, n, "setup")) else {}
         stage = load(paths.step_file(base, n, "resolve", "stage.json")) if os.path.exists(paths.step_file(base, n, "resolve", "stage.json")) else []
         strat = load(paths.answer(base, n, "strategy")) if os.path.exists(paths.answer(base, n, "strategy")) else {}
-        guard = strat.get("guard") or {}
-        gid = next((x.get("id") for x in strat.get("sims") or [] if x.get("action") != "delete"), None) or guard.get("existing")
+        gid = (strat.get("guard") or {}).get("id")
         last = stage[-1] if stage else {}
         lines = [f"## #{n} · {iss.get('title', '')}",
                  f"- state: " + (f"{last.get('stage')} {last.get('state')}" + (f" ({last['note']})" if last.get("note") else "") if last else "no resolution yet"),
@@ -718,10 +716,10 @@ def batch_brief(agent, batch, base):
                  f"- guard: " + (f"`{gid}`" if gid else "none"),
                  "- regression list: " + (", ".join(f"`{x['id']}`" for x in (strat.get("regressions") or {}).get("sims") or []) or "none")]
         runs = []
-        red = guard.get("red") or {}
+        red = paths.guard_red(base, n)
         sst = load(paths.status(base, n, "strategy")) if os.path.exists(paths.status(base, n, "strategy")) else {}
-        if red.get("total"):
-            runs.append((sst.get("ended") or "", "strategy guard, before the fix", f"{red.get('passed')}/{red['total']} · run {red.get('run')}", {}))
+        if red:
+            runs.append((sst.get("ended") or "", "strategy guard, before the fix", f"{red['passed']}/{red['total']} · run {red['run']}", {}))
         for bl in baseline_files(base, n):
             t = (sst.get("ended") or "") if bl.endswith("/regressions.json") else datetime.fromtimestamp(os.path.getmtime(bl), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             runs.append((t, "strategy regression baseline", f"`{bl}`", per_sim(bl)))

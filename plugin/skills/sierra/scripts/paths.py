@@ -103,6 +103,18 @@ def runs(base, n, step):
     return os.path.join(card_dir(base, n), step, "runs")
 
 
+def guard_red(base, n):
+    """The Sim Strategy's 5× run of the guard before the fix, {run, passed, total}, or None before it ran."""
+    f = os.path.join(runs(base, n, "strategy"), "guard-red.json")
+    try:
+        j = json.load(open(f, encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    tests = j.get("tests") or []
+    return {"run": j.get("simulationRunId"), "passed": sum(t.get("passed") or 0 for t in tests),
+            "total": sum(t.get("total") or 0 for t in tests)} if tests else None
+
+
 def history(base, n, step, stamp, ext):
     """An earlier version of the step's answer (`json`) or of the card (`card.html`), kept when a run replaced it."""
     return os.path.join(card_dir(base, n), step, "history", f"{stamp}.{ext}")

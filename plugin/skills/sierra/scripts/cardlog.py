@@ -66,15 +66,14 @@ def rel(pages, agent, path):
     return path[len(base):] if path.startswith(base) else path
 
 
-def summary(step, answer):
+def summary(step, answer, base, n):
     """One line of a step's answer."""
     a = answer if isinstance(answer, dict) else {}
     if step == "analysis":
         out = a.get("verdict") or "answered"
     elif step == "strategy":
-        g = a.get("guard") or {}
-        red = g.get("red") or {}
-        out = f"guard {g.get('state') or '?'}" + (f", red {red.get('passed')}/{red.get('total')}" if red.get("total") else "")
+        red = paths.guard_red(base, n)
+        out = f"guard {(a.get('guard') or {}).get('id') or '?'}" + (f", red {red['passed']}/{red['total']}" if red else "")
         k = len((a.get("regressions") or {}).get("sims") or [])
         out += f"; {k} regression sims" if k else ""
     elif step == "context":

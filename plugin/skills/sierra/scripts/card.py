@@ -530,18 +530,11 @@ def render_ss(agent, n, strategy, pages, repo):
     idx = sim_index(os.path.join(repo, AGENT_DIR.get(agent, agent)))
     chev = '<i class="ti ti-chevron-right" aria-hidden="true"></i>'
     out = ['<div class="ss">']
-    guard = strategy.get("guard") or {}
-    if guard.get("state"):  # what the suite already does about this scenario, and the run that settled it
-        name = idx.get(guard.get("existing") or "", (None,))[0] or guard.get("existing")
+    red = paths.guard_red(paths.agent(pages, agent), n)
+    if red:
         out.append('<div class="body guard">')
-        out.append(f'  <div class="line"><span class="k">guard</span><span class="gist"><b>{esc(guard["state"])}</b>'
-                   + (f' · {esc(name)}' if name else "") + (f' · {esc(guard["why"])}' if guard.get("why") else "") + "</span></div>")
-        if guard.get("run"):
-            out.append(f'  <div class="line"><span class="k">run</span><span class="gist">{esc(guard["run"])}</span></div>')
-        red = guard.get("red") or {}
-        if red.get("total"):
-            out.append(f'  <div class="line"><span class="k">repro</span><span class="gist"><b>{red.get("passed", 0)}/{red["total"]} pass</b>'
-                       + f' before the fix · {esc(red.get("run", ""))}' + (f' · {esc(red["why"])}' if red.get("why") else "") + "</span></div>")
+        out.append(f'  <div class="line"><span class="k">repro</span><span class="gist"><b>{red["passed"]}/{red["total"]} pass</b>'
+                   + f' before the fix · {esc(red["run"] or "")}</span></div>')
         out.append("</div>")
 
     def head(cls, name_html, group, res="", gist="", open_=False):

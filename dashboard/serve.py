@@ -121,9 +121,9 @@ def batch_check(agent, batch):
     for n in paths.cards(paths.agent('', agent)):
         if steps.card_batch(agent, n) != batch:
             continue
-        red = (load_json(paths.answer(paths.agent('', agent), n, 'strategy'), {}).get('guard') or {}).get('red') or {}
+        red = paths.guard_red(paths.agent('', agent), n)
         stage = load_json(paths.step_file(paths.agent('', agent), n, 'resolve', 'stage.json'), [])
-        cards.append({'n': n, 'stage': stage[-1] if stage else None, 'repro': [red.get('passed'), red.get('total')] if red.get('total') else None,
+        cards.append({'n': n, 'stage': stage[-1] if stage else None, 'repro': [red['passed'], red['total']] if red else None,
                       'reopened': load_json(paths.step_file(paths.agent('', agent), n, 'resolve', 'reopen.json'), [])})
     return {'stage': load_json(paths.step_file(paths.agent('', agent), batch, 'driver', 'stage.json'), []), 'runs': runs, 'cards': cards,
             'entry': load_batches(agent).get(batch) or {}, 'main': load_json(paths.step_file(paths.agent('', agent), batch, 'driver', 'main.json'), None)}

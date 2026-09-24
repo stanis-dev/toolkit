@@ -12,72 +12,15 @@
  "properties": {
   "guard": {
    "type": "object",
-   "description": "The existing simulation whose persona already makes the failure turn's move at the same point of the journey.",
+   "description": "The simulation that guards the problem.",
    "additionalProperties": false,
    "required": [
-    "existing",
-    "state",
-    "why",
-    "run",
-    "red"
+    "id"
    ],
    "properties": {
-    "existing": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "Its id, or null when none."
-    },
-    "state": {
+    "id": {
      "type": "string",
-     "description": "observed: its expectations should already catch the failure. blind: they look past it. none: no such simulation.",
-     "enum": [
-      "observed",
-      "blind",
-      "none"
-     ]
-    },
-    "why": {
-     "type": "string",
-     "description": "One sentence."
-    },
-    "run": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "Null when nothing ran. Otherwise the run id and one sentence on the shape the conversation took and what that settled."
-    },
-    "red": {
-     "type": [
-      "object",
-      "null"
-     ],
-     "description": "The guard's 5× run on the tree as it is, after you wrote it. Null only when nothing could run.",
-     "additionalProperties": false,
-     "required": [
-      "run",
-      "passed",
-      "total",
-      "why"
-     ],
-     "properties": {
-      "run": {
-       "type": "string",
-       "description": "The run id."
-      },
-      "passed": {
-       "type": "integer"
-      },
-      "total": {
-       "type": "integer"
-      },
-      "why": {
-       "type": "string",
-       "description": "One sentence from the transcripts: the customer's move and how the agent's turn failed it, or what the conversations did instead."
-      }
-     }
+     "description": "Its simulation id."
     }
    }
   },

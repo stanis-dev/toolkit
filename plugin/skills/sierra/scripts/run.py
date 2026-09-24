@@ -582,7 +582,7 @@ def main(argv):
             record()
         sys.path.insert(0, HERE)
         import cardlog
-        history(cardlog.summary(step, answer), answer)
+        history(cardlog.summary(step, answer, base, n), answer)
     except SystemExit:
         raise
     except Exception as ex:
