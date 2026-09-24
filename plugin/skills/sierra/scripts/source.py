@@ -142,6 +142,38 @@ def failure_turn(analysis):
     return f.get("turn") or f.get("logEntryId")
 
 
+SUPERVISOR = "RequestSupervisorInstruction"
+
+
+def tool_outputs(d):
+    """{tool name: [{output, then}]} in call order, from the requests the traces keep: what each call returned, and the
+    supervisor instruction that came right after it (then), when one did."""
+    tdir = os.path.join(d, "traces")
+    if not os.path.isdir(tdir):
+        return {}
+    seen, order, outputs = set(), [], {}
+    for f in sorted((x for x in os.listdir(tdir) if x.endswith(".trace")), key=lambda x: int(x.split(".")[0]) if x.split(".")[0].isdigit() else 0):
+        try:
+            req = json.loads(json.load(open(os.path.join(tdir, f), encoding="utf-8"))["traces"][0]["llm_chat"]["raw_request"])
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            continue
+        for m in req.get("input") or []:
+            if m.get("type") == "function_call" and m.get("call_id") not in seen:
+                seen.add(m["call_id"])
+                order.append((m["call_id"], m.get("name")))
+            elif m.get("type") == "function_call_output":
+                outputs.setdefault(m.get("call_id"), m.get("output"))
+    out, last = {}, None
+    for cid, name in order:
+        if name == SUPERVISOR:
+            if last is not None and outputs.get(cid):
+                last["then"] = outputs[cid]
+            continue
+        last = {"output": outputs.get(cid)}
+        out.setdefault(name, []).append(last)
+    return out
+
+
 def tool_args(d):
     """{TOOL_CALL row seq: args} from the agent's «Invoking tool» log lines. A call's log writes the invocation after
     the call, a replay's before it, with a spoken line between either way: each invocation goes to the nearest call of

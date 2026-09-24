@@ -7,7 +7,8 @@ Usage:
 
 Static first, so a prompt cache shares the prefix across issues of one agent. For `analysis` (the default):
   1. the agent's Studio content as blocks.py prints it, path, text and JSON pointer per item, render order;
-  2. the agent's SOP (agents/<agent>/sop/sop.md in the pages dir) when it has one, without its example conversations;
+  2. the agent's tool files under tools/, as they are, and its SOP (agents/<agent>/sop/sop.md in the pages dir) when
+     it has one, without its example conversations;
   3. the card's source (source.py), readable: for an issue its name, status, description, comments, and per linked
      call the reporter's highlighted lines with their turn; for a failing simulation its name, what failed and its
      definition;
@@ -192,12 +193,22 @@ def transcript(conv_dir, details):
     di, last_obs = 0, None
     pending, tools = [], []  # tools: the calls of the agent turn being built, numbered tools[0], tools[1], …
     args = source.tool_args(conv_dir)
+    returned, used = source.tool_outputs(conv_dir), {}
+
+    def clip(t, k=600):
+        t = " ".join(str(t).split())
+        return t if len(t) <= k else t[:k] + "…"
+
+    def call_lines(k, t):
+        head = f"    tools[{k}] {t['name']}" + (f" {json.dumps(t['args'], ensure_ascii=False)}" if t.get("args") is not None else "")
+        r = t.get("returned") or {}
+        return [head] + ([f"      → {clip(r['output'])}"] if r.get("output") else []) + ([f"      → supervisor: {clip(r['then'])}"] if r.get("then") else [])
+
     def flush(with_tools):
         # observations go under the line they followed; tool calls wait for the agent turn they belong to (a
         # customer line can land between the call and that turn)
         nonlocal pending, tools
-        lines = [f"    tools[{k}] {t['name']}" + (f" {json.dumps(t['args'], ensure_ascii=False)}" if t.get("args") is not None else "")
-                 for k, t in enumerate(tools)] if with_tools else []
+        lines = [x for k, t in enumerate(tools) for x in call_lines(k, t)] if with_tools else []
         out, pending = pending + lines, []
         if with_tools:
             tools = []
@@ -210,7 +221,10 @@ def transcript(conv_dir, details):
                 aside.setdefault(j - 1, []).extend(flush(k == "AGENT_MSG"))
                 di = j + 1
         elif k == "TOOL_CALL":
-            tools.append({"name": r["message"], **({"args": args[r["seq"]]} if r["seq"] in args else {})})
+            name = r["message"]
+            i = used[name] = used.get(name, -1) + 1
+            got = (returned.get(name) or [])[i] if i < len(returned.get(name) or []) else None
+            tools.append({"name": name, **({"args": args[r["seq"]]} if r["seq"] in args else {}), **({"returned": got} if got else {})})
         elif k == "OBSERVATIONS" and r["message"].startswith("Activated"):
             if r["message"] != last_obs:
                 pending.append(f"    [obs] {r['message'][len('Activated: '):]}")
@@ -229,6 +243,13 @@ def transcript(conv_dir, details):
     out.append("")
     out.append("tags: " + ", ".join(tags))
     return "\n".join(out) + "\n"
+
+
+def tools_text(repo, agent):
+    """The agent's tool files as they are, one section each: descriptions, schemas and what each returns."""
+    d = os.path.join(repo, AGENT_DIR.get(agent, agent), "tools")
+    files = sorted(f for f in os.listdir(d) if f.endswith((".ts", ".tsx"))) if os.path.isdir(d) else []
+    return "".join(f"# tools/{f}\n\n```ts\n{open(os.path.join(d, f), encoding='utf-8').read().rstrip()}\n```\n\n" for f in files)
 
 
 def replay_transcript(result_dir):
@@ -512,6 +533,7 @@ def main(argv):
         fail(f"unknown step {step}")
     parts = []
     parts.append(f"# Studio content · {agent} · outline\n\n" + tree(repo, agent))
+    parts.append(tools_text(repo, agent))
     sop = sop_text(base)
     if sop:
         parts.append(f"# SOP · {agent}\n\n" + sop)
@@ -597,7 +619,7 @@ def context_brief(agent, n, base, repo, iss):
     if not os.path.exists(analysis_path):
         fail(f"no Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     analysis = load(analysis_path)
-    parts = [f"# Studio content · {agent} · outline\n\n" + tree(repo, agent),
+    parts = [f"# Studio content · {agent} · outline\n\n" + tree(repo, agent), tools_text(repo, agent),
              source_text(iss),
              f"# Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n"
              + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
