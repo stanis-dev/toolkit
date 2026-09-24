@@ -887,9 +887,13 @@ def context_of_analysis(analysis):
         elif w.get("state") == "tangential":
             e["note"] = "tangential"
         out.append(e)
+    elif w.get("file") and w.get("span") and w.get("state") != "new":
+        out.append({"code": True, "name": w.get("path") or "", "file": w["file"], "role": "A", "spans": [w["span"]]})
     b = ctx.get("won") or {}
     if b.get("pointer") and b.get("file"):
         out.append({"file": composer_file(b["file"]), "pointer": b["pointer"], "role": "B", "spans": [b["span"]] if b.get("span") else []})
+    elif b.get("file") and b.get("span"):
+        out.append({"code": True, "name": b.get("path") or "", "file": b["file"], "role": "B", "spans": [b["span"]]})
     return out
 
 
@@ -958,7 +962,13 @@ def render_oc(agent, n, ctx, pages, repo, state="proposed", at=None):
     sections = []
     groups = []
     edits = ctx.get("edits") or []
+    code_secs = []
     for entry in ctx.get("context", []):
+        if entry.get("code"):  # a tool file's sentence or what a call returned: the quoted span alone
+            where = "returned by the call" if entry["file"] == "returned" else entry["file"]
+            code_secs.append(f'<section class="sec">\n  <header><h3 class="crumb"><span class="cur"><i class="ti ti-tool" aria-hidden="true"></i>{esc(entry["name"])}</span></h3><code>{esc(where)}</code></header>\n'
+                            f'  <div class="body">\n    <div class="row on"><span class="n"></span><span>{mark_spans(entry["spans"][0], entry["spans"], entry["role"].lower())}</span></div>\n  </div>\n</section>')
+            continue
         rows, kind = block_rows(repo, agent, entry["file"])
         target = find_row(rows, entry["pointer"])
         role = (entry.get("role") or "A").lower()
@@ -979,6 +989,7 @@ def render_oc(agent, n, ctx, pages, repo, state="proposed", at=None):
         body = section_rows(rows, target, g["on"])
         note = "".join(f'<span class="state">{esc(t)}</span>' for t in g["notes"])
         sections.append(f'<section class="sec">\n  <header>{crumb(target[0], g["kind"])}{note}</header>\n  <div class="body">\n{gate}' + "\n".join(body) + "\n  </div>\n</section>")
+    sections += code_secs
     tool = ctx.get("tool") or {}
     if tool.get("name"):
         code = f'<code>{esc(tool["file"])}</code>' if tool.get("file") else ""

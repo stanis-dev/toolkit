@@ -140,6 +140,14 @@ def span_errors(step, answer, agent, repo, base, n):
     def item(path, file, pointer, span):
         if not (file and span):
             return
+        if file == "returned":
+            said = []
+            for cid in brief.call_of_analysis(base, source.load(base, n) or {"number": n}, answer):
+                for calls in source.tool_outputs(source.conv_dir(base, n, cid)).values():
+                    said += [" ".join(str(x).split()) for c in calls for x in (c.get("output"), c.get("then")) if x]
+            if not any(" ".join(span.split()) in t for t in said):
+                out.append(f"{path} is not an exact substring of what a tool call or the supervisor returned")
+            return
         if not file.endswith(".json"):
             src = os.path.join(repo, brief.AGENT_DIR.get(agent, agent), file.split(":")[0])
             if os.path.exists(src) and span not in open(src, encoding="utf-8").read():
