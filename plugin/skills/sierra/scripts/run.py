@@ -102,13 +102,26 @@ def skill(name):
     return yaml.safe_load(m.group(1)) or {}, text[m.end():]
 
 
+REFERENCES = os.path.join(PLUGIN, "skills", "sierra", "references")
+
+
 def linked_docs(name, body):
-    """The sierra reference documents the skill text links, as prompt sections: they travel with the prompt like schema.json."""
-    out = []
-    for rel in dict.fromkeys(re.findall(r"\]\(((?:\.\./)+sierra/references/[^)\s]+\.md)\)", body)):
-        path = os.path.normpath(os.path.join(PLUGIN, "skills", name, rel))
-        out.append(f"# {os.path.basename(rel)}\n\nThe document the skill text links as {os.path.basename(rel)}.\n\n"
-                   + open(path, encoding="utf-8").read().strip())
+    """The sierra reference documents the skill text links, and those they link, as prompt sections: they travel with
+    the prompt like schema.json."""
+    out, seen = [], set()
+
+    def follow(base, text, depth):
+        for rel in re.findall(r"\]\(([^)\s:#]+\.md)\)", text):
+            path = os.path.normpath(os.path.join(base, rel))
+            if path in seen or not path.startswith(REFERENCES) or not os.path.exists(path):
+                continue
+            seen.add(path)
+            doc = open(path, encoding="utf-8").read().strip()
+            out.append(f"# {os.path.basename(path)}\n\nThe document the skill text links as {os.path.basename(path)}.\n\n" + doc)
+            if depth:
+                follow(os.path.dirname(path), doc, depth - 1)
+
+    follow(os.path.join(PLUGIN, "skills", name), body, 1)
     return "".join("\n\n" + d for d in out)
 
 
