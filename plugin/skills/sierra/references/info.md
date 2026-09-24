@@ -47,9 +47,8 @@ is there, `released` once it is in a release. Update both the moment they change
   the run it reports; the Replay summary carries the heading with the result link.
 - An expectation row states the observable only: the turn, what it must contain or omit, and the phrasings that do not
   meet it when the judge has passed one.
-- A gap row stands for the turns a Conversation or a Replay leaves out: the count, then one clause with the customer's
-  move and the agent's answer across them. It carries no quotes, no numbers the agent read out, no tool results and no
-  tags; those belong to the rows that show them.
+- A gap row stands for the turns a Conversation or a Replay leaves out, or the items a block entry leaves out: the count
+  and nothing else, «11 turns», «3 items».
 - Each step edits the card file in place: its section appended, or the part it refreshes replaced.
 
 ## Card sections

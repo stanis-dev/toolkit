@@ -64,10 +64,10 @@ workflow below.
 
 ### Issue Workflow
 
-1. (If issue) Analyse the issue. (read [issues.md](./references/issues.md))
-2. Decide on sim strategy (read [sim-strategy.md](./references/sims/sim-strategy.md))
+1. (If issue) Run the `issue-analysis` agent on `<agent> <n>` and render its JSON on the card. (read [issues.md](./references/issues.md))
+2. Run the `sim-strategy` agent on `<agent> <n>` and render its JSON on the card. (read [sim-strategy.md](./references/sims/sim-strategy.md))
 3. Ensure there's a sim/s I can trust (read [sim-design.md](./references/sims/sim-design.md))
-4. Understand what changes are needed for the agent (read [agent-design.md](./references/agent/agent-design.md))
+4. Run the `context-edit` agent on `<agent> <n>` and render its JSON on the card. (read [context-edit.md](./references/agent/context-edit.md))
 5. Implement and verify (read [agent-design.md](./references/agent/agent-design.md))
 6. Draft a PR (read [pr.md](./references/pr.md))
 

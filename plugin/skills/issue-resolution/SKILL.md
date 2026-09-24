@@ -2,9 +2,9 @@
 name: issue-resolution
 description: >-
     Take one Sierra voice agent issue (cobranzas, openpay, hipotecarios) from its three step answers to a verified fix,
-    with the engineer in the loop: review the analysis, the guard the sim strategy ran red and the edit the context
-    step applied, run the guard green, check the regressions, report, merge into the batch. Interactive. Input, the
-    resolve brief of the issue. Not for producing the three answers.
+    with the engineer in the loop: review the analysis, the guard the sim strategy ran red and the edit the context step
+    applied, run the guard green, check the regressions, report, merge into the batch. Interactive. Input, the resolve
+    brief of the issue. Not for producing the three answers.
 ---
 
 You take the issue from its three answers to a verified fix, with the engineer, who reads and answers in the page this
@@ -20,8 +20,8 @@ card's history; open an event's files only when it bears on what you are doing. 
   folder for this session's run files.
 - `<agent>`, `<n>`: the agent and the issue number.
 - `<baseline>`: the Sim Strategy's regression run, the file it wrote with its list run 5× before any edit.
-- `<batch>`: the batch's MMDD; `<batch-branch>`, `<batch-workspace>`, `<batch-worktree>`: the batch's branch, its
-  Studio workspace and the worktree that has the branch checked out and Ghostwriter bound to that workspace;
+- `<batch>`: the batch's MMDD; `<batch-branch>`, `<batch-workspace>`, `<batch-worktree>`: the batch's branch, its Studio
+  workspace and the worktree that has the branch checked out and Ghostwriter bound to that workspace;
   `<batch-agent-dir>`, the agent's directory in that worktree, its CLI at `<batch-agent-dir>/node_modules/.bin/sierra`.
 - `<pages>`: the pages dir; the card's folder `cards/<n>/`: `card.html`, the issue as `source.json`, the linked calls
   under `conversations/<id>/` (details.json, debug.log, traces/), the answers `analysis/answer.json`,
@@ -33,15 +33,16 @@ before it. The engineer can rerun a step with feedback: the step works on the tr
 which steps reran and where their new answers are. Re-read those answers, say what differs, and review them again.
 Pull `<workspace>` only with `python3 <scripts>/pull.py <agent> <checkout>`: it commits what main's merges brought as
 base and leaves the card's work uncommitted.
+
 - `<scripts>`: brief.py, card.py, blocks.py, runset.py, sync.py, pull.py, batchmerge.py.
 - `<references>`: the workflow's reference, issues.md, sims/, tooling.md.
 
 The page shows where the issue stands from one command, which you run at each change of stage or verdict:
 `python3 <scripts>/stage.py <agent> <n> <stage> <state>`. Stages and their states, in order: `review` working, holds,
-wrong, contested; `repro` writing, reproduces, does-not-reproduce, wrong-reason; `fix` applying, solved, refine, misguided;
-`regressions` running, found, fixing, clean; `merge` ready, merged. `review wrong` and `fix misguided` take `--step`,
-the step at fault (analysis, strategy or context), and `--note`, one line on what it got wrong and the skill passage
-or the turn it rests on, quoted. `review contested` takes `--step` and `--note` too, as below.
+wrong, contested; `repro` writing, reproduces, does-not-reproduce, wrong-reason; `fix` applying, solved, refine,
+misguided; `regressions` running, found, fixing, clean; `merge` ready, merged. `review wrong` and `fix misguided` take
+`--step`, the step at fault (analysis, strategy or context), and `--note`, one line on what it got wrong and the skill
+passage or the turn it rests on, quoted. `review contested` takes `--step` and `--note` too, as below.
 
 ## 1. Review
 
@@ -49,9 +50,9 @@ Read the three answers against the card and the linked call. Say, one line each:
 
 - whether the analysis names the right turn: the failure turn is where the customer's move went unanswered, the good
   turn is what the Studio content asks for, and the two items it points at are the ones that decided the turn;
-- whether the guard reproduces that turn's condition: read the transcripts of the strategy's red run, `guard.red`;
-  the persona makes the customer's move at the same point of the journey, and the guard is red on the behaviour the
-  analysis names, not on something else; a `no_repro` or `wrong_reason` flag fails this check;
+- whether the guard reproduces that turn's condition: read the transcripts of the strategy's red run, `guard.red`; the
+  persona makes the customer's move at the same point of the journey, and the guard is red on the behaviour the analysis
+  names, not on something else; a `no_repro` or `wrong_reason` flag fails this check;
 - whether the applied edit is the context answer's: `git -C <checkout> diff` the edited block against the answer's
   `old` and `new`, and a pull of
   `<workspace>` leaves no diff;
@@ -74,10 +75,10 @@ If everything holds - continue to #2.
 
 ## 2. Guard green
 
-With the go, apply any code change the context step flagged. Run the guard 5× and every expected red the strategy
-lists: `<references>/tooling.md`, Simulation runs, gives the launch, the wait and the readers. Read the transcripts. Green is 5/5; less is a pass count and
-the turns that missed, with the customer's move and the agent's line. An expected red that stays green, or a green sim
-that turned red, is reported as such.
+Apply any code change the context step flagged. Run the guard 5× and every expected red the strategy lists:
+`<references>/tooling.md`, Simulation runs, gives the launch, the wait and the readers. Read the transcripts. Green is
+5/5; less is a pass count and the turns that missed, with the customer's move and the agent's line. An expected red that
+stays green, or a green sim that turned red, is reported as such.
 
 ## 3. Regressions
 
@@ -88,8 +89,7 @@ Simulation runs, into `<runs>/regressions.json`, and compare it with the baselin
 5/5 on the baseline is unstable, listed and not counted. Say each regression, one line: the simulation, the turn, what
 the edit did to it. Fixing one is another edit, with the go: edit the block file, push it to `<workspace>` as
 tooling.md, Studio content, says, and run nothing until the diff after the second pull is empty; then sections 2 and 3
-again. Clean is
-no regression left and the guard still 5/5.
+again. Clean is no regression left and the guard still 5/5.
 
 ## 4. Report
 
