@@ -16,7 +16,7 @@ comments. `--out -` prints the section instead.
 
 `ss` renders the Sim Strategy section (sections/sim-changes.html) from the sim-strategy skill's JSON,
 `agents/<agent>/cards/<n>/strategy/answer.json`, resolving simulation ids to names and groups in the repo's `*.tests.ts`. Pass
-counts stay empty; runs fill them later, except the guard's own 5× run before any edit, shown as its repro line. `oc` renders the Studio Context and the Studio Context Edit sections
+counts stay empty; runs fill them later, except the guard's own 5× run before any edit, shown as its count. `oc` renders the Studio Context and the Studio Context Edit sections
 (sections/studio-context.html, studio-context-edit.html) from the context-edit skill's JSON,
 `agents/<agent>/cards/<n>/context/answer.json`: the context is the analysis's two items plus the answer's `also` items and `tool`,
 the edit is its `edit`; item text, numbering and gates come from the block files in the repo, an item the analysis
@@ -531,11 +531,7 @@ def render_ss(agent, n, strategy, pages, repo):
     chev = '<i class="ti ti-chevron-right" aria-hidden="true"></i>'
     out = ['<div class="ss">']
     red = paths.guard_red(paths.agent(pages, agent), n)
-    if red:
-        out.append('<div class="body guard">')
-        out.append(f'  <div class="line"><span class="k">repro</span><span class="gist"><b>{red["passed"]}/{red["total"]} pass</b>'
-                   + f' before the fix · {esc(red["run"] or "")}</span></div>')
-        out.append("</div>")
+    guard = (strategy.get("guard") or {}).get("id")
 
     def head(cls, name_html, group, res="", gist="", open_=False):
         return (f'<details class="sim {cls}"{" open" if open_ else ""}>\n  <summary>\n    <div class="n">{res}</div>\n'
@@ -559,7 +555,11 @@ def render_ss(agent, n, strategy, pages, repo):
             name_html = f'{esc(new)} <s class="old">{esc(old)}</s>'
         else:
             name_html = esc(old or new or sim.get("id"))
-        out.append(head(cls, name_html, group, '<span class="res"></span>' if action != "delete" else "", sim.get("gist") or "", open_=k == 0))
+        res = '<span class="res"></span>'
+        if red and sim.get("id") == guard:
+            tone = "ok" if red["passed"] == red["total"] else "flaky" if red["passed"] else "ko"
+            res = f'<span class="res {tone}" title="before the fix · {esc(red["run"] or "")}">{red["passed"]}/{red["total"]}</span>'
+        out.append(head(cls, name_html, group, res if action != "delete" else "", sim.get("gist") or "", open_=k == 0))
         if action == "delete":
             out.append(f'  <div class="body">\n    <div class="line"><span class="k">covered by</span><span class="gist">{esc(sim.get("covered_by"))}</span></div>\n  </div>\n</details>')
             continue
