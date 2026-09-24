@@ -550,6 +550,7 @@ def render_ss(agent, n, strategy, pages, repo):
     chev = '<i class="ti ti-chevron-right" aria-hidden="true"></i>'
     out = ['<div class="ss">']
     red = paths.guard_red(paths.agent(pages, agent), n)
+    now_run = paths.guard_red(paths.agent(pages, agent), n, "guard-now")
     guard = (strategy.get("guard") or {}).get("id")
 
     def head(cls, name_html, group, res="", gist="", open_=False):
@@ -566,8 +567,11 @@ def render_ss(agent, n, strategy, pages, repo):
     def red_res():
         if not red:
             return '<span class="res"></span>' + x5
-        tone = "ok" if red["passed"] == red["total"] else "flaky" if red["passed"] else "ko"
-        return (f'<span class="res {tone}" title="run {esc(red["run"] or "")}">{red["passed"]}/{red["total"]}</span>' + x5)
+        last = now_run or red
+        tone = "ok" if last["passed"] == last["total"] else "flaky" if last["passed"] else "ko"
+        title = f'before the fix · run {red["run"] or ""}' + (f'\nnow · run {now_run["run"] or ""}' if now_run else "")
+        text = f'{red["passed"]}/{red["total"]}' + (f' › {now_run["passed"]}/{now_run["total"]}' if now_run else "")
+        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + x5
 
     if guard and guard not in [x.get("id") for x in strategy.get("sims", [])] and guard in idx:
         name, group, rel = idx[guard]

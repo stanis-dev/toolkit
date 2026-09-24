@@ -629,7 +629,7 @@ class H(SimpleHTTPRequestHandler):
                     os.remove(p)
             sruns = paths.runs(base, n, 'strategy')
             for f in sorted(os.listdir(sruns)) if os.path.isdir(sruns) else []:
-                if re.fullmatch(r'(guard-red|regressions(-added-\d+)?)\.(json|id)', f):
+                if re.fullmatch(r'(guard-red|guard-now|regressions(-added-\d+)?)\.(json|id)', f):
                     h = paths.history(base, n, 'strategy', stamp, f); os.makedirs(os.path.dirname(h), exist_ok=True)
                     shutil.move(os.path.join(sruns, f), h); archived.append('strategy ' + f)
                     kept.append(paths.rel(base, h))

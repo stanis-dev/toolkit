@@ -100,15 +100,22 @@ def reproduce(base, n, agent_dir, workspace):
     red = paths.guard_red(base, n)
     if not red:
         raise RuntimeError(f"the run of «{src['title']}» matched no simulation: {os.path.join(runs, 'guard-red.json')}")
-    if red["passed"] == red["total"]:
-        return red
+    if red["passed"] < red["total"]:
+        adopt(base, n, agent_dir, workspace, red)
+    return red
+
+
+def adopt(base, n, agent_dir, workspace, run):
+    """Download run {run, passed, total} and make its first failing replay the card's conversation."""
+    src = source.load(base, n)
+    sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
     subprocess.run([sierra, "-C", agent_dir, "ghostwriter", "bbva.sierra.ai/" + workspace, "--download-simulations",
-                    "--run-id", red["run"]], stdout=subprocess.DEVNULL, check=True)
-    for rdir in sorted(glob.glob(os.path.join(agent_dir, ".composer", "simulations", f"replaytestrunset-{red['run']}", "results", "*"))):
+                    "--run-id", run["run"]], stdout=subprocess.DEVNULL, check=True)
+    for rdir in sorted(glob.glob(os.path.join(agent_dir, ".composer", "simulations", f"replaytestrunset-{run['run']}", "results", "*"))):
         if os.path.exists(os.path.join(rdir, "result.json")) and failed(json.load(open(os.path.join(rdir, "result.json"), encoding="utf-8"))):
             replay(base, n, rdir, src["ref"]["branch"])
-            return red
-    raise RuntimeError(f"run {red['run']} has {red['total'] - red['passed']} failures but no failing replay was downloaded")
+            return
+    raise RuntimeError(f"run {run['run']} has {run['total'] - run['passed']} failures but no failing replay was downloaded")
 
 
 def main(argv):

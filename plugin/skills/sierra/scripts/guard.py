@@ -1,11 +1,13 @@
-"""Run the card's guard 5× on its workspace, from the card's tree, as the Sim Strategy's red run.
+"""Run the card's guard 5× on its workspace, from the card's tree as it is now.
 
 Usage:
   guard.py <agent> <n> [--pages <dir>]
 
-The guard is the strategy answer's guard.id. The run replaces strategy/runs/guard-red.json and .id; the ones it
-replaces go to strategy/history/<stamp>.guard-red.*. strategy/guard.json holds the run's state while it works and
-its result after, the Sim Strategy is rendered again and the run is one event of the card's history.
+The guard is the strategy answer's guard.id. The run goes to strategy/runs/guard-now.json and .id, beside the
+strategy's guard-red.json from before the fix, which it leaves alone; a copy goes to strategy/history/<stamp>.guard-now.json,
+which the card's history event points to. On a simulation's card, a failing replay of the run becomes the card's
+conversation, so the next steps read a failure of the tree as it is. strategy/guard.json holds the run's state while
+it works and its result after; the Sim Strategy is rendered again.
 """
 import json
 import os
@@ -17,6 +19,8 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cardlog  # noqa: E402
 import paths  # noqa: E402
+import simcard  # noqa: E402
+import source  # noqa: E402
 from setup import AGENT_DIR  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -52,24 +56,24 @@ def main(argv):
         runs = paths.runs(base, n, "strategy")
         os.makedirs(runs, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-        for ext in ("json", "id"):
-            f = os.path.join(runs, "guard-red." + ext)
-            if os.path.exists(f):
-                h = paths.history(base, n, "strategy", stamp, "guard-red." + ext)
-                os.makedirs(os.path.dirname(h), exist_ok=True)
-                shutil.move(f, h)
         sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
-        with open(os.path.join(runs, "guard-red.json"), "w") as out:
+        with open(os.path.join(runs, "guard-now.json"), "w") as out:
             subprocess.run([sierra, "-C", agent_dir, "test", workspace, "--names", guard, "--num-runs", "5", "--json", "-y",
-                            "--run-id-file", os.path.join(runs, "guard-red.id")], stdout=out, stderr=subprocess.PIPE, check=False)
-        red = paths.guard_red(base, n)
-        if not red:
-            raise RuntimeError(f"the run of {guard} matched no simulation: {os.path.join(runs, 'guard-red.json')}")
+                            "--run-id-file", os.path.join(runs, "guard-now.id")], stdout=out, stderr=subprocess.PIPE, check=False)
+        now_run = paths.guard_red(base, n, "guard-now")
+        if not now_run:
+            raise RuntimeError(f"the run of {guard} matched no simulation: {os.path.join(runs, 'guard-now.json')}")
+        kept = paths.history(base, n, "strategy", stamp, "guard-now.json")
+        os.makedirs(os.path.dirname(kept), exist_ok=True)
+        shutil.copy(os.path.join(runs, "guard-now.json"), kept)
+        what = f"ran the guard {guard} 5×: {now_run['passed']}/{now_run['total']} pass, run {now_run['run']}"
+        if (source.load(base, n) or {}).get("kind") == "sim" and now_run["passed"] < now_run["total"]:
+            simcard.adopt(base, n, agent_dir, workspace, now_run)
+            what += "; a failing replay of it is the card's conversation now"
         subprocess.run([sys.executable, os.path.join(HERE, "card.py"), "ss", agent, n, "--pages", pages, "--repo", repo],
                        capture_output=True, check=True)
-        cardlog.add(pages, agent, n, "engineer", f"ran the guard {guard} 5×: {red['passed']}/{red['total']} pass, run {red['run']}",
-                    [cardlog.rel(pages, agent, os.path.join(runs, "guard-red.json"))])
-        state.update(state="done", ended=now(), **red)
+        cardlog.add(pages, agent, n, "engineer", what, [cardlog.rel(pages, agent, kept)])
+        state.update(state="done", ended=now(), **now_run)
     except Exception as ex:
         state.update(state="failed", ended=now(), error=f"{type(ex).__name__}: {ex}")
     write(state_path, state)
