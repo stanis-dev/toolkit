@@ -130,7 +130,7 @@ def span_errors(step, answer, agent, repo, base, n):
                 out.append(f"{path} is not an exact substring of {file}")
             return
         try:
-            rows, _ = card.block_rows(repo, agent, file)
+            rows, _ = card.block_rows(repo, agent, card.composer_file(file))
             r = card.find_row(rows, pointer or "")
         except SystemExit:
             out.append(f"{path}: {file} {pointer} is not an item the outline prints")

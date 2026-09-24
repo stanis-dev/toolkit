@@ -827,6 +827,12 @@ def section_rows(rows, target, on_html):
     return out
 
 
+def composer_file(file):
+    """An analysis answer's file as the agent directory holds it: a block file, which the outline names without
+    .composer/, under .composer/; a code file as given."""
+    return os.path.join(".composer", file) if file and file.endswith(".json") else file
+
+
 def context_of_analysis(analysis):
     """The Studio Context entries an issue-analysis answer carries: the instruction meant to produce the good turn as
     role A, the one that produced the bad turn as role B. A `new` behaviour has no item and draws nothing."""
@@ -834,7 +840,7 @@ def context_of_analysis(analysis):
     out = []
     w = ctx.get("wanted") or {}
     if w.get("pointer") and w.get("file") and w.get("state") != "new":
-        e = {"file": w["file"], "pointer": w["pointer"], "role": "A", "spans": [w["span"]] if w.get("span") else []}
+        e = {"file": composer_file(w["file"]), "pointer": w["pointer"], "role": "A", "spans": [w["span"]] if w.get("span") else []}
         if w.get("present") is False:
             e["note"] = "absent at the turn"
         elif w.get("state") == "tangential":
@@ -842,7 +848,7 @@ def context_of_analysis(analysis):
         out.append(e)
     b = ctx.get("won") or {}
     if b.get("pointer") and b.get("file"):
-        out.append({"file": b["file"], "pointer": b["pointer"], "role": "B", "spans": [b["span"]] if b.get("span") else []})
+        out.append({"file": composer_file(b["file"]), "pointer": b["pointer"], "role": "B", "spans": [b["span"]] if b.get("span") else []})
     return out
 
 
