@@ -555,10 +555,17 @@ def render_ss(agent, n, strategy, pages, repo):
     audit = (strategy.get("guard_run") or {}).get("replays") or []
     wrong = [r for r in audit if (r.get("judge") == "passed") == bool(r.get("reproduced"))]
 
-    def head(cls, name_html, group, res="", gist="", open_=False):
+    reading = ""
+    if audit:
+        why = "\n".join(f'{r["id"][-6:]} · judge {r["judge"]} · {r["why"]}' for r in wrong)
+        reading = (f'<div class="crumb" title="{esc(why or "the judge agrees on every replay")}"><i class="ti ti-eye" aria-hidden="true"></i>'
+                   f'agent failed {sum(1 for r in audit if r.get("reproduced"))}/{len(audit)}'
+                   + (f' · judge wrong {len(wrong)}' if wrong else ' · judge agrees') + '</div>')
+
+    def head(cls, name_html, group, res="", gist="", open_=False, note=""):
         return (f'<details class="sim {cls}"{" open" if open_ else ""}>\n  <summary>\n    <div class="n">{res}</div>\n'
                 f'    <div><div class="nmrow"><div class="nm">{chev}<span>{name_html}</span></div>'
-                + (f'<div class="crumb"><i class="ti ti-folder" aria-hidden="true"></i>{esc(group)}</div>' if group else "") + '</div>'
+                + (f'<div class="crumb"><i class="ti ti-folder" aria-hidden="true"></i>{esc(group)}</div>' if group else "") + note + '</div>'
                 + (f'<div class="gist">{esc(gist)}</div>' if gist else "") + "</div>\n  </summary>")
 
     def exp(body):
@@ -574,18 +581,12 @@ def render_ss(agent, n, strategy, pages, repo):
         title = f'before the fix · run {red["run"] or ""}' + (f'\nnow · run {now_run["run"] or ""}' if now_run else "")
         text = f'{red["passed"]}/{red["total"]}' + (f' › {now_run["passed"]}/{now_run["total"]}' if now_run else "")
         replays = '<button class="rbtn grp" title="The replays of these runs" aria-label="Show the guard replays"><i class="ti ti-player-play" aria-hidden="true"></i></button>'
-        read = ""
-        if audit:
-            failed = sum(1 for r in audit if r.get("reproduced"))
-            why = "\n".join(f'{r["id"][-6:]} · judge {r["judge"]} · {r["why"]}' for r in wrong)
-            read = (f'<span class="res {"ko" if wrong else "ok"}" title="{esc(why or "the judge agrees on every replay")}">'
-                    f'agent failed {failed}/{len(audit)}' + (f' · judge wrong {len(wrong)}' if wrong else '') + '</span>')
-        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + read + x5 + replays
+        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + x5 + replays
 
     if guard and guard not in [x.get("id") for x in strategy.get("sims", [])] and guard in idx:
         name, group, rel = idx[guard]
         d = sim_definition(os.path.join(repo, AGENT_DIR.get(agent, agent)), rel, guard)
-        out.append(head("keep", esc(name), group, red_res(), "", open_=True))
+        out.append(head("keep", esc(name), group, red_res(), "", open_=True, note=reading))
         prow = []
         if d.get("instructions"):
             prow.append(exp(esc(d["instructions"])))
@@ -615,7 +616,8 @@ def render_ss(agent, n, strategy, pages, repo):
         else:
             name_html = esc(old or new or sim.get("id"))
         res = red_res() if sim.get("id") == guard else '<span class="res"></span>'
-        out.append(head(cls, name_html, group, res if action != "delete" else "", sim.get("gist") or "", open_=k == 0))
+        out.append(head(cls, name_html, group, res if action != "delete" else "", sim.get("gist") or "", open_=k == 0,
+                        note=reading if sim.get("id") == guard else ""))
         if action == "delete":
             out.append(f'  <div class="body">\n    <div class="line"><span class="k">covered by</span><span class="gist">{esc(sim.get("covered_by"))}</span></div>\n  </div>\n</details>')
             continue
