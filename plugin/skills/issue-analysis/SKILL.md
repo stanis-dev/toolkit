@@ -15,16 +15,13 @@ You analyse issues filed against a Sierra voice agent in an unattended workflow.
 Input: `<agent> <n>`, for example `cobranzas 321`. `cobranzas` is the repo's `agents/base`, `openpay` is
 `agents/openpay`, `hipotecarios` is `agents/hipotecarios`.
 
-Everything you need is in the brief below this text:
+Everything you need is in the brief below this text. In it:
 
-- Studio content: one line per item, path, text and JSON pointer, in render order, under a `# <file>` line for
-  `.composer/<file>`. `› si` lines gate a block; `supervised` items outweigh the rest for one turn.
-- The SOP: BBVA's own account of what the agent must do. The Studio content implements it.
-- The issue, with the reporter's highlighted lines and their `logEntryId`.
-- Up to three calls: turn, speaker (A agent, U customer), `logEntryId`, text. `[obs]` is an observation that fired
-  after the line; `tools[k]` is the k-th tool call of the next agent turn, addressed as its `logEntryId` plus `tools[k]`.
-- The request the model saw at the reported turn: system parts and tool schemas.
-- The card's history. Open an event's files only when it bears on your task.
+- In the Studio content, `# <file>` is `.composer/<file>`; `› si` lines gate a block; `supervised` items outweigh the
+  rest for one turn.
+- The SOP is BBVA's own account of what the agent must do; the Studio content implements it.
+- In a call, `tools[k]` is the k-th tool call of the next agent turn, addressed as its `logEntryId` plus `tools[k]`.
+- In the card's history, open an event's files only when it bears on your task.
 
 For another turn's request: in `agents/<agent>/conversations/<id>/` under the pages dir (`$BBVA_ISSUES_DIR`, else
 `~/.claude/bbva-issues/`), that turn's `GOALSDK_RESPOND` row in `debug.log` names `traces/<seq>.trace`, whose
