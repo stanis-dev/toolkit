@@ -112,7 +112,7 @@
       var step=k==='ss'?'strategy':t===TITLES.oce?'context':k==='rs'?'resolve':null;
       if(step){var rb=el('<span class="runbar"></span>'); rb.addEventListener('click',function(e){e.stopPropagation();if(e.target.tagName!=='SELECT')e.preventDefault()}); d.firstChild.appendChild(rb); mount(rb,html`<${RunStrip} i=${i} step=${step}/>`)}
     });
-    if(known){var seen={};card.querySelectorAll('[class]').forEach(function(e){e.classList.forEach(function(c){if(!known[c]&&!/^ti-/.test(c))seen[c]=1})});Object.keys(seen).forEach(function(c){odd.push('.'+c)})}
+    if(known){var seen={};card.querySelectorAll('[class]').forEach(function(e){if(e.closest('.runbar'))return;e.classList.forEach(function(c){if(!known[c]&&!/^ti-/.test(c))seen[c]=1})});Object.keys(seen).forEach(function(c){odd.push('.'+c)})}
     if(odd.length)card.insertBefore(el('<div class="lint" title="Markup the page does not know; it renders unstyled">'+esc(odd.join(' '))+'</div>'),card.firstChild);
   }
   // Run: the play button in the Issue Analysis header starts the issue-analysis skill on the server, the one in the Sim
