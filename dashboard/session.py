@@ -44,9 +44,9 @@ class Host:
     def __init__(self, agent, n, repo, model, effort, kind='resolve'):
         self.agent, self.n, self.repo, self.model, self.effort, self.kind = agent, n, repo, model, effort, kind
         self.folder, self.skill_name, self.system = KINDS[kind]
-        self.base = os.path.join(os.getcwd(), 'agents', agent, self.folder)
-        self.runs = os.path.join(self.base, 'runs', n)
-        self.status_path = os.path.join(self.base, n + '.status.json')
+        self.base = steps.paths.agent(os.getcwd(), agent)
+        self.runs = steps.paths.runs(self.base, n, self.folder)
+        self.status_path = steps.paths.status(self.base, n, self.folder)
         self.log_path = os.path.join(self.runs, 'out.jsonl')
         self.sock_path = os.path.join(self.runs, 'sock')
         self.session_dir = os.path.join(self.runs, 'session')
@@ -120,7 +120,7 @@ class Host:
     def ref(self, line=None):
         """Where this session's log is, as the card's history points to it: the file the link names, at line."""
         name = os.path.basename(os.path.realpath(self.log_path))
-        return os.path.join(self.folder, 'runs', self.n, name) + (f'@L{line}' if line else '')
+        return steps.paths.rel(self.base, os.path.join(self.runs, name)) + (f'@L{line}' if line else '')
 
     def history(self, who, what, refs=()):
         if self.kind != 'resolve':
@@ -238,9 +238,9 @@ class Host:
         self.write_status(simrun=None)
         counts = run_counts(os.path.join(self.repo, live['out'])) if live['out'] else None
         if counts:
-            stages = load_json(os.path.join(self.base, self.n + '.stage.json'), [])
+            stages = load_json(steps.paths.step_file(self.base, self.n, self.folder, 'stage.json'), [])
             counts.update(t=now(), stage=stages[-1]['stage'] if stages else None, file=live['out'])
-            path = os.path.join(self.base, self.n + '.runs.json')
+            path = steps.paths.step_file(self.base, self.n, self.folder, 'runs.json')
             write_json(path, load_json(path, []) + [counts])
             sys.path.insert(0, steps.SCRIPTS)
             import cardlog

@@ -19,13 +19,14 @@ tail. Every command's output goes to stdout (the page's run.log)."""
 import json, os, re, signal, sys, time
 
 import setup
+import paths
 from setup import AGENT_DIR, NULL_HOOKS, log, now, sh, write_json
 
 
 class Batch(setup.Setup):
     def __init__(self, action, agent, batch, pages, repo, branch):
         self.action, self.agent, self.batch, self.pages, self.repo = action, agent, batch, pages, repo
-        self.batches_path = os.path.join(pages, "agents", agent, "batches.json")
+        self.batches_path = paths.batches(paths.agent(pages, agent))
         self.entry = self.load().get(batch) or {}
         self.branch = branch or self.entry.get("base") or ""
         self.name = self.branch.replace("/", "-")
@@ -33,7 +34,7 @@ class Batch(setup.Setup):
         self.agent_rel = AGENT_DIR[agent]
         self.agent_dir = os.path.join(self.wt, self.agent_rel)
         self.sierra = os.path.join(self.agent_dir, "node_modules", ".bin", "sierra")
-        self.status_path = os.path.join(pages, "agents", agent, "batches", f"{batch}.status.json")
+        self.status_path = paths.batch_file(paths.agent(pages, agent), batch, "status.json")
         self.status = {"state": "working", "action": action, "pid": os.getpid(), "started": now(), "batch": batch,
                        "branch": self.branch, "name": self.name, "worktree": self.wt, "steps": []}
         write_json(self.status_path, self.status)
@@ -95,9 +96,9 @@ class Batch(setup.Setup):
         if self.entry.get("worktree"):
             self.teardown(self.entry.get("workspace"), self.entry["worktree"])
         self.step("move the batch's cards to no batch")
-        cards = os.path.join(self.pages, "agents", self.agent, "cards")
-        for f in sorted(os.listdir(cards)) if os.path.isdir(cards) else []:
-            path = os.path.join(cards, f)
+        base = paths.agent(self.pages, self.agent)
+        for n in paths.cards(base):
+            path = paths.card(base, n)
             text = open(path, encoding="utf-8").read()
             new = re.sub(r"\A\s*<!--\s*batch:\s*" + self.batch + r"\s*-->\s*\n?", "", text)
             if new != text:

@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cardlog
+import paths
 
 STAGES = {
     "review": ("working", "holds", "wrong", "contested", "ruled", "reopened"),
@@ -52,7 +53,7 @@ def main(argv):
     if step and (stage, state) not in BLAME:
         sys.exit(f"--step goes only with {' or '.join(' '.join(b) for b in sorted(BLAME))}")
     pages = os.path.abspath(opts.get("--pages") or os.path.expanduser("~/.claude/bbva-issues"))
-    path = os.path.join(pages, "agents", agent, "resolve", f"{n}.stage.json")
+    path = paths.step_file(paths.agent(pages, agent), n, "resolve", "stage.json")
     try:
         log = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):

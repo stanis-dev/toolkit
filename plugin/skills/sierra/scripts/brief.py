@@ -55,6 +55,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import blocks  # noqa: E402
 import cardlog  # noqa: E402
+import paths  # noqa: E402
 
 AGENT_DIR = {"cobranzas": "agents/base", "openpay": "agents/openpay", "hipotecarios": "agents/hipotecarios"}
 
@@ -252,7 +253,7 @@ SOP_EXAMPLE = re.compile(r"(?ms)^#+ Ejemplo de conversación.*?(?=^#+ |^\*\*\d)"
 def sop_text(base):
     """The agent's SOP as markdown, agents/<agent>/sop/sop.md in the pages dir, when the agent has one, without its
     example conversations."""
-    p = os.path.join(base, "sop", "sop.md")
+    p = paths.sop(base)
     return SOP_EXAMPLE.sub("", open(p, encoding="utf-8").read()).strip() + "\n" if os.path.exists(p) else ""
 
 
@@ -262,7 +263,7 @@ def call_order(iss, base, k):
     rest = [i for i in ids if i not in with_line]
 
     def ts(cid):
-        p = os.path.join(base, "conversations", cid, "details.json")
+        p = os.path.join(paths.conversation(base, cid), "details.json")
         return load(p)["metadata"].get("timestamp") or "" if os.path.exists(p) else ""
     rest.sort(key=ts, reverse=True)
     return (with_line + rest)[:k]
@@ -327,7 +328,7 @@ def message_text(m):
 def compiled_request(base, conv_id, log_entry_id=None):
     """The request as the page explores it: the system parts, the tools, the conversation messages, and the call's
     agent turns so the page can step through them."""
-    conv_dir = os.path.join(base, "conversations", conv_id)
+    conv_dir = paths.conversation(base, conv_id)
     details = load(os.path.join(conv_dir, "details.json"))
     turns = [{"logEntryId": e.get("logEntryId"), "text": e.get("text") or ""}
              for e in details["events"] if e.get("type") == "message" and e.get("role") == "assistant"]
@@ -360,7 +361,7 @@ def compiled_request(base, conv_id, log_entry_id=None):
 def request_at_reported(base, iss, conv_id, log_entry_id=None):
     """The compiled request of the agent turn the reporter pointed at: the highlighted line when it is the agent's,
     else the first agent message after it. With log_entry_id, that turn instead."""
-    conv_dir = os.path.join(base, "conversations", conv_id)
+    conv_dir = paths.conversation(base, conv_id)
     if log_entry_id is None:
         ex = next((x for l in iss.get("linkedLogs", []) if l["id"] == conv_id for x in l.get("examples", [])), None)
         if not ex:
@@ -477,7 +478,7 @@ def call_of_analysis(base, iss, analysis):
     """The linked call that holds the analysis's failure logEntryId, else the first of call_order."""
     want = ((analysis.get("failure") or {}).get("logEntryId")) if isinstance(analysis, dict) else None
     for l in iss.get("linkedLogs", []):
-        p = os.path.join(base, "conversations", l["id"], "details.json")
+        p = os.path.join(paths.conversation(base, l["id"]), "details.json")
         if want and os.path.exists(p):
             d = load(p)
             if any(e.get("logEntryId") == want for e in d.get("events", []) if e.get("type") == "message"):
@@ -505,7 +506,7 @@ def main(argv):
     repo = opts.get("--repo") or os.getcwd()
     k = int(opts.get("--calls") or 3)
     base = os.path.join(pages, "agents", agent)
-    iss = load(os.path.join(base, "issues", f"{n}.json"))
+    iss = load(paths.issue(base, n))
     history = cardlog.index(pages, agent, n)
     history = "\n" + history if history else ""
     if step == "strategy":
@@ -527,7 +528,7 @@ def main(argv):
     parts.append(issue_text(iss))
     calls = call_order(iss, base, k)
     for cid in calls:
-        conv_dir = os.path.join(base, "conversations", cid)
+        conv_dir = paths.conversation(base, cid)
         p = os.path.join(conv_dir, "details.json")
         if not os.path.exists(p):
             parts.append(f"# Call {cid}\n\n(not cached)\n")
@@ -543,7 +544,7 @@ def main(argv):
 def run_text(agent, n, base, repo, step):
     """The issue's values for the step skill's Run section: checkout, agent dir, CLI, workspace, the step's runs folder,
     scripts."""
-    status_path = os.path.join(base, "setup", f"{n}.status.json")
+    status_path = paths.status(base, n, "setup")
     st = load(status_path) if os.path.exists(status_path) else {}
     ws = st.get("name") if st.get("state") == "done" and st.get("workspace") else None
     head = f"# Lane · {agent} {n}\n\nThe values the skill's Run section names.\n\n"
@@ -556,13 +557,13 @@ def run_text(agent, n, base, repo, step):
         f"- `<agent-dir>`: `{agent_dir}`",
         f"- `<sierra>`: `{os.path.join(agent_dir, 'node_modules', '.bin', 'sierra')}`",
         f"- `<workspace>`: `{ws}`",
-        f"- `<runs>`: `{os.path.join(base, step, 'runs', str(n))}`",
+        f"- `<runs>`: `{paths.runs(base, n, step)}`",
         f"- `<scripts>`: `{os.path.dirname(os.path.abspath(__file__))}`",
     ]) + "\n"
 
 
 def strategy_brief(agent, n, base, repo, iss):
-    analysis_path = os.path.join(base, "analysis", f"{n}.json")
+    analysis_path = paths.answer(base, n, "analysis")
     if not os.path.exists(analysis_path):
         fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     analysis = load(analysis_path)
@@ -572,7 +573,7 @@ def strategy_brief(agent, n, base, repo, iss):
              issue_text(iss),
              f"# Issue Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n" + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
     for cid in call_of_analysis(base, iss, analysis):
-        conv_dir = os.path.join(base, "conversations", cid)
+        conv_dir = paths.conversation(base, cid)
         p = os.path.join(conv_dir, "details.json")
         if not os.path.exists(p):
             parts.append(f"# Call {cid}\n\n(not cached)\n")
@@ -588,7 +589,7 @@ def strategy_brief(agent, n, base, repo, iss):
 
 def baseline_files(base, n):
     """The Sim Strategy's before-the-fix regression runs: its first run's list, then the runs of simulations a rerun added."""
-    d = os.path.join(base, "strategy", "runs", str(n))
+    d = paths.runs(base, n, "strategy")
     first = os.path.join(d, "regressions.json")
     added = sorted(glob.glob(os.path.join(d, "regressions-added-*.json")))
     return ([first] if os.path.exists(first) else []) + added
@@ -596,7 +597,7 @@ def baseline_files(base, n):
 
 def before_fix(base, n):
     """For a rerun of the Sim Strategy: the guard's red run and the regression runs recorded before the fix, which stay."""
-    prev = os.path.join(base, "strategy", f"{n}.json")
+    prev = paths.answer(base, n, "strategy")
     files = baseline_files(base, n)
     red = (load(prev).get("guard") or {}).get("red") if os.path.exists(prev) else None
     if not files and not (red or {}).get("total"):
@@ -609,13 +610,13 @@ def before_fix(base, n):
         sims = [t.get("name") for t in (load(f).get("tests") or [])]
         lines.append(f"- `{f}`: " + ", ".join(x for x in sims if x))
     k = len([f for f in files if "regressions-added-" in f]) + 1
-    lines.append(f"- the next added regression run goes to `{os.path.join(base, 'strategy', 'runs', str(n), f'regressions-added-{k}.json')}`")
+    lines.append(f"- the next added regression run goes to `{os.path.join(paths.runs(base, n, 'strategy'), f'regressions-added-{k}.json')}`")
     return "\n".join(lines) + "\n"
 
 
 
 def context_brief(agent, n, base, repo, iss):
-    analysis_path = os.path.join(base, "analysis", f"{n}.json")
+    analysis_path = paths.answer(base, n, "analysis")
     if not os.path.exists(analysis_path):
         fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     analysis = load(analysis_path)
@@ -623,7 +624,7 @@ def context_brief(agent, n, base, repo, iss):
              issue_text(iss),
              f"# Issue Analysis · {agent} {n}\n\n`{analysis_path}`\n\n```json\n"
              + json.dumps(analysis, ensure_ascii=False, indent=1) + "\n```\n"]
-    strategy_path = os.path.join(base, "strategy", f"{n}.json")
+    strategy_path = paths.answer(base, n, "strategy")
     if os.path.exists(strategy_path):
         parts.append(f"# Sim Strategy · {agent} {n}\n\n`{strategy_path}`\n\n```json\n"
                      + json.dumps(load(strategy_path), ensure_ascii=False, indent=1) + "\n```\n")
@@ -631,7 +632,7 @@ def context_brief(agent, n, base, repo, iss):
         parts.append(f"# Sim Strategy · {agent} {n}\n\n(not run yet)\n")
     calls = call_of_analysis(base, iss, analysis)
     for cid in calls:
-        conv_dir = os.path.join(base, "conversations", cid)
+        conv_dir = paths.conversation(base, cid)
         p = os.path.join(conv_dir, "details.json")
         if not os.path.exists(p):
             parts.append(f"# Call {cid}\n\n(not cached)\n")
@@ -647,18 +648,18 @@ def context_brief(agent, n, base, repo, iss):
 
 
 def resolve_brief(agent, n, base, repo, iss):
-    analysis_path = os.path.join(base, "analysis", f"{n}.json")
+    analysis_path = paths.answer(base, n, "analysis")
     if not os.path.exists(analysis_path):
         fail(f"no Issue Analysis yet for {agent} {n}: run the analysis step first ({analysis_path})")
     agent_dir = os.path.join(repo, AGENT_DIR.get(agent, agent))
     scripts = os.path.dirname(os.path.abspath(__file__))
-    st = load(os.path.join(base, "setup", f"{n}.status.json")) if os.path.exists(os.path.join(base, "setup", f"{n}.status.json")) else {}
+    st = load(paths.status(base, n, "setup")) if os.path.exists(paths.status(base, n, "setup")) else {}
     ws = st.get("name") if st.get("state") == "done" and st.get("workspace") else None
     baselines = baseline_files(base, n)
-    card = os.path.join(base, "cards", f"{n}.html")
+    card = paths.card(base, n)
     m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(card, encoding="utf-8").read(400)) if os.path.exists(card) else None
     batch = m.group(1) if m else None
-    entry = (load(os.path.join(base, "batches.json")) if os.path.exists(os.path.join(base, "batches.json")) else {}).get(batch) or {}
+    entry = (load(paths.batches(base)) if os.path.exists(paths.batches(base)) else {}).get(batch) or {}
     unset = "none yet: the batch has no worktree and workspace; set it up in the sidebar before merging"
     batch_wt = entry.get("worktree")
     parts = [f"# Lane · {agent} {n}\n\nThe values the skill text names.\n\n"
@@ -666,7 +667,7 @@ def resolve_brief(agent, n, base, repo, iss):
              f"- `<agent-dir>`: `{agent_dir}`\n"
              f"- `<sierra>`: `{os.path.join(agent_dir, 'node_modules', '.bin', 'sierra')}`\n"
              f"- `<workspace>`: " + (f"`{ws}`" if ws else "none yet: the issue has no Studio workspace of its own, nothing can run") + "\n"
-             f"- `<runs>`: `{os.path.join(base, 'resolve', 'runs', str(n))}`\n"
+             f"- `<runs>`: `{paths.runs(base, n, 'resolve')}`\n"
              f"- `<agent>`: `{agent}`; `<n>`: `{n}`\n"
              f"- `<baseline>`: " + (" ".join(f"`{b}`" for b in baselines) if baselines else "none: the Sim Strategy wrote no regression run, so there is nothing to compare regressions against") + "\n"
              f"- `<batch>`: " + (f"`{batch}`" if batch else "none: the card is in no batch") + "\n"
@@ -703,14 +704,14 @@ def per_sim(path):
 
 
 def batch_brief(agent, batch, base):
-    batches = load(os.path.join(base, "batches.json")) if os.path.exists(os.path.join(base, "batches.json")) else {}
+    batches = load(paths.batches(base)) if os.path.exists(paths.batches(base)) else {}
     entry = batches.get(batch)
     if not entry or not entry.get("worktree") or not os.path.isdir(entry["worktree"]):
         fail(f"batch {batch} has no worktree: set it up first")
     wt = entry["worktree"]
     scripts = os.path.dirname(os.path.abspath(__file__))
     git_out(wt, "fetch", "-q", "origin", "main")
-    main_ws = load(os.path.join(base, "driver", f"{batch}.main.json")) if os.path.exists(os.path.join(base, "driver", f"{batch}.main.json")) else {}
+    main_ws = load(paths.step_file(base, batch, "driver", "main.json")) if os.path.exists(paths.step_file(base, batch, "driver", "main.json")) else {}
     pr = subprocess.run(["gh", "pr", "list", "--head", entry.get("base", ""), "--state", "open", "--json", "number,isDraft,url", "-q", ".[0]"],
                         cwd=wt, capture_output=True, text=True).stdout.strip()
     none_main = "none yet: run mainws.py to make it"
@@ -723,22 +724,19 @@ def batch_brief(agent, batch, base):
              f"- `<main-workspace>`: " + (f"`{main_ws['workspace']}`" if main_ws.get("workspace") else none_main) + "\n"
              f"- `<pr>`: " + (pr or "none yet") + "\n"
              f"- the batch holds origin/main: " + ("yes" if subprocess.run(["git", "-C", wt, "merge-base", "--is-ancestor", "origin/main", "HEAD"]).returncode == 0 else "no") + "\n"
-             f"- check runs go in `{os.path.join(base, 'batches', batch, 'check')}`\n"
+             f"- check runs go in `{os.path.join(paths.batch_dir(base, batch), 'check')}`\n"
              f"- `<pages>`: `{base}`\n"
              f"- `<scripts>`: `{scripts}`\n"
              f"- `<references>`: `{os.path.abspath(os.path.join(scripts, '..', 'references'))}`\n"]
     oldest = None
-    for f in sorted(os.listdir(os.path.join(base, "cards"))):
-        n = f[:-5] if f.endswith(".html") else ""
-        if not n.isdigit():
-            continue
-        m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(os.path.join(base, "cards", f), encoding="utf-8").read(400))
+    for n in paths.cards(base):
+        m = re.match(r"\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->", open(paths.card(base, n), encoding="utf-8").read(400))
         if not m or m.group(1) != batch:
             continue
-        iss = load(os.path.join(base, "issues", f"{n}.json")) if os.path.exists(os.path.join(base, "issues", f"{n}.json")) else {}
-        setup = load(os.path.join(base, "setup", f"{n}.status.json")) if os.path.exists(os.path.join(base, "setup", f"{n}.status.json")) else {}
-        stage = load(os.path.join(base, "resolve", f"{n}.stage.json")) if os.path.exists(os.path.join(base, "resolve", f"{n}.stage.json")) else []
-        strat = load(os.path.join(base, "strategy", f"{n}.json")) if os.path.exists(os.path.join(base, "strategy", f"{n}.json")) else {}
+        iss = load(paths.issue(base, n)) if os.path.exists(paths.issue(base, n)) else {}
+        setup = load(paths.status(base, n, "setup")) if os.path.exists(paths.status(base, n, "setup")) else {}
+        stage = load(paths.step_file(base, n, "resolve", "stage.json")) if os.path.exists(paths.step_file(base, n, "resolve", "stage.json")) else []
+        strat = load(paths.answer(base, n, "strategy")) if os.path.exists(paths.answer(base, n, "strategy")) else {}
         guard = strat.get("guard") or {}
         gid = next((x.get("id") for x in strat.get("sims") or [] if x.get("action") != "delete"), None) or guard.get("existing")
         last = stage[-1] if stage else {}
@@ -749,13 +747,13 @@ def batch_brief(agent, batch, base):
                  "- regression list: " + (", ".join(f"`{x['id']}`" for x in (strat.get("regressions") or {}).get("sims") or []) or "none")]
         runs = []
         red = guard.get("red") or {}
-        sst = load(os.path.join(base, "strategy", f"{n}.status.json")) if os.path.exists(os.path.join(base, "strategy", f"{n}.status.json")) else {}
+        sst = load(paths.status(base, n, "strategy")) if os.path.exists(paths.status(base, n, "strategy")) else {}
         if red.get("total"):
             runs.append((sst.get("ended") or "", "strategy guard, before the fix", f"{red.get('passed')}/{red['total']} · run {red.get('run')}", {}))
         for bl in baseline_files(base, n):
             t = (sst.get("ended") or "") if bl.endswith("/regressions.json") else datetime.fromtimestamp(os.path.getmtime(bl), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             runs.append((t, "strategy regression baseline", f"`{bl}`", per_sim(bl)))
-        rr = load(os.path.join(base, "resolve", f"{n}.runs.json")) if os.path.exists(os.path.join(base, "resolve", f"{n}.runs.json")) else []
+        rr = load(paths.step_file(base, n, "resolve", "runs.json")) if os.path.exists(paths.step_file(base, n, "resolve", "runs.json")) else []
         for r in rr:
             runs.append((r.get("t") or "", f"resolution, stage {r.get('stage')}", f"{r.get('passed')}/{r.get('total')} over {r.get('sims')} sims · run {r.get('run')} · `{r.get('file')}`", per_sim(r.get("file") or "")))
         for t, what, head, sims in runs:

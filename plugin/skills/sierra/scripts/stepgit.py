@@ -2,6 +2,7 @@
 commit nothing. What a pull brings in from main is committed as base (absorb_main). The two files setup copies in and
 the files the Sierra SDK generates never count as changes."""
 import json, os, subprocess, sys
+import paths
 
 SETUP_COPIES = (".composer/pnpm-lock.yaml", ".composer/.gitignore")
 NO_HOOKS = ["-c", "core.hooksPath=/dev/null"]
@@ -56,7 +57,7 @@ def untracked(wt):
 
 def binding(pages, agent, n, agent_dir):
     """The issue workspace's url when the worktree's Ghostwriter is bound to it; Refused otherwise."""
-    st = load(os.path.join(pages, "agents", agent, "setup", f"{n}.status.json"))
+    st = load(paths.status(paths.agent(pages, agent), n, "setup"))
     want = st.get("workspace")
     bound = load(os.path.join(agent_dir, ".composer", "build", "workspace-meta.json")).get("targetUrl")
     if not want:

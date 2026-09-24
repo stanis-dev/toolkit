@@ -15,6 +15,7 @@ import json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import setup
+import paths
 from setup import PREFIX, AGENT_DIR, NULL_HOOKS, sh, now, write_json
 
 
@@ -26,7 +27,7 @@ class MainWorkspace(setup.Setup):
         self.agent_rel = AGENT_DIR[agent]
         self.agent_dir = os.path.join(self.wt, self.agent_rel)
         self.sierra = os.path.join(self.agent_dir, "node_modules", ".bin", "sierra")
-        self.status_path = os.path.join(pages, "agents", agent, "driver", f"{batch}.main.json")
+        self.status_path = paths.step_file(paths.agent(pages, agent), batch, "driver", "main.json")
         self.status = {"state": "working", "pid": os.getpid(), "started": now(), "name": self.name, "worktree": self.wt,
                        "batch": batch, "steps": []}
         self.t0 = time.time()

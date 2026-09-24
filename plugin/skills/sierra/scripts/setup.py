@@ -16,6 +16,7 @@ branch, base commit, workspace url, the steps done, the error tail. Every comman
 run.log). Nothing else on disk changes; the worktree is left for `git worktree remove` when the issue is done."""
 import fcntl, json, os, re, signal, subprocess, sys, time
 from datetime import datetime, timezone
+import paths
 
 AGENT_DIR = {"cobranzas": "agents/base", "openpay": "agents/openpay", "hipotecarios": "agents/hipotecarios"}
 PREFIX = {"cobranzas": "cob", "openpay": "opp", "hipotecarios": "hip"}
@@ -93,7 +94,7 @@ class Setup:
         self.agent_dir = os.path.join(self.wt, self.agent_rel)
         self.sierra = os.path.join(self.agent_dir, "node_modules", ".bin", "sierra")
         self.base_ref = base
-        self.status_path = os.path.join(pages, "agents", agent, "setup", f"{n}.status.json")
+        self.status_path = paths.status(paths.agent(pages, agent), n, "setup")
         self.status = {"state": "working", "pid": os.getpid(), "started": now(), "name": self.name, "worktree": self.wt,
                        "branch": self.branch, "batch": batch, "steps": []}
         write_json(self.status_path, self.status)

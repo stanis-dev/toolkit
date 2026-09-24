@@ -14,6 +14,7 @@ Appends {"t", "stage", "state", "note"} to <pages>/agents/<agent>/driver/<batch>
 stage or state outside the table. The pages dir defaults to ~/.claude/bbva-issues."""
 import json, os, re, sys
 from datetime import datetime, timezone
+import paths
 
 STAGES = {
     "align": ("working", "done", "conflict"),
@@ -36,7 +37,7 @@ def main(argv):
     if state not in STAGES[stage]:
         sys.exit(f"no state {state!r} for {stage}: one of {', '.join(STAGES[stage])}")
     pages = os.path.abspath(opts.get("--pages") or os.path.expanduser("~/.claude/bbva-issues"))
-    path = os.path.join(pages, "agents", agent, "driver", f"{batch}.stage.json")
+    path = paths.step_file(paths.agent(pages, agent), batch, "driver", "stage.json")
     try:
         log = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):

@@ -10,6 +10,7 @@ running, and the evidence goes in as the next prompt, after the current turn whe
 written either way, so the page shows it reopened."""
 import json, os, subprocess, sys, time, urllib.error, urllib.request
 from datetime import datetime, timezone
+import paths
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 AGENTS = ("cobranzas", "openpay", "hipotecarios")
@@ -45,7 +46,7 @@ def main(argv):
         sys.exit("the evidence file is empty")
     pages = os.path.abspath(opts.get("--pages") or os.path.expanduser("~/.claude/bbva-issues"))
     server = (opts.get("--server") or "http://127.0.0.1:8489").rstrip("/")
-    path = os.path.join(pages, "agents", agent, "resolve", f"{n}.reopen.json")
+    path = paths.step_file(paths.agent(pages, agent), n, "resolve", "reopen.json")
     try:
         log = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):
@@ -58,7 +59,7 @@ def main(argv):
     first = next((l.strip("# ").strip() for l in evidence.splitlines() if l.strip()), "")[:160]
     subprocess.run([sys.executable, os.path.join(HERE, "stage.py"), agent, n, "review", "reopened",
                     "--note", f"batch {batch}: {first}", "--by", "batch-driver",
-                    "--ref", f"resolve/{n}.reopen.json#{len(log) - 1}", "--pages", pages], check=True)
+                    "--ref", paths.rel(paths.agent(pages, agent), path) + f"#{len(log) - 1}", "--pages", pages], check=True)
     state = call(server, f"/chat/{agent}/{n}/state")
     if "error" in state:
         print("the issues page's server did not answer: " + state["error"]); return 1

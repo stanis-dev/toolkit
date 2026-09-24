@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 SCRIPTS = os.environ.get('SIERRA_SCRIPTS') or os.path.expanduser('~/code/toolkit/plugin/skills/sierra/scripts')
 REPO = os.environ.get('BBVA_REPO') or os.path.expanduser('~/code/BBVA')
+sys.path.insert(0, SCRIPTS)
+import paths  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 ORDER = ('setup', 'analysis', 'strategy', 'context', 'resolve')
 STEPS = ORDER[1:]
@@ -61,12 +63,12 @@ def settle(path):
 
 
 def status_path(agent, n, step):
-    return os.path.join('agents', agent, step, n + '.status.json')
+    return paths.status(paths.agent('', agent), n, step)
 
 
 def card_batch(agent, n):
     try:
-        m = re.match(r'\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->', open(os.path.join('agents', agent, 'cards', n + '.html'), encoding='utf-8').read(400))
+        m = re.match(r'\s*<!--\s*batch:\s*(\d{4}(?:-\d)?)\s*-->', open(paths.card(paths.agent('', agent), n), encoding='utf-8').read(400))
         return m.group(1) if m else ''
     except OSError:
         return ''
@@ -86,7 +88,7 @@ def batch_base(agent, batch):
 
 def repo_of(agent, n):
     """The issue's worktree, once setup.py has finished it; None before that."""
-    st = load_json(os.path.join('agents', agent, 'setup', n + '.status.json'), {})
+    st = load_json(paths.status(paths.agent('', agent), n, 'setup'), {})
     wt = st.get('worktree')
     if st.get('state') == 'done' and wt and os.path.isdir(wt):
         return wt
@@ -94,7 +96,7 @@ def repo_of(agent, n):
 
 
 def session_dir(agent, n, kind='resolve'):
-    return os.path.join('agents', agent, kind, 'runs', n, 'session')
+    return os.path.join(paths.runs(paths.agent('', agent), n, kind), 'session')
 
 
 def batch_worktree(agent, batch):
@@ -138,7 +140,7 @@ def start_session(agent, n, model, effort, repo, ask=False, resume=False, wait=6
     """Start session.py, the resolution's own host process (with kind driver, the batch driver's, n the batch), and
     wait until it holds the session or gives up: None when it runs, else its reason (the brief failed, nothing to
     resume)."""
-    runs = os.path.join('agents', agent, kind, 'runs', n)
+    runs = paths.runs(paths.agent('', agent), n, kind)
     os.makedirs(runs, exist_ok=True)
     err_path = os.path.join(runs, 'start.err')
     if os.path.exists(err_path):
@@ -215,7 +217,7 @@ def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False,
         base = batch_base(agent, batch)
         if not base:
             return 'batch ' + batch + ' has no base branch: set it in the sidebar'
-        return spawn_proc(status_path(agent, n, 'setup'), os.path.join('agents', agent, 'setup', 'runs', n, 'run.log'),
+        return spawn_proc(status_path(agent, n, 'setup'), os.path.join(paths.runs(paths.agent('', agent), n, 'setup'), 'run.log'),
                           [os.path.join(SCRIPTS, 'setup.py'), agent, n, '--pages', os.getcwd(), '--repo', REPO, '--base', base, '--batch', batch])[0]
     repo = repo_of(agent, n)
     if not repo:
@@ -235,7 +237,7 @@ def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False,
 def host_call(agent, n, req, timeout=15, kind='resolve'):
     """One command to the issue's session host (with kind driver, the batch driver's) over its socket: its reply, or
     {"error"} when no host listens."""
-    path = os.path.join('agents', agent, kind, 'runs', n, 'sock')
+    path = os.path.join(paths.runs(paths.agent('', agent), n, kind), 'sock')
     if settle(status_path(agent, n, kind)).get('state') != 'working' or not os.path.exists(path):
         return {'error': 'no session: start it first' if req.get('cmd') == 'ask' else 'not running'}
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -261,7 +263,7 @@ SOURCES = ('resolver', 'engineer', 'ruling')
 
 def feedback_lines(agent, n, step):
     """How a rerun step weighed its feedback, from its answer's `feedback`: the verdict, then each point."""
-    fb = load_json(os.path.join('agents', agent, step, n + '.json'), {}).get('feedback') or {}
+    fb = load_json(paths.answer(paths.agent('', agent), n, step), {}).get('feedback') or {}
     if not fb.get('verdict'):
         return []
     out = [f"{step} answered the feedback: {fb['verdict']}."]
@@ -277,11 +279,11 @@ def feedback_lines(agent, n, step):
 def contest(agent, n):
     """The open disagreement: the latest review contested entry when no ruling came after it, with the rerun step's
     disputed points. {} when none."""
-    log = load_json(os.path.join('agents', agent, 'resolve', n + '.stage.json'), [])
+    log = load_json(paths.step_file(paths.agent('', agent), n, 'resolve', 'stage.json'), [])
     last = next((e for e in reversed(log) if e.get('stage') == 'review' and e.get('state') in ('contested', 'ruled')), None)
     if not last or last['state'] != 'contested' or last.get('step') not in PREP:
         return {}
-    fb = load_json(os.path.join('agents', agent, last['step'], n + '.json'), {}).get('feedback') or {}
+    fb = load_json(paths.answer(paths.agent('', agent), n, last['step']), {}).get('feedback') or {}
     return {'step': last['step'], 'held': last.get('note'), 't': last.get('t'),
             'disputed': [p for p in fb.get('points') or [] if p.get('verdict') == 'disputed']}
 
@@ -328,7 +330,7 @@ def rerun_note(agent, n, ran):
         if st.get('state') != 'done':
             lines.append(f"{step}: {st.get('state') or 'not run'}" + (f" ({st['error']})" if st.get('error') else '') + '.')
         else:
-            lines.append(f"{step}: done, new answer in {os.path.join('agents', agent, step, n + '.json')}.")
+            lines.append(f"{step}: done, new answer in {paths.answer(paths.agent('', agent), n, step)}.")
         lines += feedback_lines(agent, n, step)
     disputed = any('disputed' in l.split(' · ')[0] for step in ran for l in feedback_lines(agent, n, step)[1:])
     lines.append('Weigh each disputed point: concede it, or hold it with review contested, as your skill says; then review them again.'
@@ -348,16 +350,12 @@ def notify_rerun(agent, n, ran):
 def stale_states(agent):
     """{n: {step: why}} for answers an earlier step's newer answer has overtaken."""
     out = {}
-    base = os.path.join('agents', agent)
-    for f in os.listdir(os.path.join(base, 'setup')) if os.path.isdir(os.path.join(base, 'setup')) else []:
-        m = re.fullmatch(r'(\d+)\.status\.json', f)
-        if not m:
-            continue
-        n = m.group(1)
+    base = paths.agent('', agent)
+    for n in paths.numbers(base, 'setup'):
         times = {}
         for step in PREP:
             try:
-                times[step] = os.stat(os.path.join(base, step, n + '.json')).st_mtime
+                times[step] = os.stat(paths.answer(base, n, step)).st_mtime
             except OSError:
                 pass
         for k, step in enumerate(PREP):
@@ -407,7 +405,7 @@ def run_counts(path):
 
 
 def chain_path(agent, n):
-    return os.path.join('agents', agent, 'chain', n + '.json')
+    return paths.chain(paths.agent('', agent), n)
 
 
 def chain_state(agent, n):
@@ -445,7 +443,7 @@ def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=N
         argv += ['--feedback', str(feedback)]
         if source in SOURCES:
             argv += ['--from', source]
-    err, p = spawn_proc(chain_path(agent, n), os.path.join('agents', agent, 'chain', 'runs', n + '.log'), argv, cwd=os.getcwd())
+    err, p = spawn_proc(chain_path(agent, n), paths.chain_log(paths.agent('', agent), n), argv, cwd=os.getcwd())
     if err:
         return None, 'a sequence is already running'
     t0 = time.time()

@@ -1,5 +1,5 @@
 """A throwaway pages dir for the checks: the staging code, a fresh copy of the fixture, the stand-in scripts beside
-copies of the real card.py, blocks.py, cardlog.py, ledger.py and stage.py, and a fake repo. Nothing in it reaches a model,
+copies of the real card.py, blocks.py, cardlog.py, ledger.py, stage.py and paths.py, and a fake repo. Nothing in it reaches a model,
 Studio, the tracker or the real repo."""
 import json, os, shutil, signal, subprocess, sys, time, urllib.request
 
@@ -32,7 +32,7 @@ def make(run):
                         git_repo(wt)
     scripts = os.path.join(run, 'skills', 'sierra', 'scripts')
     shutil.copytree(os.path.join(HERE, 'standins', 'scripts'), scripts)
-    for f in ('card.py', 'blocks.py', 'cardlog.py', 'ledger.py', 'stage.py') + (('stepgit.py',) if RERUNS else ()):
+    for f in ('card.py', 'blocks.py', 'cardlog.py', 'ledger.py', 'stage.py', 'paths.py') + (('stepgit.py',) if RERUNS else ()):
         shutil.copy(os.path.join(TOOLKIT, f), os.path.join(scripts, f))
     shutil.copy(os.path.join(TOOLKIT, 'brief.py'), os.path.join(scripts, 'brief_real.py'))
     os.makedirs(os.path.join(run, 'skills', 'issue-resolution'))

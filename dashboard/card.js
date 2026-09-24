@@ -3,6 +3,15 @@
 // (preact-htm.js, loaded before this file), mounted once per card and fed by one store.
 (function(){
   var cache={};
+  // Where the pages dir keeps each file, as paths.py builds them; every fetch of a card's file goes through here.
+  var Paths={
+    status:function(a,n,step){return 'agents/'+a+'/'+step+'/'+n+'.status.json'},
+    answer:function(a,n,step){return 'agents/'+a+'/'+step+'/'+n+'.json'},
+    file:function(a,n,step,ext){return 'agents/'+a+'/'+step+'/'+n+'.'+ext},
+    runs:function(a,n,step){return 'agents/'+a+'/'+step+'/runs/'+n+'/'},
+    chain:function(a,n){return 'agents/'+a+'/chain/'+n+'.json'},
+    log:function(a,n){return 'agents/'+a+'/log/'+n+'.jsonl'}
+  };
   var P=window.htmPreact, html=P.html, render=P.render, useState=P.useState, useEffect=P.useEffect, useLayoutEffect=P.useLayoutEffect, useRef=P.useRef, useMemo=P.useMemo;
   function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -197,7 +206,7 @@
   function staleOf(S,i,step){return (((S.stale||{})[i.agent]||{})[i.num]||{})[step]||null}
   function RunStrip(p){
     var i=p.i, step=p.step, agent=i.agent, S=useStore(), rr=useState(false), rrRef=useRef(null), stale=staleOf(S,i,step);
-    var r=useStatus('agents/'+agent+'/'+step+'/'+i.num+'.status.json',stepState(S,i,step)), st=r[0];
+    var r=useStatus(Paths.status(agent,i.num,step),stepState(S,i,step)), st=r[0];
     var loc=useState(null), local=loc[0], setLocal=loc[1], res=useState(false);
     useEffect(function(){if(local&&!local.sticky)setLocal(null)},[st]);
     useEffect(function(){var live=true;if(step==='resolve'&&st&&st.state==='failed')getJSON('chat/'+agent+'/'+i.num+'/state').then(function(x){if(live)res[1](!!(x&&x.resumable))});else res[1](false);return function(){live=false}},[st]);
@@ -224,7 +233,7 @@
   // for it.
   function SetupLane(p){
     var i=fresh(p.i), agent=i.agent, S=useStore();
-    var r=useStatus('agents/'+agent+'/setup/'+i.num+'.status.json',stepState(S,i,'setup')), st=r[0], loc=useState(null), local=loc[0];
+    var r=useStatus(Paths.status(agent,i.num,'setup'),stepState(S,i,'setup')), st=r[0], loc=useState(null), local=loc[0];
     useEffect(function(){if(local&&!local.sticky)loc[1](null)},[st]);
     var bb=((cache[agent]||{}).batches||{})[i.batch]||{}, title="Set up this issue's own worktree and Studio workspace; every step runs there"+(i.batch?(bb.base?'\nBranch off '+bb.base+' (batch '+i.batch+')':'\nBatch '+i.batch+' has no base branch yet: set it in the sidebar'):'\nPut the card in a batch first');
     var chip=null, working=!!(st&&st.state==='working');
@@ -245,7 +254,7 @@
     return html`<span class="stps" id=${p.id}>${STEP_ORDER.map(function(k){var o=on.indexOf(k)>=0;return html`<button type="button" class=${'stp'+(o?' on':'')} data-s=${k} aria-pressed=${String(o)} onClick=${function(e){e.preventDefault();v[1](STEP_ORDER.filter(function(x){return x===k?!o:on.indexOf(x)>=0}).join(','))}}>${STEP_SHORT[k]}</button>`})}</span>`}
   function Chain(p){
     var i=p.i, agent=i.agent, S=useStore(), st=((S.chains||{})[agent]||{})[i.num]||null, pop=useState(false), popRef=useRef(null), loc=useState(null), local=loc[0];
-    var fetched=useStatus('agents/'+agent+'/chain/'+i.num+'.json',JSON.stringify(st)+(local?local.k:''))[0];
+    var fetched=useStatus(Paths.chain(agent,i.num),JSON.stringify(st)+(local?local.k:''))[0];
     if(fetched!==undefined&&(!st||(fetched&&fetched.started>=st.started)))st=fetched;
     useEffect(function(){if(local&&!local.sticky&&st&&st.state==='working')loc[1](null)},[st&&st.state,st&&st.at]);
     var working=!!(st&&st.state==='working'), chip=null;
@@ -384,7 +393,7 @@
       useEffect(function(){
         Promise.all([
           fetch('call/'+i.agent+'/'+conv,{cache:'no-store'}).then(function(r){return r.json().then(function(j){return r.ok?j:{error:j.error||('server said '+r.status)}})}).catch(function(){return {error:'server unreachable'}}),
-          getJSON('agents/'+i.agent+'/analysis/'+i.num+'.json')
+          getJSON(Paths.answer(i.agent,i.num,'analysis'))
         ]).then(function(rr){s[1]({d:rr[0],an:rr[1]||{}})});
       },[]);
       useLayoutEffect(function(){if(!s[0]||s[0].d.error)return;var tl=box.current.querySelector('.tl');if(want){tl.scrollTop=want.scroll||0;want=null}else{var b=tl.querySelector('.row.bad');if(b)b.scrollIntoView({block:'center'})}},[s[0]]);
@@ -512,7 +521,7 @@
           return {step:e.step,held:e.note,claim:claim,t:e.t}}}
       return null}
     function Dispute(p){
-      var c=p.c, ans=useStatus('agents/'+p.agent+'/'+c.step+'/'+p.num+'.json',c.t)[0], gap=useState(false), msg=useState(null);
+      var c=p.c, ans=useStatus(Paths.answer(p.agent,p.num,c.step),c.t)[0], gap=useState(false), msg=useState(null);
       var pts=((ans&&ans.feedback)||{}).points||[];
       function rule(side){msg[1]({cls:'working',text:'sending'});
         postJSON('rule/'+p.agent+'/'+p.num,{'for':side,gap:gap[0]}).then(function(r){
@@ -527,11 +536,11 @@
     }
     // What a batch's check sent back to this card: newest first, the evidence behind a fold.
     function Reopened(p){
-      var log=useStatus('agents/'+p.agent+'/resolve/'+p.num+'.reopen.json',p.k)[0]||[];
+      var log=useStatus(Paths.file(p.agent,p.num,'resolve','reopen.json'),p.k)[0]||[];
       if(!log.length)return null;
       return html`<div class="rrw rrn rop"><div class="dsh">${'Reopened by batch '+log[log.length-1].batch}</div>${log.slice().reverse().map(function(e,k){return html`<details open=${k===0}><summary>${'batch '+e.batch+' · '+String(e.t||'').replace('T',' ').replace('Z',' UTC')}</summary><pre>${e.evidence}</pre></details>`})}</div>`}
     function RerunBlock(p){
-      var S=useStore(), v=((S.res||{})[p.agent]||{})[p.num]||{}, entries=useStatus('agents/'+p.agent+'/resolve/'+p.num+'.stage.json',JSON.stringify(v.stage||null))[0];
+      var S=useStore(), v=((S.res||{})[p.agent]||{})[p.num]||{}, entries=useStatus(Paths.file(p.agent,p.num,'resolve','stage.json'),JSON.stringify(v.stage||null))[0];
       var blame=entries===undefined?undefined:blameOf(entries), c=entries===undefined?null:contestOf(entries);
       return html`<${Reopened} agent=${p.agent} num=${p.num} k=${JSON.stringify(v.stage||null)}/>${c?html`<div class="rrw rrn"><${Dispute} agent=${p.agent} num=${p.num} c=${c}/></div>`:null}<details class="rrw" open=${!!blame}><summary>Rerun step${blame&&blame.step?html`<span class="rrt">${' · '+STEP_LABEL[blame.step]+' blamed'}</span>`:null}</summary><${Rerun} agent=${p.agent} num=${p.num} prefill=${blame||null}/></details>`;
     }
@@ -539,9 +548,9 @@
       var agent=p.agent, num=p.num, step=p.step, drv=step==='driver', chat=step==='resolve'||drv, box=useRef(null), tlRef=useRef(null), ta=useRef(null);
       var s=useState({}), info=s[0], n=useState(0), bump=n[1], stick=useRef(true), feed=useRef(null);
       // what the files say, read again every 2 s while the run works
-      useEffect(function(){var live=true,timer=null,base='agents/'+agent+'/'+step+'/',runs=base+'runs/'+num+'/';
+      useEffect(function(){var live=true,timer=null,runs=Paths.runs(agent,num,step);
         function text(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.text():null}).catch(function(){return null})}
-        function tick(){Promise.all([getJSON(base+num+'.status.json'),chat?null:text(runs+'out.jsonl'),text(runs+'err.log'),chat?null:text(base+num+'.json')]).then(function(r){
+        function tick(){Promise.all([getJSON(Paths.status(agent,num,step)),chat?null:text(runs+'out.jsonl'),text(runs+'err.log'),chat?null:text(Paths.answer(agent,num,step))]).then(function(r){
           if(!live)return; var tl=tlRef.current; if(tl)stick.current=tl.scrollTop+tl.clientHeight>=tl.scrollHeight-8;
           s[1]({st:r[0],rows:chat?null:timelineRows((r[1]||'').split('\n')),last:chat?0:(r[1]||'').split('\n').reduce(function(m,l){var x=/"t": ?"([^"]+)"/.exec(l);return x?Math.max(m,Date.parse(x[1])):m},0),err:r[2]||'',ans:r[3],ready:!chat});
           if(r[0]&&r[0].state==='working')timer=setTimeout(tick,2000)})}
@@ -563,7 +572,7 @@
       var tail=(info.err||'').split('\n').filter(Boolean).slice(-12).join('\n'), ans=info.ans&&st&&st.state==='done'?info.ans:null;
       var sent=!!(st&&st.asked), note=useState(null), prm=useState(null), pk=(st&&st.started||'')+'|'+(st&&st.asked||'');
       // What the model got first: the system prompt and the opening message; for the resolution, the instructions sent later too.
-      useEffect(function(){if(st===undefined)return;var live=true,runs='agents/'+agent+'/'+step+'/runs/'+num+'/';
+      useEffect(function(){if(st===undefined)return;var live=true,runs=Paths.runs(agent,num,step);
         function text(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.text():null}).catch(function(){return null})}
         Promise.all([text(runs+'system.md'),text(runs+(chat?'brief.md':'prompt.md')),chat&&st&&st.asked?text(runs+'ask.md'):null]).then(function(r){if(!live)return;var sys=r[0],msg=r[1],ask=r[2];
           function part(label,tx){return '<div class="pl">'+esc(label)+(tx==null?' · not recorded':' · '+fmtK(tx.length)+' chars')+'</div>'+(tx==null?'':'<pre>'+esc(tx)+'</pre>')}
@@ -604,7 +613,7 @@
     function Panel(p){
       var agent=p.agent, num=p.num, s=useState(null), box=useRef(null);
       useEffect(function(){var live=true,timer=null,last=null;
-        function tick(){fetch('agents/'+agent+'/log/'+num+'.jsonl',{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).catch(function(){return null}).then(function(t){
+        function tick(){fetch(Paths.log(agent,num),{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).catch(function(){return null}).then(function(t){
           if(!live)return; if(t!==null&&t!==last){last=t;s[1](t.split('\n').filter(Boolean).map(function(l){try{return JSON.parse(l)}catch(e){return null}}).filter(Boolean))}
           timer=setTimeout(tick,3000)})}
         tick(); return function(){live=false;clearTimeout(timer)}},[]);
@@ -627,7 +636,7 @@
   function BatchView(p){
     var agent=p.agent, batch=p.batch, d=useState(null), n=useState(0), note=useState(null);
     useEffect(function(){var live=true,t=null;function tick(){getJSON('driver/'+agent+'/'+batch+'/check').then(function(x){if(!live)return;d[1](x);t=setTimeout(tick,3000)})}tick();return function(){live=false;if(t)clearTimeout(t)}},[agent,batch]);
-    var st=useStatus('agents/'+agent+'/driver/'+batch+'.status.json',n[0])[0], x=d[0];
+    var st=useStatus(Paths.status(agent,batch,'driver'),n[0])[0], x=d[0];
     if(!x)return html`<div class="bv"><div class="ev sys">loading</div></div>`;
     var last={};(x.stage||[]).forEach(function(e){last[e.stage]=e});
     var cur=(x.stage||[]).slice(-1)[0], working=!!(st&&st.state==='working');

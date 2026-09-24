@@ -18,6 +18,7 @@ import fcntl, json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import cardlog, stepgit
+import paths
 from mainsync import merge_main, pull_and_sort, push_and_check, run
 from setup import AGENT_DIR
 
@@ -41,7 +42,7 @@ def merge(argv, args):
         print(__doc__); return 64, None
     agent, batch, branch = args
     pages = opts.get("--pages") or os.path.expanduser("~/.claude/bbva-issues")
-    entry = json.load(open(os.path.join(pages, "agents", agent, "batches.json"))).get(batch) or {}
+    entry = json.load(open(paths.batches(paths.agent(pages, agent)))).get(batch) or {}
     wt = entry.get("worktree")
     if not wt or not os.path.isdir(wt):
         print(f"batch {batch} has no worktree"); return 1, None
@@ -49,7 +50,7 @@ def merge(argv, args):
     agent_dir, composer_rel = os.path.join(wt, agent_rel), agent_rel + "/.composer"
     sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
 
-    lock_path = os.path.join(pages, "agents", agent, "batches", batch + ".merge.lock")
+    lock_path = paths.batch_file(paths.agent(pages, agent), batch, "merge.lock")
     os.makedirs(os.path.dirname(lock_path), exist_ok=True)
     lock = open(lock_path, "w")
     t0 = time.time()

@@ -34,6 +34,7 @@ import os
 import re
 import subprocess
 import sys
+import paths
 
 TOOL_ICON = {"user": "ti-user", "assistant": "ti-robot"}
 
@@ -322,7 +323,7 @@ def tags_row(details, analysis):
 
 def render_ia(agent, n, analysis, pages):
     base = os.path.join(pages, "agents", agent)
-    issue = load_json(os.path.join(base, "issues", f"{n}.json"))
+    issue = load_json(paths.issue(base, n))
     fid = analysis["failure"]["logEntryId"]
     examples = [(l["id"], x) for l in issue.get("linkedLogs", []) for x in l.get("examples", [])]
     conv_id = next((l["id"] for l in issue.get("linkedLogs", []) if any(x.get("logEntryId") == fid for x in l.get("examples", []))), None)
@@ -330,7 +331,7 @@ def render_ia(agent, n, analysis, pages):
     candidates = ([conv_id] if conv_id else []) + [l["id"] for l in issue.get("linkedLogs", []) if l["id"] != conv_id]
     details = turns = ft = fm = None
     for cid in candidates:
-        p = os.path.join(base, "conversations", cid, "details.json")
+        p = os.path.join(paths.conversation(base, cid), "details.json")
         if not os.path.exists(p):
             continue
         d = load_json(p)
@@ -341,7 +342,7 @@ def render_ia(agent, n, analysis, pages):
             break
     if not ft:
         fail(f"failure turn {fid} not found in any cached call of {agent} {n}")
-    conv_dir = os.path.join(base, "conversations", conv_id)
+    conv_dir = paths.conversation(base, conv_id)
     tools = tool_calls(conv_dir, turns)
     cuts = unspoken(conv_dir, turns)
     flat = [m for t in turns for m in t["msgs"]]
@@ -600,7 +601,7 @@ def render_ss(agent, n, strategy, pages, repo):
         out.append('    </div>\n  </details>\n  </div>\n</details>')
     reg = strategy.get("regressions") or {}
     if reg.get("sims"):  # the simulations the change could break, with their baseline counts when the run file is there
-        base_path = os.path.join(pages, "agents", agent, "strategy", "runs", str(n), "regressions.json")
+        base_path = os.path.join(paths.runs(paths.agent(pages, agent), n, "strategy"), "regressions.json")
         base_file = load_json(base_path) if os.path.exists(base_path) else {}
         counts = {t.get("name"): t for t in base_file.get("tests") or []}
         rows, green, known_n = [], 0, 0
@@ -989,7 +990,7 @@ def write_out(out, pages, agent, n, pieces):
     if out == "-":
         sys.stdout.write("".join(sec for _, sec in pieces))
         return
-    card = out or os.path.join(pages, "agents", agent, "cards", f"{n}.html")
+    card = out or paths.card(paths.agent(pages, agent), n)
     os.makedirs(os.path.dirname(card), exist_ok=True)
     text = open(card, encoding="utf-8").read() if os.path.exists(card) else ""
     for cls, sec in pieces:
@@ -1002,7 +1003,7 @@ def write_out(out, pages, agent, n, pieces):
 def pre_edit(repo, base, n):
     """The commit the context step started from, the tree before its edit, when the repository still has it."""
     try:
-        at = json.load(open(os.path.join(base, "context", f"{n}.status.json"), encoding="utf-8")).get("commit")
+        at = json.load(open(paths.status(base, n, "context"), encoding="utf-8")).get("commit")
     except (OSError, ValueError):
         return None
     ok = at and subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{at}^{{commit}}"], capture_output=True).returncode == 0
@@ -1018,25 +1019,25 @@ def main(argv):
     repo = opts.get("--repo") or os.getcwd()
     base = os.path.join(pages, "agents", agent)
     if view == "ia":
-        analysis = load_json(opts.get("--analysis") or os.path.join(base, "analysis", f"{n}.json"))
+        analysis = load_json(opts.get("--analysis") or paths.answer(base, n, "analysis"))
         pieces = [("ia", render_ia(agent, n, analysis, pages))]
         entries = context_of_analysis(analysis)
         # the analysis's two items stand in for the Studio Context until the context step writes the fuller one
-        if not os.path.exists(os.path.join(base, "context", f"{n}.json")):
+        if not os.path.exists(paths.answer(base, n, "context")):
             context = render_oc(agent, n, {"context": entries}, pages, repo)[0] if entries else ""
             pieces.append(("oc ctx", context))  # empty: a stale section from an earlier answer goes
     elif view == "ss":
-        strategy = load_json(opts.get("--strategy") or os.path.join(base, "strategy", f"{n}.json"))
+        strategy = load_json(opts.get("--strategy") or paths.answer(base, n, "strategy"))
         pieces = [("ss", render_ss(agent, n, strategy, pages, repo))]
     elif view == "rs":
-        path = opts.get("--report") or os.path.join(base, "resolve", f"{n}.md")
+        path = opts.get("--report") or paths.step_file(base, n, "resolve", "md")
         if not os.path.exists(path):
             fail(f"missing {path}")
         pieces = [("rs", render_rs(open(path, encoding="utf-8").read()))]
     else:
-        ctx = load_json(opts.get("--context") or os.path.join(base, "context", f"{n}.json"))
+        ctx = load_json(opts.get("--context") or paths.answer(base, n, "context"))
         # the Studio Context is the analysis's two items, plus what the context-edit answer adds in `also` and `tool`
-        analysis_path = os.path.join(base, "analysis", f"{n}.json")
+        analysis_path = paths.answer(base, n, "analysis")
         entries = context_of_analysis(load_json(analysis_path)) if os.path.exists(analysis_path) else []
         entries += [{"file": a["file"], "pointer": a["pointer"], "role": a.get("role") or "A",
                      "spans": [a["span"]] if a.get("span") else []} for a in ctx.get("also") or [] if a.get("file") and a.get("pointer")]

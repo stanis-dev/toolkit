@@ -10,11 +10,14 @@ reports it. backfill takes the last run of each step from its status file and th
 older than those left no record."""
 import fcntl, json, os, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths
+
 KEYS = ("in", "cached", "out", "reasoning", "commands", "cost")
 
 
 def path_of(pages, agent, n):
-    return os.path.join(pages, "agents", agent, "cost", f"{n}.json")
+    return paths.cost(paths.agent(pages, agent), n)
 
 
 def load(pages, agent, n):
@@ -55,18 +58,15 @@ def backfill(pages):
     from run import usage_of
     root = os.path.join(pages, "agents")
     for agent in sorted(os.listdir(root)):
+        base = paths.agent(pages, agent)
         for step in ("analysis", "strategy", "context", "resolve"):
-            d = os.path.join(root, agent, step)
-            for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
-                if not f.endswith(".status.json"):
-                    continue
-                n = f.split(".")[0]
-                st = json.load(open(os.path.join(d, f), encoding="utf-8"))
+            for n in paths.numbers(base, step):
+                st = json.load(open(paths.status(base, n, step), encoding="utf-8"))
                 if st.get("state") == "working":
                     continue
                 seen = {(e["step"], e["t"]) for e in load(pages, agent, n)}
                 if step == "resolve":  # earlier sessions' logs are the server's own, recorded when they ended
-                    lf = os.path.join(d, "runs", n, "out.jsonl")
+                    lf = os.path.join(paths.runs(base, n, step), "out.jsonl")
                     u = usage_of(lf)
                     t = st.get("ended") or st.get("started")
                     if u.get("cost") and not any(x[:2] == (step, t) for x in seen):

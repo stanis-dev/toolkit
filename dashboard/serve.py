@@ -78,7 +78,7 @@ import steps
 from steps import (ORDER, STEPS, SCRIPTS, REPO, alive, now, write_json, load_json, settle, card_batch, batches_path, load_batches,
                    batch_base, repo_of, spawn_proc, start_step, status_path)
 sys.path.insert(0, SCRIPTS)
-import cardlog, ledger
+import cardlog, ledger, paths
 
 A = '(openpay|cobranzas|hipotecarios)'
 GOLDEN = re.compile(r'^/(golden|drafts)/' + A + r'/(\d+)\.json$')
@@ -105,7 +105,7 @@ def batch_check(agent, batch):
     """The batch card's data: the driver's stage history, each check run file under batches/<batch>/check/ with its
     per-simulation counts, newest last, the batch's cards with their guard counts and reopenings, and the driver's main
     workspace (mainws.py's status)."""
-    d = os.path.join('agents', agent, 'batches', batch, 'check')
+    d = os.path.join(paths.batch_dir(paths.agent('', agent), batch), 'check')
     runs = []
     for f in sorted(os.listdir(d), key=lambda f: os.path.getmtime(os.path.join(d, f))) if os.path.isdir(d) else []:
         j = load_json(os.path.join(d, f), None) if f.endswith('.json') else None
@@ -113,60 +113,50 @@ def batch_check(agent, batch):
             runs.append({'file': f, 'run': j.get('simulationRunId'), 't': datetime.fromtimestamp(os.path.getmtime(os.path.join(d, f)), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                          'sims': [{'name': x.get('name'), 'passed': x.get('passed') or 0, 'total': x.get('total') or 0} for x in j['tests']]})
     cards = []
-    for f in sorted(os.listdir(os.path.join('agents', agent, 'cards'))) if os.path.isdir(os.path.join('agents', agent, 'cards')) else []:
-        n = f[:-5] if f.endswith('.html') else None
-        if not n or not n.isdigit() or steps.card_batch(agent, n) != batch:
+    for n in paths.cards(paths.agent('', agent)):
+        if steps.card_batch(agent, n) != batch:
             continue
-        red = (load_json(os.path.join('agents', agent, 'strategy', n + '.json'), {}).get('guard') or {}).get('red') or {}
-        stage = load_json(os.path.join('agents', agent, 'resolve', n + '.stage.json'), [])
+        red = (load_json(paths.answer(paths.agent('', agent), n, 'strategy'), {}).get('guard') or {}).get('red') or {}
+        stage = load_json(paths.step_file(paths.agent('', agent), n, 'resolve', 'stage.json'), [])
         cards.append({'n': n, 'stage': stage[-1] if stage else None, 'repro': [red.get('passed'), red.get('total')] if red.get('total') else None,
-                      'reopened': load_json(os.path.join('agents', agent, 'resolve', n + '.reopen.json'), [])})
-    return {'stage': load_json(os.path.join('agents', agent, 'driver', batch + '.stage.json'), []), 'runs': runs, 'cards': cards,
-            'entry': load_batches(agent).get(batch) or {}, 'main': load_json(os.path.join('agents', agent, 'driver', batch + '.main.json'), None)}
+                      'reopened': load_json(paths.step_file(paths.agent('', agent), n, 'resolve', 'reopen.json'), [])})
+    return {'stage': load_json(paths.step_file(paths.agent('', agent), batch, 'driver', 'stage.json'), []), 'runs': runs, 'cards': cards,
+            'entry': load_batches(agent).get(batch) or {}, 'main': load_json(paths.step_file(paths.agent('', agent), batch, 'driver', 'main.json'), None)}
 
 
 def step_states(agent):
     """{n: {step: state}} for setup and the four steps, from status files and answers."""
-    out = {}
+    out, base = {}, paths.agent('', agent)
     for step in ('setup',) + STEPS:
-        d = os.path.join('agents', agent, step)
-        if not os.path.isdir(d):
-            continue
-        for f in os.listdir(d):
-            m = re.fullmatch(r'(\d+)\.(status\.json|json|md)', f)
-            if not m:
-                continue
-            n, kind = m.groups()
-            if kind == 'status.json':
-                st = settle(os.path.join(d, f))
-                state, err = st.get('state') or '', st.get('error') or ''
-                if state == 'failed' and (err.startswith('stopped') or (step == 'resolve' and err == 'process gone')):
-                    state = 'stopped'
-                if state:
-                    out.setdefault(n, {})[step] = state
-            elif step != 'setup':
+        for n in paths.numbers(base, step):
+            st = settle(paths.status(base, n, step))
+            state, err = st.get('state') or '', st.get('error') or ''
+            if state == 'failed' and (err.startswith('stopped') or (step == 'resolve' and err == 'process gone')):
+                state = 'stopped'
+            if state:
+                out.setdefault(n, {})[step] = state
+        if step != 'setup':
+            for n in set(paths.numbers(base, step, 'json')) | set(paths.numbers(base, step, 'md')):
                 out.setdefault(n, {}).setdefault(step, 'done')
     return out
 
 
 def files_sig(agent):
     """One hash over the names, sizes and mtimes of the agent's issue and card files: the page's change signal."""
-    h = hashlib.md5()
-    for d in ('issues', 'cards'):
-        p = os.path.join('agents', agent, d)
-        for f in sorted(os.listdir(p)) if os.path.isdir(p) else []:
-            try:
-                st = os.stat(os.path.join(p, f))
-            except OSError:
-                continue
-            h.update(f'{d}/{f}:{st.st_size}:{st.st_mtime_ns}\n'.encode())
+    h, base = hashlib.md5(), paths.agent('', agent)
+    for p in [paths.issue(base, n) for n in paths.issues(base)] + [paths.card(base, n) for n in paths.cards(base)]:
+        try:
+            st = os.stat(p)
+        except OSError:
+            continue
+        h.update(f'{paths.rel(base, p)}:{st.st_size}:{st.st_mtime_ns}\n'.encode())
     return h.hexdigest()
 
 
 def batch_states(agent):
     """{MMDD: status} for every batch with a batch.py status file."""
-    d = os.path.join('agents', agent, 'batches')
-    return {f[:-12]: settle(os.path.join(d, f)) for f in sorted(os.listdir(d)) if f.endswith('.status.json')} if os.path.isdir(d) else {}
+    base = paths.agent('', agent)
+    return {b: settle(paths.batch_file(base, b, 'status.json')) for b in paths.batch_ids(base)}
 
 
 def branches():
@@ -184,12 +174,11 @@ def branches():
 
 def live_sessions(agent):
     """{n: status} of the resolution sessions whose host runs."""
-    d, out = os.path.join('agents', agent, 'resolve'), {}
-    for f in os.listdir(d) if os.path.isdir(d) else []:
-        if f.endswith('.status.json'):
-            st = settle(os.path.join(d, f))
-            if st.get('state') == 'working':
-                out[f.split('.')[0]] = st
+    out, base = {}, paths.agent('', agent)
+    for n in paths.numbers(base, 'resolve'):
+        st = settle(paths.status(base, n, 'resolve'))
+        if st.get('state') == 'working':
+            out[n] = st
     return out
 
 
@@ -197,11 +186,10 @@ def resolve_view(agent, live):
     """{n: {stage, bar, turn, live, rates, ended}} for the sidebar: the latest stage.py entry, the latest state per stage,
     whose turn it is while a session runs, when an in-flight sim run started, the last three runs per stage, and when
     each prep step last finished."""
-    d, out = os.path.join('agents', agent, 'resolve'), {}
-    names = sorted(os.listdir(d)) if os.path.isdir(d) else []
-    for n in {f.split('.')[0] for f in names if f.endswith('.stage.json') or f.endswith('.runs.json')}:
-        stages = load_json(os.path.join(d, n + '.stage.json'), [])
-        runs = load_json(os.path.join(d, n + '.runs.json'), [])
+    out, base = {}, paths.agent('', agent)
+    for n in set(paths.numbers(base, 'resolve', 'stage.json')) | set(paths.numbers(base, 'resolve', 'runs.json')):
+        stages = load_json(paths.step_file(base, n, 'resolve', 'stage.json'), [])
+        runs = load_json(paths.step_file(base, n, 'resolve', 'runs.json'), [])
         v = out.setdefault(n, {})
         v['stage'] = stages[-1] if stages else None
         v['bar'] = {e['stage']: e['state'] for e in stages}
@@ -211,7 +199,7 @@ def resolve_view(agent, live):
         v['rates'] = {k: x[-3:] for k, x in rates.items()}
         v['ended'] = {}
         for step in ('analysis', 'strategy', 'context'):
-            st = load_json(os.path.join('agents', agent, step, n + '.status.json'), {})
+            st = load_json(paths.status(paths.agent('', agent), n, step), {})
             if st.get('state') == 'done' and st.get('ended'):
                 v['ended'][step] = st['ended']
     for n, st in live.items():
@@ -223,10 +211,9 @@ def resolve_view(agent, live):
 
 def cost_states(agent, live):
     """{n: {cost, runs, steps}} per ticket from its ledger, a live resolution session's spend so far included."""
-    d, out = os.path.join('agents', agent, 'cost'), {}
-    for f in os.listdir(d) if os.path.isdir(d) else []:
-        if f.endswith('.json'):
-            out[f[:-5]] = ledger.total(ledger.load(os.getcwd(), agent, f[:-5]))
+    out = {}
+    for n in paths.numbers(paths.agent('', agent), 'cost', 'json'):
+        out[n] = ledger.total(ledger.load(os.getcwd(), agent, n))
     for n, st in live.items():
         spent = (st.get('usage') or {}).get('cost') or 0
         if spent:
@@ -238,8 +225,7 @@ def cost_states(agent, live):
 
 def chain_states(agent):
     """{n: chain state} from agents/<agent>/chain/; a working one whose chain.py is gone reads failed."""
-    d = os.path.join('agents', agent, 'chain')
-    return {f[:-5]: steps.chain_state(agent, f[:-5]) for f in os.listdir(d) if f.endswith('.json')} if os.path.isdir(d) else {}
+    return {n: steps.chain_state(agent, n) for n in paths.numbers(paths.agent('', agent), 'chain', 'json')}
 
 
 def steps_view(agent):
@@ -368,7 +354,7 @@ class H(SimpleHTTPRequestHandler):
         if cl:
             agent, conv = cl.groups()
             import card
-            d = os.path.join(os.getcwd(), 'agents', agent, 'conversations', conv)
+            d = paths.conversation(paths.agent(os.getcwd(), agent), conv)
             if not os.path.exists(os.path.join(d, 'details.json')):
                 self.reply(404, {'error': 'call ' + conv + ' is not in the cache'}); return
             try:
@@ -394,7 +380,7 @@ class H(SimpleHTTPRequestHandler):
     def events(self, agent, n, kind='resolve'):
         """out.jsonl as server-sent events from the offset the browser last saw, then followed until the session's exit
         event, or until a new session replaces the file."""
-        log_path = os.path.join('agents', agent, kind, 'runs', n, 'out.jsonl')
+        log_path = os.path.join(paths.runs(paths.agent('', agent), n, kind), 'out.jsonl')
         status = status_path(agent, n, kind)
         try:
             pos = int(self.headers.get('Last-Event-ID') or 0)
@@ -483,7 +469,7 @@ class H(SimpleHTTPRequestHandler):
             self.send_error(409, err); return
         self.reply(202)
     def batch_run(self, agent, batch, args):
-        self.spawn(os.path.join('agents', agent, 'batches', batch + '.status.json'), os.path.join('agents', agent, 'batches', 'runs', batch, 'run.log'),
+        self.spawn(paths.batch_file(paths.agent('', agent), batch, 'status.json'), os.path.join(paths.batch_runs(paths.agent('', agent), batch), 'run.log'),
                    [os.path.join(SCRIPTS, 'batch.py')] + args + ['--pages', os.getcwd(), '--repo', REPO])
     def post(self):
         c = CHAT.match(self.path)
@@ -551,7 +537,7 @@ class H(SimpleHTTPRequestHandler):
             batch = str(body.get('batch') or '')
             if batch and not re.fullmatch(r'\d{4}(?:-\d)?', batch):
                 self.send_error(400, 'batch is MMDD'); return
-            path = os.path.join('agents', agent, 'cards', n + '.html')
+            path = paths.card(paths.agent('', agent), n)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             text = re.sub(r'\A(\s*<!--\s*batch:[^>]*-->\s*\n?)', '', open(path, encoding='utf-8').read() if os.path.exists(path) else '')
             if batch:
@@ -563,12 +549,12 @@ class H(SimpleHTTPRequestHandler):
         rs = RESET.match(self.path)
         if rs:
             agent, n = rs.groups()
-            base = os.path.join('agents', agent)
+            base = paths.agent('', agent)
             for step in STEPS[:-1]:
-                st = load_json(os.path.join(base, step, n + '.status.json'), {})
+                st = load_json(paths.status(base, n, step), {})
                 if st.get('state') == 'working' and alive(int(st.get('pid') or 0)):
                     self.reply(409, {'error': step + ' is running: stop it first'}); return
-            if settle(os.path.join(base, 'chain', n + '.json')).get('state') == 'working':
+            if settle(paths.chain(base, n)).get('state') == 'working':
                 self.reply(409, {'error': 'a sequence is running: stop it first'}); return
             host = settle(status_path(agent, n, 'resolve'))
             if host.get('state') == 'working':
@@ -585,40 +571,40 @@ class H(SimpleHTTPRequestHandler):
             if left:
                 sg.git(wt, 'stash', 'push', '-m', 'reset ' + n + ' ' + stamp, '--', *left)
                 archived.append('uncommitted changes to git stash: ' + ', '.join(left))
-            card = os.path.join(base, 'cards', n + '.html')
+            card = paths.card(base, n)
             if os.path.exists(card):
                 text = open(card, encoding='utf-8').read()
-                hist = os.path.join(base, 'analysis', 'history'); os.makedirs(hist, exist_ok=True)
-                shutil.copy(card, os.path.join(hist, n + '.' + stamp + '.card.html')); archived.append('card')
-                kept.append(os.path.join('analysis', 'history', n + '.' + stamp + '.card.html'))
+                h = paths.history(base, n, 'analysis', stamp, 'card.html'); os.makedirs(os.path.dirname(h), exist_ok=True)
+                shutil.copy(card, h); archived.append('card')
+                kept.append(paths.rel(base, h))
                 head = re.match(r'(?:\s*<!--.*?-->\n?)*', text, re.S).group(0)
                 with open(card + '.tmp', 'w', encoding='utf-8') as f:
                     f.write(head)
                 os.replace(card + '.tmp', card)
             for step in STEPS:
                 for ext in ('json', 'md'):
-                    p = os.path.join(base, step, n + '.' + ext)
+                    p = paths.step_file(base, n, step, ext)
                     if os.path.exists(p):
-                        hist = os.path.join(base, step, 'history'); os.makedirs(hist, exist_ok=True)
                         when = datetime.fromtimestamp(os.path.getmtime(p), timezone.utc).strftime('%Y-%m-%dT%H%M%SZ')
-                        shutil.move(p, os.path.join(hist, n + '.' + when + '.' + ext)); archived.append(step)
-                        kept.append(os.path.join(step, 'history', n + '.' + when + '.' + ext))
-                p = os.path.join(base, step, n + '.status.json')
+                        h = paths.history(base, n, step, when, ext); os.makedirs(os.path.dirname(h), exist_ok=True)
+                        shutil.move(p, h); archived.append(step)
+                        kept.append(paths.rel(base, h))
+                p = paths.status(base, n, step)
                 if os.path.exists(p):
                     os.remove(p)
             for ext in ('stage.json', 'runs.json'):
-                p = os.path.join(base, 'resolve', n + '.' + ext)
+                p = paths.step_file(base, n, 'resolve', ext)
                 if os.path.exists(p):
-                    hist = os.path.join(base, 'resolve', 'history'); os.makedirs(hist, exist_ok=True)
-                    shutil.move(p, os.path.join(hist, n + '.' + stamp + '.' + ext)); archived.append('resolve ' + ext.split('.')[0])
-                    kept.append(os.path.join('resolve', 'history', n + '.' + stamp + '.' + ext))
+                    h = paths.history(base, n, 'resolve', stamp, ext); os.makedirs(os.path.dirname(h), exist_ok=True)
+                    shutil.move(p, h); archived.append('resolve ' + ext.split('.')[0])
+                    kept.append(paths.rel(base, h))
             cardlog.add(os.getcwd(), agent, n, 'engineer', 'reset the card: ' + (', '.join(archived) or 'nothing to archive')
                         + '; answers so far are history', kept)
             self.reply(200, {'archived': archived}); return
         k = KILL.match(self.path)
         if k:
             agent, n, step = k.groups()
-            st = load_json(os.path.join('agents', agent, step, n + '.status.json'), {})
+            st = load_json(paths.status(paths.agent('', agent), n, step), {})
             pid = int(st.get('pid') or 0)
             if st.get('state') != 'working' or not alive(pid):
                 self.send_error(409, 'nothing running'); return

@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
+import paths
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.environ.get("SIERRA_PLUGIN") or os.path.abspath(os.path.join(HERE, "..", "..", ".."))
@@ -144,9 +145,9 @@ def span_errors(step, answer, agent, repo, base, n):
         b = ctx.get("won") or {}
         item("$.context.won.span", b.get("file"), b.get("pointer"), b.get("span"))
         f = answer.get("failure") or {}
-        iss = brief.load(os.path.join(base, "issues", f"{n}.json"))
+        iss = brief.load(paths.issue(base, n))
         for cid in brief.call_of_analysis(base, iss, answer):
-            conv_dir = os.path.join(base, "conversations", cid)
+            conv_dir = paths.conversation(base, cid)
             details = brief.load(os.path.join(conv_dir, "details.json"))
             turns = card.turns_of(details)
             turn, msg = card.locate(turns, f.get("logEntryId"))
@@ -340,12 +341,11 @@ def main(argv):
     meta = fm.get("metadata") or {}
     model = opts.get("--model") or meta.get("model") or "gpt-5.6-terra"
     effort = opts.get("--effort") or meta.get("reasoning-effort") or "high"
-    base = os.path.join(pages, "agents", agent)
-    out_dir = os.path.join(base, step)
-    runs = os.path.join(out_dir, "runs", n)
-    status_path = os.path.join(out_dir, f"{n}.status.json")
-    answer_path = os.path.join(out_dir, f"{n}.json")
-    card_path = os.path.join(base, "cards", f"{n}.html")
+    base = paths.agent(pages, agent)
+    runs = paths.runs(base, n, step)
+    status_path = paths.status(base, n, step)
+    answer_path = paths.answer(base, n, step)
+    card_path = paths.card(base, n)
     schema_path = os.path.join(PLUGIN, "skills", s["skill"], "schema.json")
     os.makedirs(runs, exist_ok=True)
     started = now()
@@ -545,13 +545,12 @@ def main(argv):
             if answer is None:
                 fail("answer does not match schema.json: " + "; ".join(errors[:6]))
         # keep the previous answer and the previous card
-        hist = os.path.join(out_dir, "history")
-        os.makedirs(hist, exist_ok=True)
+        os.makedirs(os.path.dirname(paths.history(base, n, step, "", "json")), exist_ok=True)
         if os.path.exists(answer_path):
             stamp = datetime.fromtimestamp(os.path.getmtime(answer_path), timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-            shutil.move(answer_path, os.path.join(hist, f"{n}.{stamp}.json"))
+            shutil.move(answer_path, paths.history(base, n, step, stamp, "json"))
         if os.path.exists(card_path):
-            shutil.copy(card_path, os.path.join(hist, f"{n}.{started.replace(':', '')}.card.html"))
+            shutil.copy(card_path, paths.history(base, n, step, started.replace(':', ''), "card.html"))
         write_json(answer_path, answer)
         render = subprocess.run([sys.executable, os.path.join(HERE, "card.py"), s["view"], agent, n, "--pages", pages, "--repo", repo],
                                 capture_output=True, text=True)

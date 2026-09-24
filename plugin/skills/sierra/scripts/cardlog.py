@@ -11,6 +11,9 @@ import fcntl, json, os, sys
 from collections import Counter
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths
+
 WIDTH = 220
 KEEP = 30
 STEPS = ("analysis", "strategy", "context")
@@ -21,7 +24,7 @@ def pages_dir(override=None):
 
 
 def path_of(pages, agent, n):
-    return os.path.join(pages, "agents", agent, "log", f"{n}.jsonl")
+    return paths.log(paths.agent(pages, agent), n)
 
 
 def line(what):
@@ -58,7 +61,7 @@ def load(pages, agent, n):
 
 def rel(pages, agent, path):
     """path as an event keeps it: under agents/<agent>/ relative, else absolute."""
-    base = os.path.join(pages, "agents", agent) + os.sep
+    base = os.path.abspath(paths.agent(pages, agent)) + os.sep
     path = os.path.abspath(path)
     return path[len(base):] if path.startswith(base) else path
 
@@ -118,16 +121,14 @@ def index(pages, agent, n, keep=KEEP):
 
 def card_of(pages, agent, **match):
     """The issue number whose setup status has every field in match (worktree, branch), else None."""
-    d = os.path.join(pages, "agents", agent, "setup")
-    for f in os.listdir(d) if os.path.isdir(d) else []:
-        if not f.endswith(".status.json"):
-            continue
+    base = paths.agent(pages, agent)
+    for n in paths.numbers(base, "setup"):
         try:
-            st = json.load(open(os.path.join(d, f), encoding="utf-8"))
+            st = json.load(open(paths.status(base, n, "setup"), encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if all(st.get(k) and os.path.normpath(str(st[k])) == os.path.normpath(str(v)) for k, v in match.items()):
-            return f.split(".")[0]
+            return n
     return None
 
 
