@@ -511,7 +511,7 @@ def main(argv):
     if step != "analysis":
         fail(f"unknown step {step}")
     parts = []
-    parts.append(f"# Studio content · {agent} · outline, as HEAD has it\n\n" + tree(repo, agent, "HEAD"))
+    parts.append(f"# Studio content · {agent} · outline\n\n" + tree(repo, agent))
     sop = sop_text(base)
     if sop:
         parts.append(f"# SOP · {agent}\n\n" + sop)
