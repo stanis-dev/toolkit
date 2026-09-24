@@ -105,7 +105,7 @@ class Batch(setup.Setup):
                 with open(path + ".tmp", "w", encoding="utf-8") as out:
                     out.write(new)
                 os.replace(path + ".tmp", path)
-                log("moved", f)
+                log("moved", n)
         self.save(None)
 
     def run(self):
