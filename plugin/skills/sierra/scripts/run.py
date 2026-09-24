@@ -24,12 +24,15 @@ A SIGTERM from the page's stop button ends pi and everything it started, and mar
 
 The repo is the issue's worktree. Git is left alone: the card's work stays uncommitted there until the resolution
 commits it at merge, so HEAD is the branch before the card's work and the tree is the work so far. A context step
-needs the worktree's Ghostwriter bound to the issue workspace, since it pushes there. pi's session is kept in runs/<n>/session/; a fresh run moves the previous one aside to
+needs the worktree's Ghostwriter bound to the issue workspace, since it pushes there. A context run on the same
+analysis answer as the previous one first takes back that one's item and gate edits and pushes them; after a new
+analysis, those edits are the tree's and stay. pi's session is kept in runs/<n>/session/; a fresh run moves the previous one aside to
 session.<stamp>/. --feedback continues that session (-c) with one message, the feedback;
 without a session it runs fresh with the feedback under a heading at the end of the prompt. feedback.md keeps the text.
 --from says whose it is, engineer by default: a claim the step weighs (the answer's `feedback` field, required non-null
 then), or a ruling, which it applies (every point accepted).
 """
+import hashlib
 import json
 import os
 import re
@@ -401,9 +404,19 @@ def main(argv):
     os.makedirs(runs, exist_ok=True)
     started = now()
     t0 = time.time()
+    def analysis_hash():  # which analysis answer a context answer was written from
+        try:
+            return hashlib.sha1(open(paths.answer(base, n, "analysis"), "rb").read()).hexdigest()[:12]
+        except OSError:
+            return None
+    try:
+        before = json.load(open(status_path, encoding="utf-8"))
+    except (OSError, ValueError):
+        before = {}
     status = {"step": step, "state": "working", "started": started, "ended": None, "seconds": None, "commit": None,
               "model": model, "effort": effort, "pid": os.getpid(), "thread": None, "usage": None, "live": None, "error": None,
-              "feedback": bool(feedback), "continued": False, "history": with_history}
+              "feedback": bool(feedback), "continued": False, "history": with_history,
+              "analysis": analysis_hash() if step == "context" else None}
     write_json(status_path, status)
     lock = threading.Lock()
     stopped = []
@@ -457,7 +470,8 @@ def main(argv):
                 stepgit.binding(pages, agent, n, agent_dir)
             except stepgit.Refused as ex:
                 fail(str(ex))
-            back, left = take_back(agent_dir, json.load(open(answer_path, encoding="utf-8")) if os.path.exists(answer_path) else None)
+            redo = os.path.exists(answer_path) and before.get("analysis") == status["analysis"]  # the same analysis again
+            back, left = take_back(agent_dir, json.load(open(answer_path, encoding="utf-8")) if redo else None)
             if back:
                 sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
                 for cmd in (["lint"], ["push"]):
