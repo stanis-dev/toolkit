@@ -166,7 +166,7 @@
   function pickRun(){
     var a=ui.agent, steps=Cards.chosenSteps(), nums=picked(), step=steps.map(function(k){return k==='resolve'?'resolution':k}).join(' → ');
     if(!steps.length){ui.picknote='choose one or more steps';draw();return}
-    var body=JSON.stringify({steps:steps,model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high'});
+    var body=JSON.stringify({steps:steps,model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high',history:pref('runHistory')!=='no history'});
     ui.pickbusy=true; ui.picknote='starting '+step+' on '+nums.length+'…'; draw();
     var started=[], skipped=[];
     (function next(k){
@@ -177,9 +177,24 @@
       }).catch(function(){skipped.push('#'+n+' (server unreachable)')}).then(function(){next(k+1)});
     })(0);
   }
+  // Reset on every selected card, as the card's own Reset does; two clicks, the first arms the button for four seconds.
+  var pickArm=null;
+  function pickReset(){
+    if(!pickArm){pickArm=setTimeout(function(){pickArm=null;draw()},4000);draw();return}
+    clearTimeout(pickArm);pickArm=null;
+    var a=ui.agent, nums=picked(), done=[], skipped=[];
+    ui.pickbusy=true; ui.picknote='resetting '+nums.length+'…'; draw();
+    (function next(k){
+      if(k>=nums.length){ui.picknote=(done.length?'reset '+done.length:'nothing reset')+(skipped.length?' · skipped '+skipped.join(', '):'');ui.pickbusy=false;delete cache[a];draw();window.dispatchEvent(new Event('hashchange'));return}
+      var n=nums[k];
+      fetch('reset/'+a+'/'+n,{method:'POST'}).then(function(r){
+        if(r.ok)done.push(n); else return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}skipped.push('#'+n+' ('+(j.error||('server said '+r.status))+')')});
+      }).catch(function(){skipped.push('#'+n+' (server unreachable)')}).then(function(){next(k+1)});
+    })(0);
+  }
   function PickBar(){
     var n=picked().length, d=ui.data, names=d?d.list.map(function(i){return i.batch}).filter(function(b,k,arr){return b&&arr.indexOf(b)===k}).sort().reverse():[];
-    return html`<div id="pickbar" class="pickbar" hidden=${!ui.pick}><span class="cnt" id="pickcnt">${n?n+' selected':'none selected'}</span><select class="rsel" id="pickbatch" aria-label="Select a whole batch" title="Add every card of a batch to the selection" value="" onChange=${function(e){var b=e.target.value;e.target.value='';if(!b||!ui.data)return;var sel=ui.sel[ui.agent]=ui.sel[ui.agent]||{};ui.data.list.forEach(function(i){if((i.batch||NONE)===b)sel[i.num]=true});draw()}}><option value="">+ batch…</option>${names.map(function(b){return html`<option value=${b}>${'Batch '+b}</option>`})}<option value=${NONE}>${NONE}</option></select><${Cards.StepToggles} id="picksteps"/><${Cards.ModelSelect} id="pickmodel" k="runModel" def="gpt-5.6-terra" list=${Cards.MODELS} label="Model"/><${Cards.ModelSelect} id="pickeffort" k="runEffort" def="high" list=${Cards.EFFORTS} label="Reasoning effort"/><button class="rbtn" id="pickrun" title="Run the chosen steps on every selected card: on each card one after another, in this order" aria-label="Run on selected" disabled=${!n||ui.pickbusy} onClick=${pickRun}><i class="ti ti-player-play" aria-hidden="true"></i></button><button class="rbtn" id="pickclear" title="Clear the selection" aria-label="Clear selection" onClick=${function(){ui.sel[ui.agent]={};ui.picknote='';draw()}}><i class="ti ti-x" aria-hidden="true"></i></button><div class="note" id="picknote">${ui.picknote}</div></div>`;
+    return html`<div id="pickbar" class="pickbar" hidden=${!ui.pick}><span class="cnt" id="pickcnt">${n?n+' selected':'none selected'}</span><select class="rsel" id="pickbatch" aria-label="Select a whole batch" title="Add every card of a batch to the selection" value="" onChange=${function(e){var b=e.target.value;e.target.value='';if(!b||!ui.data)return;var sel=ui.sel[ui.agent]=ui.sel[ui.agent]||{};ui.data.list.forEach(function(i){if((i.batch||NONE)===b)sel[i.num]=true});draw()}}><option value="">+ batch…</option>${names.map(function(b){return html`<option value=${b}>${'Batch '+b}</option>`})}<option value=${NONE}>${NONE}</option></select><${Cards.StepToggles} id="picksteps"/><${Cards.ModelSelect} id="pickmodel" k="runModel" def="gpt-5.6-terra" list=${Cards.MODELS} label="Model"/><${Cards.ModelSelect} id="pickeffort" k="runEffort" def="high" list=${Cards.EFFORTS} label="Reasoning effort"/><${Cards.ModelSelect} id="pickhistory" k="runHistory" def="history" list=${Cards.HISTORY} label="Card history" title="Whether the Sim Strategy runs started here read the card's history"/><button class="rbtn" id="pickrun" title="Run the chosen steps on every selected card: on each card one after another, in this order" aria-label="Run on selected" disabled=${!n||ui.pickbusy} onClick=${pickRun}><i class="ti ti-player-play" aria-hidden="true"></i></button><button class=${'rbtn lbl rstb'+(pickArm?' arm':'')} id="pickreset" title=${pickArm?'Click again to reset every selected card':'Reset every selected card: its answers and card go to history, uncommitted changes to a git stash'} aria-label="Reset selected" disabled=${!n||ui.pickbusy} onClick=${pickReset}>${pickArm?'Click again':'Reset'}</button><button class="rbtn" id="pickclear" title="Clear the selection" aria-label="Clear selection" onClick=${function(){ui.sel[ui.agent]={};ui.picknote='';draw()}}><i class="ti ti-x" aria-hidden="true"></i></button><div class="note" id="picknote">${ui.picknote}</div></div>`;
   }
   // New batch: a name (today's MMDD by default) and an existing branch, offered from GET branches with where each one is
   // checked out; the server starts batch.py create, and the batch row shows its progress.

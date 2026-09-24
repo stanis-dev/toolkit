@@ -351,3 +351,4 @@ main{min-width:0}
 .side .it .gsh.ok{color:var(--text-success, var(--green))}
 .side .it .gsh.flaky{color:var(--text-warning, var(--orange))}
 .side .it .gsh.ko{color:var(--text-danger, var(--destructive))}
+.pickbar #pickreset{white-space:nowrap}

@@ -789,6 +789,6 @@
     else if(d.kind==='history')History.toggle(i.agent,i.num,d.s);
     else if(d.kind==='transcript'){if(d.s.guard)Transcript.guard(i,d.s);else Transcript.toggle(i,d.s.conv,d.s);if(d.ctx)Context.toggle(i,d.ctx.conv,d.ctx.entry,true,d.ctx)}
     else if(d.kind==='context')Context.toggle(i,d.s.conv,d.s.entry,false,d.s)}
-  window.Cards={StepToggles:StepToggles,ModelSelect:ModelSelect,MODELS:MODELS,EFFORTS:EFFORTS,chosenSteps:chosenSteps,drawerState:drawerState,closeDrawers:closeDrawers,restoreDrawer:restoreDrawer,
+  window.Cards={StepToggles:StepToggles,ModelSelect:ModelSelect,MODELS:MODELS,EFFORTS:EFFORTS,HISTORY:HISTORY,chosenSteps:chosenSteps,drawerState:drawerState,closeDrawers:closeDrawers,restoreDrawer:restoreDrawer,
     batchView:batchView,store:Store,useStore:useStore,unmount:unmount,cache:cache,esc:esc,report:report,card:card,norm:norm,badges:badges,load:load,applyFolds:applyFolds,foldToggle:foldToggle,chrome:chrome};
 })();
