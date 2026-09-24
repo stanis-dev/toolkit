@@ -8,7 +8,8 @@ POST /batchnew/<agent> with {"batch": "MMDD", "base": "<branch>"} and POST /batc
 start the skill's batch.py create: the batch's own worktree on that existing branch and its own Studio workspace, both
 named after the branch; on success agents/<agent>/batches.json holds {"MMDD": {"base", "workspace", "worktree"}}, and a
 changed branch drops the old pair. POST /batchdel/<agent>/<MMDD> starts batch.py delete: workspace and worktree gone, the
-batch's cards to no batch. Status in agents/<agent>/batches/<MMDD>.status.json. GET /branches lists the repository's local
+batch's cards to no batch; POST /batcharchive/<agent>/<MMDD> starts batch.py archive: the same teardown, the cards stay
+in the batch, which the page lists under Archived. Status in agents/<agent>/batches/<MMDD>.status.json. GET /branches lists the repository's local
 branches, each with the worktree that has it checked out. Setup forks the issue's worktree from the batch's branch and
 refuses without it.
 POST /guard/<agent>/<n> runs the card's guard 5× (guard.py); strategy/guard.json holds its state. GET /guard/<agent>/<n>
@@ -102,6 +103,7 @@ FILES = re.compile(r'^/files/' + A + r'/(\d+)$')
 BATCHBASE = re.compile(r'^/batchbase/' + A + r'/(\d{4}(?:-\d)?)$')
 BATCHNEW = re.compile(r'^/batchnew/' + A + '$')
 BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
+BATCHARCHIVE = re.compile(r'^/batcharchive/' + A + r'/(\d{4}(?:-\d)?)$')
 SYNC = re.compile(r'^/sync/' + A + '$')
 CHAIN = re.compile(r'^/chain/' + A + r'/(\d+)(/stop)?$')
 RULE = re.compile(r'^/rule/' + A + r'/(\d+)$')
@@ -582,6 +584,10 @@ class H(SimpleHTTPRequestHandler):
         if bd:
             agent, batch = bd.groups()
             self.batch_run(agent, batch, ['delete', agent, batch]); return
+        ba = BATCHARCHIVE.match(self.path)
+        if ba:
+            agent, batch = ba.groups()
+            self.batch_run(agent, batch, ['archive', agent, batch]); return
         bm = BATCH.match(self.path)
         if bm:
             agent, n = bm.groups()

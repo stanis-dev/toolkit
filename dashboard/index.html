@@ -20,7 +20,7 @@
   // again only when the card's file changes; its live parts update themselves from the store.
   var P=htmPreact, html=P.html, NONE='No batch yet';
   var esc=Cards.esc, cache=Cards.cache, Store=Cards.store;
-  var ui={agent:null,open:{},lastSel:null,sig:{},pick:false,sel:{},del:null,only:null,views:{},batch:'',edit:null,newb:false,newname:'',newbranch:'',newnote:'',branches:[],picknote:'',pickbusy:false,fpop:false,data:null,err:null,sync:null,syncBusy:false};
+  var ui={agent:null,open:{},lastSel:null,sig:{},pick:false,sel:{},del:null,arch:null,only:null,views:{},batch:'',edit:null,newb:false,newname:'',newbranch:'',newnote:'',branches:[],picknote:'',pickbusy:false,fpop:false,data:null,err:null,sync:null,syncBusy:false};
   function money(c){return '$'+(c>=10?c.toFixed(0):c.toFixed(2))}
   function costOf(a,n){return (Store.get().cost[a]||{})[n]||null}
   function costTitle(t){return t?money(t.cost)+' over '+t.runs+' run'+(t.runs===1?'':'s')+': '+Object.keys(t.steps).map(function(k){return (PREP[k]||'Resolution')+' '+money(t.steps[k])}).join(', '):''}
@@ -103,9 +103,11 @@
     var by={},all=0,shown=0,batch=route().b;
     d.list.forEach(function(i){if(batch&&i.batch!==batch)return;all++;if(!batch&&hidden(i))return;if(ui.only&&!only(ui.views[i.num]))return;shown++;var b=i.batch||NONE;(by[b]=by[b]||[]).push(i)});
     Object.keys(d.batches||{}).forEach(function(b){if(!batch||b===batch)by[b]=by[b]||[]});
-    var names=Object.keys(by).filter(function(n){return n!==NONE}).sort(function(a,b){return b.localeCompare(a)});
-    if(by[NONE]) names.push(NONE);
-    return {gs:names.map(function(n){return {name:n,issues:by[n].sort(function(a,b){return b.num-a.num})}}),all:all,shown:shown};
+    var bs=d.batches||{}, names=Object.keys(by).filter(function(n){return n!==NONE}).sort(function(a,b){return b.localeCompare(a)});
+    var live=names.filter(function(n){return !(bs[n]||{}).archived}), arch=names.filter(function(n){return (bs[n]||{}).archived});
+    if(by[NONE]) live.push(NONE);
+    function g(n){return {name:n,issues:by[n].sort(function(a,b){return b.num-a.num})}}
+    return {gs:live.map(g),arch:arch.map(g),all:all,shown:shown};
   }
   function post(url,body){return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(function(r){return r.ok?null:r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}return j.error||(/<p>Message: ([^<]*)/.exec(t)||[])[1]||('server said '+r.status)})}).catch(function(){return 'server unreachable'})}
   function stop(e){e.preventDefault();e.stopPropagation()}
@@ -121,13 +123,15 @@
   // an inline confirm. A click on the branch edits it; saving starts batch.py create for that branch.
   function BatchLine(p){
     var a=p.a, b=p.b, e=p.e, count=p.count, st=(Store.get().bst[a]||{})[b]||{}, working=st.state==='working';
+    if(e.archived)return html`<span class="base arch" data-b=${b} title="Archived: its worktree and Studio workspace are gone; the branch stays"><i class="ti ti-archive" aria-hidden="true"></i><i class="ti ti-git-branch" aria-hidden="true"></i><span class="bnm">${e.base||''}</span></span>`;
+    if(ui.arch===a+'/'+b)return html`<span class="base del" data-b=${b} onClick=${function(ev){ev.stopPropagation()}}>${'Archive batch '+b+': '+(e.workspace?'workspace '+e.workspace+' and its worktree go, ':'')+'its '+count+' issue'+(count===1?'':'s')+' stay in it under Archived; the branch stays. '}<button class="rbtn delok" data-b=${b} onClick=${function(ev){stop(ev);ui.arch=null;draw();post('batcharchive/'+a+'/'+b).then(function(err){if(err)alert(err);delete ui.sig[a];poll1()})}}>archive</button><button class="rbtn delno" onClick=${function(ev){stop(ev);ui.arch=null;draw()}}>cancel</button></span>`;
     if(ui.del===a+'/'+b)return html`<span class="base del" data-b=${b} onClick=${function(ev){ev.stopPropagation()}}>${'Delete batch '+b+': '+(e.workspace?'workspace '+e.workspace+' and its worktree go, ':'')+count+' issue'+(count===1?'':'s')+' to No batch; the branch stays. '}<button class="rbtn delok" data-b=${b} onClick=${function(ev){stop(ev);ui.del=null;draw();post('batchdel/'+a+'/'+b).then(function(err){if(err)alert(err);delete ui.sig[a];poll1()})}}>delete</button><button class="rbtn delno" onClick=${function(ev){stop(ev);ui.del=null;draw()}}>cancel</button></span>`;
     if(ui.edit===a+'/'+b)return html`<span class=${'base'+(e.base?'':' unset')} data-b=${b} onClick=${function(ev){ev.stopPropagation()}}><${BaseInput} a=${a} b=${b} e=${e}/></span>`;
     var ic=working?html`<i class="ti ti-loader-2 bspin" title=${(st.action||'')+' · '+(st.step||'working')} aria-label="working"></i>`:
       st.state==='failed'?html`<i class="ti ti-alert-circle bfail" title=${(st.action||'')+' failed: '+(st.error||'')} aria-label="failed"></i>`:
       e.workspace?html`<i class="ti ti-cloud-filled bok" title=${'Workspace '+e.workspace+' · worktree '+(e.worktree||'')} aria-label="set up"></i>`:
       e.base?html`<i class="ti ti-cloud-off" title="No workspace or worktree yet: click the branch and press Enter to set them up" aria-label="not set up"></i>`:null;
-    return html`<span class=${'base'+(e.base?'':' unset')} data-b=${b} title="Branch of this batch: the issues' worktrees fork from it and merge into it. Click to edit" onClick=${function(ev){ev.stopPropagation();ui.edit=a+'/'+b;draw()}}>${ic}<i class="ti ti-git-branch" aria-hidden="true"></i><span class="bnm">${e.base||'set branch'}</span>${working?null:html`<button class="sbtn bdel" data-b=${b} title="Delete this batch" aria-label=${'Delete batch '+b} onClick=${function(ev){stop(ev);ui.del=a+'/'+b;draw()}}><i class="ti ti-trash" aria-hidden="true"></i></button>`}</span>`;
+    return html`<span class=${'base'+(e.base?'':' unset')} data-b=${b} title="Branch of this batch: the issues' worktrees fork from it and merge into it. Click to edit" onClick=${function(ev){ev.stopPropagation();ui.edit=a+'/'+b;draw()}}>${ic}<i class="ti ti-git-branch" aria-hidden="true"></i><span class="bnm">${e.base||'set branch'}</span>${working?null:html`<button class="sbtn barch" data-b=${b} title="Archive this batch: its worktree and workspace go, its cards stay in it" aria-label=${'Archive batch '+b} onClick=${function(ev){stop(ev);ui.arch=a+'/'+b;draw()}}><i class="ti ti-archive" aria-hidden="true"></i></button>`}${working?null:html`<button class="sbtn bdel" data-b=${b} title="Delete this batch" aria-label=${'Delete batch '+b} onClick=${function(ev){stop(ev);ui.del=a+'/'+b;draw()}}><i class="ti ti-trash" aria-hidden="true"></i></button>`}</span>`;
   }
   // The batch's base branch: the issues' worktrees fork from it. Saved to agents/<agent>/batches.json through the server.
   function BaseInput(p){
@@ -245,7 +249,7 @@
       <div class="pop" id="fpop" hidden=${!ui.fpop} onClick=${function(e){e.stopPropagation()}}><label><input type="checkbox" data-f="hideWait" checked=${flag('hideWait')} onChange=${function(e){pref('hideWait',e.target.checked?'1':'0');draw()}}/> Hide waiting <span>blocked, needs clarification</span></label><label><input type="checkbox" data-f="hideTesting" checked=${flag('hideTesting')} onChange=${function(e){pref('hideTesting',e.target.checked?'1':'0');draw()}}/> Hide testing</label><label><input type="checkbox" data-f="hideMerged" checked=${flag('hideMerged')} onChange=${function(e){pref('hideMerged',e.target.checked?'1':'0');draw()}}/> Hide merged</label><label><input type="checkbox" data-f="hideNoRepro" checked=${flag('hideNoRepro')} onChange=${function(e){pref('hideNoRepro',e.target.checked?'1':'0');draw()}}/> Hide doesn't reproduce</label></div></div>
     </div>
     <${Strip}/><${PickBar}/><${NewForm}/>
-    <div id="tree">${ui.err?html`<div class="err">${'The sidebar failed: '+ui.err}</div>`:!g?null:g.gs.length?g.gs.map(function(x){return html`<${Group} key=${x.name} a=${a} x=${x} q=${q} cur=${cur}/>`}):html`<div class="err">${'No issues found for '+a+'.'}</div>`}</div>`;
+    <div id="tree">${ui.err?html`<div class="err">${'The sidebar failed: '+ui.err}</div>`:!g?null:g.gs.length||g.arch.length?[g.gs.map(function(x){return html`<${Group} key=${x.name} a=${a} x=${x} q=${q} cur=${cur}/>`}),g.arch.length?html`<div class=${'archs'+((ui.open[a]||{})['\u0000archived']?' open':'')}><button class="archh" aria-expanded=${(ui.open[a]||{})['\u0000archived']?'true':'false'} onClick=${function(){var o=ui.open[a]=ui.open[a]||{};o['\u0000archived']=!o['\u0000archived'];draw()}}><i class="ti ti-chevron-right" aria-hidden="true"></i><i class="ti ti-archive" aria-hidden="true"></i>${'Archived · '+g.arch.length}</button><div class="archi">${g.arch.map(function(x){return html`<${Group} key=${x.name} a=${a} x=${x} q=${q} cur=${cur}/>`})}</div></div>`:null]:html`<div class="err">${'No issues found for '+a+'.'}</div>`}</div>`;
   }
   var navEl=document.querySelector('nav.side'), drawn=false;
   function draw(){

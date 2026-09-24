@@ -352,3 +352,14 @@ main{min-width:0}
 .side .it .gsh.flaky{color:var(--text-warning, var(--orange))}
 .side .it .gsh.ko{color:var(--text-danger, var(--destructive))}
 .pickbar #pickreset{white-space:nowrap}
+.side .grp>.row .base .barch{margin-left:auto;width:20px;height:18px;font-size:12px;visibility:hidden}
+.side .grp>.row .base .barch+.bdel{margin-left:0}
+.side .grp>.row:hover .base .barch{visibility:visible}
+.side .grp>.row .base.arch{color:var(--text-muted)}
+.side .archs{margin-top:6px;border-top:1px solid var(--border);padding-top:4px}
+.side .archs .archh{display:flex;align-items:center;gap:6px;width:100%;background:none;border:0;padding:4px 10px;font:inherit;font-size:12px;color:var(--text-muted);cursor:pointer;border-radius:var(--radius)}
+.side .archs .archh:hover{background:var(--surface-1)}
+.side .archs .archh .ti-chevron-right{transition:transform .12s}
+.side .archs.open .archh .ti-chevron-right{transform:rotate(90deg)}
+.side .archs .archi{display:none}
+.side .archs.open .archi{display:block}

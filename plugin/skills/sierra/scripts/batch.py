@@ -3,6 +3,7 @@
 
   batch.py create <agent> <MMDD> --branch <branch> [--pages <dir>] [--repo <dir>]
   batch.py delete <agent> <MMDD> [--pages <dir>] [--repo <dir>]
+  batch.py archive <agent> <MMDD> [--pages <dir>] [--repo <dir>]
 
 create: the branch must exist, locally or on origin, and be checked out nowhere else. A linked worktree at
 <repo>/.claude/worktrees/<name> on it, <name> being the branch with every / as -, the repo hook skipped; the main
@@ -13,6 +14,9 @@ adopted. When done, agents/<agent>/batches.json holds {"<MMDD>": {"base": <branc
 
 delete: the workspace deleted, the worktree removed, every card of the batch moved to no batch, the batch taken out of
 batches.json. Refused while the worktree has changes other than the files setup copies in. The branch stays.
+
+archive: the workspace and worktree go as with delete, the cards stay in the batch, and batches.json keeps
+{"base": <branch>, "archived": <time>} for it; the page shows it under Archived.
 
 Status in agents/<agent>/batches/<MMDD>.status.json: state working/done/failed, pid, times, the steps done, the error
 tail. Every command's output goes to stdout (the page's run.log)."""
@@ -74,7 +78,7 @@ class Batch(setup.Setup):
         """Delete workspace <name> and remove worktree <wt>; refused while the worktree has changes of its own."""
         agent_dir = os.path.join(wt, self.agent_rel)
         if os.path.exists(os.path.join(wt, ".git")):
-            copied = {f"{self.agent_rel}/.composer/pnpm-lock.yaml", f"{self.agent_rel}/.composer/.gitignore"}
+            copied = {f"{a}/.composer/{f}" for a in AGENT_DIR.values() for f in ("pnpm-lock.yaml", ".gitignore")}
             dirty = [l for l in sh(["git", "-C", wt, "status", "--porcelain"])[1].splitlines() if l[3:] not in copied]
             if dirty:
                 raise RuntimeError(f"{wt} has changes, commit or drop them first: " + "; ".join(dirty[:5]))
@@ -108,12 +112,19 @@ class Batch(setup.Setup):
                 log("moved", n)
         self.save(None)
 
+    def archive(self):
+        if self.entry.get("worktree"):
+            self.teardown(self.entry.get("workspace"), self.entry["worktree"])
+        self.save({"base": self.entry.get("base") or self.branch, "archived": now()})
+
     def run(self):
         try:
             if self.action == "create":
                 if not self.branch:
                     raise RuntimeError("no branch")
                 self.create()
+            elif self.action == "archive":
+                self.archive()
             else:
                 self.delete()
             self.status.update(state="done")
@@ -141,7 +152,7 @@ def checked_out_at(repo, branch):
 def main(argv):
     args = [a for a in argv if not a.startswith("--")]
     opts = {argv[k]: argv[k + 1] for k in range(len(argv) - 1) if argv[k].startswith("--")}
-    if len(args) < 3 or args[0] not in ("create", "delete") or args[1] not in AGENT_DIR or not re.fullmatch(r"\d{4}(?:-\d)?", args[2]):
+    if len(args) < 3 or args[0] not in ("create", "delete", "archive") or args[1] not in AGENT_DIR or not re.fullmatch(r"\d{4}(?:-\d)?", args[2]):
         sys.exit(__doc__)
     pages = os.path.abspath(opts.get("--pages") or os.getcwd())
     repo = os.path.abspath(opts.get("--repo") or os.getcwd())
