@@ -75,12 +75,13 @@ the work runs against, an issue's own from the pages dir's setup step, else the 
 folder for the run's files; `<scripts>` this skill's scripts directory. Launch:
 
 ```
-<sierra> -C <agent-dir> test <workspace> --names "<name or id>" --num-runs 5 --json -y --run-id-file <runs>/run-id > <runs>/run.json
+<sierra> -C <agent-dir> test <workspace> --names <id> [<id> …] --num-runs 5 --json -y --run-id-file <runs>/run-id > <runs>/run.json
 ```
 
 - `<workspace>` is the only workspace you may name: `sierra test` first uploads the checkout's simulation
   definitions to the whole agent, then runs against the workspace named. Never `default`, never another name,
   never `--simulate-speech`.
+- `--names` takes one argument per simulation, space-separated and each quoted on its own when it holds spaces.
 - `--num-runs` is 3 for a probe, 5 for a verdict; the platform's limit is 5.
 - The launch takes a few minutes and returns when the platform is done. Wait for it.
 
