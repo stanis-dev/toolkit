@@ -863,8 +863,8 @@ def section_rows(rows, target, on_html):
 
 
 def composer_file(file):
-    """An analysis answer's file as the agent directory holds it: a block file, which the outline names without
-    .composer/, under .composer/; a code file as given."""
+    """An answer's file as the agent directory holds it: a block file, which the outline names without .composer/,
+    under .composer/; a code file as given."""
     return os.path.join(".composer", file) if file and file.endswith(".json") else file
 
 
@@ -1088,9 +1088,11 @@ def main(argv):
         # the Studio Context is the analysis's two items, plus what the context-edit answer adds in `also` and `tool`
         analysis_path = paths.answer(base, n, "analysis")
         entries = context_of_analysis(load_json(analysis_path)) if os.path.exists(analysis_path) else []
-        entries += [{"file": a["file"], "pointer": a["pointer"], "role": a.get("role") or "A",
+        entries += [{"file": composer_file(a["file"]), "pointer": a["pointer"], "role": a.get("role") or "A",
                      "spans": [a["span"]] if a.get("span") else []} for a in ctx.get("also") or [] if a.get("file") and a.get("pointer")]
-        context, edit = render_oc(agent, n, {"context": entries, "tool": ctx.get("tool"), "edit": ctx.get("edit"), "cause": ctx.get("cause")},
+        e = ctx.get("edit") or {}
+        e = dict(e, file=composer_file(e["file"])) if e.get("file") else e
+        context, edit = render_oc(agent, n, {"context": entries, "tool": ctx.get("tool"), "edit": e, "cause": ctx.get("cause")},
                                   pages, repo, opts.get("--state") or "proposed", pre_edit(repo, base, n))
         pieces = ([("oc ctx", context)] if entries or (ctx.get("tool") or {}).get("name") else []) + ([("oc edit", edit)] if edit else [])
     write_out(opts.get("--out"), pages, agent, n, pieces)

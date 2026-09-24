@@ -66,7 +66,7 @@
      },
      "file": {
       "type": "string",
-      "description": ".composer/blocks/<file>.json."
+      "description": "The block file as the outline's `# <file>` header prints it (`blocks/….json`)."
      },
      "pointer": {
       "type": "string",
@@ -145,7 +145,7 @@
    "properties": {
     "file": {
      "type": "string",
-     "description": ".composer/blocks/<file>.json."
+     "description": "The block file as the outline's `# <file>` header prints it (`blocks/….json`)."
     },
     "pointer": {
      "type": [
