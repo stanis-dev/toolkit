@@ -1,14 +1,7 @@
 {
     "type": "object",
-    "description": "The Issue Analysis of one issue: what failed, what should have happened, and which Studio items were involved.",
     "additionalProperties": false,
-    "required": [
-        "verdict",
-        "failure",
-        "good",
-        "context",
-        "feedback"
-    ],
+    "required": ["verdict", "failure", "good", "context", "feedback"],
     "properties": {
         "verdict": {
             "type": "string",
@@ -16,51 +9,59 @@
         },
         "failure": {
             "type": "object",
-            "description": "The failure turn: the reporter's highlighted line, unless an earlier agent turn had to be different for the ask to be met.",
+            "description": "The failure turn",
             "additionalProperties": false,
-            "required": [
-                "logEntryId",
-                "path",
-                "bad",
-                "moved"
-            ],
+            "required": ["turn", "path", "bad", "moved"],
             "properties": {
-                "logEntryId": {
+                "turn": {
                     "type": "string",
-                    "description": "That turn's logEntryId in details.json; never its text. The highlighted line's own id when the failure is there."
+                    "description": "That turn as the transcript prints it: a call's logEntryId, a replay's debug.log seq. For an issue, the highlighted line's own when the failure is there."
                 },
                 "path": {
                     "type": "string",
-                    "description": "Where in that turn the failure is: `text`, the spoken line; `tools[k]`, its k-th tool call, counted from 0, the calls the transcript prints right above the turn; `tools[k].<argument>`, one argument of that call."
+                    "description": "Where in that turn the failure is: `text`, the spoken line; `tools[k]`, its k-th tool call, counted from 0, the calls the transcript prints right above the turn; `tools[k].<argument>`, one argument of that call; `tools[new]`, a call the turn needed and did not make, which `good.tools` then carries."
                 },
                 "bad": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     },
-                    "description": "Substrings of what the path points at, the turn's text or the call's name and arguments as the transcript prints them; the whole of it when the failure is an omission."
+                    "description": "Substrings of what the path points at, the turn's text or the call's name and arguments as the transcript prints them; the whole of it when the failure is an omission; empty for `tools[new]`."
                 },
                 "moved": {
-                    "type": [
-                        "string",
-                        "null"
-                    ],
-                    "description": "Null when the failure turn is the highlighted line. Otherwise one sentence: why the highlighted line is only the symptom and this earlier turn is where the call went wrong."
+                    "type": ["string", "null"],
+                    "description": "Null when the failure turn is the highlighted line, and for a simulation. Otherwise one sentence: why the highlighted line is only the symptom and this earlier turn is where the call went wrong."
                 }
             }
         },
         "good": {
             "type": "object",
-            "description": "What a trained representative says at the failure turn, and what follows.",
+            "description": "What a trained representative does and says at the failure turn, and what follows.",
             "additionalProperties": false,
-            "required": [
-                "text",
-                "then"
-            ],
+            "required": ["tools", "text", "then"],
             "properties": {
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["name", "args"],
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The tool as the transcript prints it."
+                            },
+                            "args": {
+                                "type": ["object", "null"],
+                                "description": "Its arguments, with the facts the turn has by then."
+                            }
+                        }
+                    },
+                    "description": "The calls the corrected turn makes before it speaks, in order: the ones it made, kept as produced unless the failure is one of them, and any it needed. Empty when it makes none."
+                },
                 "text": {
                     "type": "string",
-                    "description": "The corrected turn in the agent's language and register, the rest of the turn kept as produced."
+                    "description": "The corrected turn's spoken line in the agent's language and register, the rest of it kept as produced; what it says after `tools` returned."
                 },
                 "then": {
                     "type": "array",
@@ -75,83 +76,46 @@
             "type": "object",
             "description": "The Studio items involved in the failure turn.",
             "additionalProperties": false,
-            "required": [
-                "wanted",
-                "won"
-            ],
+            "required": ["wanted", "won"],
             "properties": {
                 "wanted": {
                     "type": "object",
                     "description": "The instruction meant to produce the good turn: the one item a trained representative would have been following there.",
                     "additionalProperties": false,
-                    "required": [
-                        "state",
-                        "path",
-                        "file",
-                        "pointer",
-                        "span",
-                        "present"
-                    ],
+                    "required": ["state", "path", "file", "pointer", "span", "present"],
                     "properties": {
                         "state": {
                             "type": "string",
                             "description": "defined: an item tells the agent to do it at this turn, «do X» or «when X, do Y» with X true. tangential: an item mentions the behaviour without telling the agent what to do at the turn. new: no item covers it.",
-                            "enum": [
-                                "defined",
-                                "tangential",
-                                "new"
-                            ]
+                            "enum": ["defined", "tangential", "new"]
                         },
                         "path": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
+                            "type": ["string", "null"],
                             "description": "Display-name path as the outline prints it; null when new."
                         },
                         "file": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "description": ".composer/<file>.json as the outline names it, or the code file for a tool description; null when new."
+                            "type": ["string", "null"],
+                            "description": "The block file as the outline's `# <file>` header prints it (`blocks/….json`), or the code file for a tool description; null when new."
                         },
                         "pointer": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
+                            "type": ["string", "null"],
                             "description": "JSON pointer of the item as the outline prints it; null when new."
                         },
                         "span": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
+                            "type": ["string", "null"],
                             "description": "Substring of the item that carries the behaviour; null when new."
                         },
                         "present": {
-                            "type": [
-                                "boolean",
-                                "null"
-                            ],
+                            "type": ["boolean", "null"],
                             "description": "Whether the item was in the compiled request at the failure turn; absent means its block was gated and the predicate did not fire. Null when new."
                         }
                     }
                 },
                 "won": {
-                    "type": [
-                        "object",
-                        "null"
-                    ],
+                    "type": ["object", "null"],
                     "description": "The item the bad turn followed: the step it executed, the rule it obeyed, the tool description it answered to. Null when the bad turn followed none and the agent inferred on its own.",
                     "additionalProperties": false,
-                    "required": [
-                        "path",
-                        "file",
-                        "pointer",
-                        "span"
-                    ],
+                    "required": ["path", "file", "pointer", "span"],
                     "properties": {
                         "path": {
                             "type": "string",
@@ -159,7 +123,7 @@
                         },
                         "file": {
                             "type": "string",
-                            "description": ".composer/<file>.json as the outline names it, or the code file for a tool description."
+                            "description": "The block file as the outline's `# <file>` header prints it (`blocks/….json`), or the code file for a tool description."
                         },
                         "pointer": {
                             "type": "string",
@@ -174,24 +138,14 @@
             }
         },
         "feedback": {
-            "type": [
-                "object",
-                "null"
-            ],
+            "type": ["object", "null"],
             "description": "How you weighed the feedback this run carries, as feedback.md says; null when it carries none.",
             "additionalProperties": false,
-            "required": [
-                "verdict",
-                "points"
-            ],
+            "required": ["verdict", "points"],
             "properties": {
                 "verdict": {
                     "type": "string",
-                    "enum": [
-                        "accepted",
-                        "partly",
-                        "disputed"
-                    ],
+                    "enum": ["accepted", "partly", "disputed"],
                     "description": "accepted: every point; partly: some; disputed: none."
                 },
                 "points": {
@@ -199,12 +153,7 @@
                     "items": {
                         "type": "object",
                         "additionalProperties": false,
-                        "required": [
-                            "claim",
-                            "verdict",
-                            "why",
-                            "basis"
-                        ],
+                        "required": ["claim", "verdict", "why", "basis"],
                         "properties": {
                             "claim": {
                                 "type": "string",
@@ -212,20 +161,14 @@
                             },
                             "verdict": {
                                 "type": "string",
-                                "enum": [
-                                    "accepted",
-                                    "disputed"
-                                ]
+                                "enum": ["accepted", "disputed"]
                             },
                             "why": {
                                 "type": "string",
                                 "description": "One sentence."
                             },
                             "basis": {
-                                "type": [
-                                    "string",
-                                    "null"
-                                ],
+                                "type": ["string", "null"],
                                 "description": "For a dispute, the skill passage or the evidence (a turn, a block item, a run) that decides it, quoted; null for an accepted point."
                             }
                         }
