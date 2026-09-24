@@ -55,16 +55,22 @@
   var CHEV='<i class="ti ti-chevron-right" aria-hidden="true"></i>';
   var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt'].forEach(function(c){known[c]=1})});
   function el(html){var t=document.createElement('template');t.innerHTML=html;return t.content.firstElementChild}
-  // The guard's ×5: runs it on the card's workspace; while strategy/guard.json says working the button waits, then the card reloads.
-  function guardButton(b,i){var u=Paths.card(i.agent,i.num)+'strategy/guard.json';
-    var row=b.closest('summary')&&b.closest('summary').querySelector('.nmrow'); if(row)row.appendChild(b);
-    function wait(){b.disabled=true;b.classList.add('working');b.textContent='running';getJSON(u).then(function(g){
-      if(g&&g.state==='working'){setTimeout(wait,3000);return}
-      b.disabled=false;b.classList.remove('working');b.textContent='×5';if(g&&g.state==='failed'){b.title=g.error||'failed';b.classList.add('failed');return}
-      delete cache[i.agent];window.dispatchEvent(new Event('hashchange'))})}
+  // The guard's ×5: runs it on the card's workspace. While strategy/guard.json says working, a pulsing chip counts the
+  // time and the old count dims; a failure shows its error; when the run is done the card reloads.
+  function guardButton(b,i){var u=Paths.card(i.agent,i.num)+'strategy/guard.json', sum=b.closest('summary'), row=sum&&sum.querySelector('.nmrow');
+    var bar=el('<span class="runbar"><span class="chip" hidden></span></span>'), chip=bar.firstChild, res=sum&&sum.querySelector('.n .res'), tick=null;
+    b.replaceWith(bar); bar.appendChild(b); if(row)row.appendChild(bar);
+    bar.addEventListener('click',function(e){e.stopPropagation();e.preventDefault()});
+    function show(cls,text,title){chip.hidden=!text;chip.className='chip'+(cls?' '+cls:'');chip.textContent=text||'';chip.title=title||''}
+    function clock(t0){var s=Math.max(0,Math.round((Date.now()-Date.parse(t0))/1000));return 'running · '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+    function wait(){b.hidden=true;if(res)res.style.opacity='.35';getJSON(u).then(function(g){
+      if(g&&g.state==='working'){if(!tick){tick=setInterval(function(){if(!document.contains(bar)){clearInterval(tick);return}show('working',clock(g.started))},1000)}show('working',clock(g.started));setTimeout(wait,3000);return}
+      if(tick){clearInterval(tick);tick=null}b.hidden=false;if(res)res.style.opacity='';
+      if(g&&g.state==='failed'){var m=(g.error||'failed').split('\n')[0];show('failed','failed: '+(m.length>80?m.slice(0,80)+'…':m),g.error);return}
+      show(null,null);delete cache[i.agent];window.dispatchEvent(new Event('hashchange'))})}
     getJSON(u).then(function(g){if(g&&g.state==='working')wait()});
-    b.addEventListener('click',function(e){e.stopPropagation();e.preventDefault();b.disabled=true;
-      postJSON('guard/'+i.agent+'/'+i.num).then(function(r){if(r.ok){wait();return}return r.json().catch(function(){return {}}).then(function(j){b.disabled=false;b.title=j.error||('server said '+r.status);b.classList.add('failed')})}).catch(function(){b.disabled=false;b.title='server unreachable'})})}
+    b.addEventListener('click',function(){b.hidden=true;show('working','starting');
+      postJSON('guard/'+i.agent+'/'+i.num).then(function(r){if(r.ok){wait();return}return r.json().catch(function(){return {}}).then(function(j){b.hidden=false;show('failed',j.error||('server said '+r.status))})}).catch(function(){b.hidden=false;show('failed','server unreachable')})})}
   function isEdit(s){return s.classList.contains('edit')||!!s.querySelector('.state, .row .del, .row .ins')}
   function norm(view,i){
     var card=view.querySelector('.card'), odd=[]; if(!card||card.classList.contains('rep')) return;

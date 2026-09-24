@@ -203,8 +203,8 @@
 .ss .res.flaky,.so .res.flaky,.so .cnt.flaky,.si .cnt.flaky{color:var(--text-warning, var(--orange));background:var(--bg-warning, color-mix(in srgb, var(--yellow) 20%, transparent))}
 .ss .res.ko,.so .res.ko,.so .cnt.ko,.si .cnt.ko{color:var(--text-danger, var(--destructive));background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent))}
 .ss .res{box-sizing:border-box;min-width:52px;text-align:center}
-.ss .nmrow .gx5{margin-left:auto;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;line-height:16px;padding:0 6px}
-.ss .nmrow .gx5.working{opacity:.6} .ss .nmrow .gx5.failed{color:var(--text-danger, var(--destructive))}
+.ss .nmrow>.runbar{margin-left:auto;display:flex;align-items:center;gap:6px}
+.ss .nmrow .gx5{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;line-height:16px;padding:0 6px}
 .ss .sim.reg .n a.res{text-decoration:none}
 .ss .sim.reg .n a.res:hover{text-decoration:underline}
 
