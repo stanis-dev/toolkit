@@ -342,6 +342,36 @@ def keep_run(runs, started, feedback, answer_path=None):
     return kept
 
 
+def take_back(agent_dir, answer):
+    """The previous context answer's item and gate edits set back to their old text, in the tree: the files changed,
+    and the edits that no longer read as their new text."""
+    changed, skipped = [], []
+    for e in (answer or {}).get("edits") or []:
+        if e.get("kind") not in ("item", "gate") or not e.get("pointer") or e.get("old") is None or e.get("new") is None:
+            continue
+        path = os.path.join(agent_dir, ".composer", e["file"])
+        try:
+            d = json.load(open(path, encoding="utf-8"))
+        except (OSError, ValueError):
+            skipped.append(e.get("path") or e["pointer"]); continue
+        keys = re.findall(r"\.([^.\[\]]+)|\[(\d+)\]", e["pointer"])
+        node = d
+        try:
+            for k, i in keys[:-1]:
+                node = node[int(i)] if i else node[k]
+            k, i = keys[-1]
+            last = int(i) if i else k
+            if node[last] != e["new"]:
+                skipped.append(e.get("path") or e["pointer"]); continue
+        except (KeyError, IndexError, TypeError):
+            skipped.append(e.get("path") or e["pointer"]); continue
+        node[last] = e["old"]
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+        changed.append(e["file"])
+    return sorted(set(changed)), skipped
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -426,6 +456,16 @@ def main(argv):
                 stepgit.binding(pages, agent, n, agent_dir)
             except stepgit.Refused as ex:
                 fail(str(ex))
+            back, left = take_back(agent_dir, json.load(open(answer_path, encoding="utf-8")) if os.path.exists(answer_path) else None)
+            if back:
+                sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
+                for cmd in (["lint"], ["push"]):
+                    r = subprocess.run([sierra, "-C", agent_dir, "ghostwriter", *cmd], capture_output=True, text=True)
+                    if r.returncode:
+                        fail(f"taking back the previous edits: ghostwriter {cmd[0]}: " + (r.stderr or r.stdout).strip()[-800:])
+                import cardlog
+                cardlog.add(pages, agent, n, "context", "took back the previous answer's edits and pushed them: " + ", ".join(back)
+                            + (f"; left as they are: {', '.join(left)}" if left else ""))
         status["commit"] = stepgit.git(repo, "rev-parse", "--short", "HEAD").strip()
         write_json(status_path, status)
         continued = bool(feedback) and os.path.isdir(session_dir) and any(f.endswith(".jsonl") for f in os.listdir(session_dir))
