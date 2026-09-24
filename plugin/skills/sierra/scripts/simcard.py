@@ -7,13 +7,15 @@ Usage:
 replaytestresult-<id>/). The card gets the next number from 10001 up, the tracker's numbers staying below. Into the
 card folder go a copy of that one replay under conversations/<result>/ (debug.log, result.json, traces/) and
 source.json (see source.py): the simulation's name, what failed (the unmet expectations with the judge's reasoning,
-the tag misses), and its definition from the run's test ref. Prints the card's number. Everything else the card
+the tag misses), its definition from the run's test ref, and the branch of the checkout the run was downloaded into:
+setup forks the card's worktree from it, so the simulation is in the card's tree. Prints the card's number. Everything else the card
 recreates itself: its steps run the simulation again.
 """
 import glob
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -77,6 +79,9 @@ def main(argv):
     sims_dir = os.path.dirname(os.path.dirname(os.path.dirname(rdir)))
     d = definition(sims_dir, res.get("replayTestId") or "")
     names = json.load(open(os.path.join(sims_dir, "test-names.json"), encoding="utf-8")) if os.path.exists(os.path.join(sims_dir, "test-names.json")) else {}
+    git = subprocess.run(["git", "-C", rdir, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True)
+    if git.returncode != 0 or git.stdout.strip() in ("", "HEAD"):
+        fail(f"{rdir} is not in a checkout on a branch: the card's worktree forks from the run's branch")
     n = str(next_number(base))
     cd = paths.card_dir(base, n)
     rid = res.get("id") or os.path.basename(rdir)
@@ -84,7 +89,8 @@ def main(argv):
     shutil.copytree(rdir, os.path.join(cd, "conversations", rid))
     src = {"kind": "sim", "number": int(n), "title": d.get("name") or names.get(res.get("replayTestId")) or res.get("replayTestId") or "",
            "description": what, "comments": [],
-           "ref": {"test": res.get("replayTestId"), "run": res.get("runSetId"), "result": rid, "status": res.get("status")},
+           "ref": {"test": res.get("replayTestId"), "run": res.get("runSetId"), "result": rid, "status": res.get("status"),
+                   "branch": git.stdout.strip()},
            "definition": d,
            "conversations": [{"id": rid, "timestamp": res.get("creationTime") or "", "marked": []}]}
     with open(source.path(base, n), "w", encoding="utf-8") as f:

@@ -5,7 +5,8 @@
 
 Per issue <prefix>-<n> (cob-, opp-, hip-): a linked worktree at <repo>/.claude/worktrees/<prefix>-<n> on branch
 stan/<prefix>-<n> forked from --base, the batch's branch (default: the main checkout's HEAD; a base branch that exists
-neither locally nor on origin is created off main first), the repo hook skipped; the main checkout's
+neither locally nor on origin is created off main first), or for a failing-simulation card from its source's branch,
+the tree the run came from, the repo hook skipped; the main checkout's
 untracked state shared the way that hook shares it (skills and .targets linked, composer lockfile and .gitignore copied),
 pnpm install in the agent dir; the Studio workspace <prefix>-<n> connected or created (`sierra add-workspace --create`);
 Ghostwriter bound to it and the worktree's Studio content pushed there (init, pull, restore the tree, lint, push, pull).
@@ -17,6 +18,7 @@ run.log). Nothing else on disk changes; the worktree is left for `git worktree r
 import fcntl, json, os, re, signal, subprocess, sys, time
 from datetime import datetime, timezone
 import paths
+import source
 
 AGENT_DIR = {"cobranzas": "agents/base", "openpay": "agents/openpay", "hipotecarios": "agents/hipotecarios"}
 PREFIX = {"cobranzas": "cob", "openpay": "opp", "hipotecarios": "hip"}
@@ -93,7 +95,9 @@ class Setup:
         self.agent_rel = AGENT_DIR[agent]
         self.agent_dir = os.path.join(self.wt, self.agent_rel)
         self.sierra = os.path.join(self.agent_dir, "node_modules", ".bin", "sierra")
-        self.base_ref = base
+        src = source.load(paths.agent(pages, agent), n) or {}
+        self.sim_base = (src.get("ref") or {}).get("branch") if src.get("kind") == "sim" else None
+        self.base_ref = self.sim_base or base
         self.status_path = paths.status(paths.agent(pages, agent), n, "setup")
         self.status = {"state": "working", "pid": os.getpid(), "started": now(), "name": self.name, "worktree": self.wt,
                        "branch": self.branch, "batch": batch, "steps": []}
@@ -145,6 +149,8 @@ class Setup:
             log("base branch exists on origin, tracking it")
             sh(["git", "-C", self.repo, "branch", "--track", base, "origin/" + base])
             return
+        if self.sim_base:
+            raise RuntimeError(f"the simulation's branch {base} exists neither locally nor on origin")
         log("base branch is new, creating it off main")
         sh(["git", "-C", self.repo, "branch", base, "main"])
         self.status["base_created"] = True
