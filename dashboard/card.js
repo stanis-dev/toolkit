@@ -40,7 +40,7 @@
   }
   // The store: what the page's poll of GET steps brings (steps, batches, resolve, chains, cost, stale, each per agent). A set
   // re-renders every component that reads it; Preact then touches only what changed.
-  var Store=(function(){var s={steps:{},bst:{},res:{},chains:{},cost:{},stale:{}},subs=[];
+  var Store=(function(){var s={steps:{},bst:{},res:{},chains:{},cost:{},stale:{},guard:{}},subs=[];
     return {get:function(){return s},set:function(p){Object.keys(p).forEach(function(k){s[k]=p[k]});subs.slice().forEach(function(f){f()})},
       sub:function(f){subs.push(f);return function(){subs=subs.filter(function(g){return g!==f})}}}})();
   function useStore(){var f=useState(0)[1];useEffect(function(){return Store.sub(function(){f(function(x){return x+1})})},[]);return Store.get()}
@@ -53,13 +53,13 @@
   var TITLES={ss:'Sim Strategy',so:'Simulation Replay',si:'Simulation Iteration',oc:'Studio Context',oce:'Studio Context Edit',rs:'Resolution'};
   var TITLE_RE=/^(sim strategy|studio context( edit)?|simulation (replay|iteration)|regressions?)$/i;
   var CHEV='<i class="ti ti-chevron-right" aria-hidden="true"></i>';
-  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt'].forEach(function(c){known[c]=1})});
+  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt','grp'].forEach(function(c){known[c]=1})});
   function el(html){var t=document.createElement('template');t.innerHTML=html;return t.content.firstElementChild}
   // The guard's ×5: runs it on the card's workspace. While strategy/guard.json says working, a pulsing chip counts the
   // time and the old count dims; a failure shows its error; when the run is done the card reloads.
   function guardButton(b,i){var u=Paths.card(i.agent,i.num)+'strategy/guard.json', sum=b.closest('summary'), row=sum&&sum.querySelector('.nmrow');
     var bar=el('<span class="runbar"><span class="chip" hidden></span></span>'), chip=bar.firstChild, res=sum&&sum.querySelector('.n .res'), tick=null, since=0;
-    b.replaceWith(bar); bar.appendChild(b); if(row)row.appendChild(bar);
+    var g=sum&&sum.querySelector('.grp'); b.replaceWith(bar); bar.appendChild(b); if(g)bar.appendChild(g); if(row)row.appendChild(bar);
     bar.addEventListener('click',function(e){e.stopPropagation();e.preventDefault()});
     function show(cls,text,title){chip.hidden=!text;chip.className='chip'+(cls?' '+cls:'');chip.textContent=text||'';chip.title=title||''}
     function clock(t0){var s=Math.max(0,Math.round((Date.now()-Date.parse(t0))/1000));return 'running · '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
@@ -78,6 +78,7 @@
     var card=view.querySelector('.card'), odd=[]; if(!card||card.classList.contains('rep')) return;
     card.querySelectorAll('.ss .sim>summary').forEach(function(s){var n=s.querySelector(':scope>.n'),nm=s.querySelector('.nm');if(n&&n.firstChild&&n.firstChild.nodeType===3)n.firstChild.textContent=n.firstChild.textContent.replace(/^\s*[+~\-\u2212]\s*/,'');if(!nm)return;var was=nm.querySelector(':scope>.was'),res=n&&n.querySelector('.res');if(was&&res&&s.parentElement.classList.contains('reg')&&was.href){var b=/(\d+)/.exec(was.textContent);var a=document.createElement('a');a.className='res';a.href=was.href;a.textContent=(b?b[1]+'\u203a':'')+res.textContent.trim();res.replaceWith(a)}nm.querySelectorAll(':scope>.sep, :scope>.was').forEach(function(e){e.remove()})});
     card.querySelectorAll('.ss .gx5').forEach(function(b){guardButton(b,i)});
+    card.querySelectorAll('.ss .grp').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();e.preventDefault();Transcript.guard(i)})});
     card.querySelectorAll('.ss .sim>summary .crumb code').forEach(function(e){var p=e.previousElementSibling;if(p&&p.classList.contains('sep'))p.remove();e.remove()});
     card.querySelectorAll('.ia .row>span>a.hl:first-child').forEach(function(e){if(!/marcad[oa] por/i.test(e.textContent))return;var b=e.nextSibling;if(b&&b.tagName==='BR')b.remove();e.remove()});
     card.querySelectorAll('.ia .row.good>.n, .ia .row.bad>.n').forEach(function(n){var l=n.lastChild;if(l&&l.nodeType===3)l.textContent=l.textContent.replace(/\s*[+\-\u2212]\s*$/,'')});
@@ -387,7 +388,7 @@
   var Transcript=(function(){
     var dw=Drawer(), cur=null, want=null;
     function close(){if(dw.box()){dw.close();Context.close()}cur=null;want=null}
-    function state(){var box=dw.box();if(!box)return null;return want||{conv:cur.split('/')[2],scroll:box.querySelector('.tl').scrollTop}}
+    function state(){var box=dw.box();if(!box)return null;if(want)return want;var c=cur.split('/')[2];return c==='guard'?{guard:true,sel:guardSel,scroll:box.querySelector('.tl').scrollTop}:{conv:c,scroll:box.querySelector('.tl').scrollTop}}
     function toolHtml(t){return esc(t.name)+(t.args==null?'':' <span class="arg">'+esc(t.args)+'</span>')}
     function toolRow(t,q){return '<div class="row tcall"'+(q!=null?' title="tools['+q+'] of the turn below"':'')+'><span class="n"><i class="ti ti-tool" aria-hidden="true"></i></span><span>'+toolHtml(t)+'</span></div>'}
     function fmtDur(s){s=Math.round(s||0);return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
@@ -420,11 +421,36 @@
       return html`<aside class="sess conv" role="dialog" aria-label="Call transcript" ref=${box}><header><span class="ttl">${'#'+i.num+' · call'}</span><span class="st"></span>${call.url?html`<a class="rbtn" href=${call.url} target="_blank" rel="noopener" title="Open in Studio"><${Icon} n="ti-external-link"/></a>`:null}<button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
         <div class="hd2">${hd===null?html`<span class="err">${d.error}</span>`:hd}</div><div class="tl"><div class="ia"><div class="part"><div class="body" onClick=${function(ev){var a=ev.target.closest('a.tl');if(!a)return;ev.preventDefault();Context.toggle(i,conv,a.dataset.e,true)}} dangerouslySetInnerHTML=${{__html:d&&!d.error?rowsOf(d,s[0].an,call):''}}></div></div></div></div></aside>`;
     }
+    // The guard's runs before the fix and now (GET guard/<agent>/<n>), one chip per replay; the chosen replay's
+    // transcript below, the first failing replay of the latest run to start with.
+    var RUN_LABEL={'guard-red':'before the fix','guard-now':'now'};
+    function GuardPanel(p){
+      var i=p.i, runs=useState(null), sel=useState(p.sel||null), rows=useState(null), box=useRef(null);
+      useEffect(function(){getJSON('guard/'+i.agent+'/'+i.num).then(function(j){
+        j=j||{error:'server unreachable'}; runs[1](j);
+        if(!sel[0]&&Array.isArray(j)&&j.length){var last=j[j.length-1],k=last.replays.findIndex(function(x){return !x.passed});sel[1]({r:j.length-1,k:k<0?0:k})}})},[]);
+      var rr=runs[0], cur_=rr&&Array.isArray(rr)&&sel[0]?(rr[sel[0].r]||{replays:[]}).replays[sel[0].k]:null, id=cur_&&cur_.id;
+      useEffect(function(){if(!id)return;rows[1](null);guardSel=sel[0];
+        fetch('call/'+i.agent+'/'+i.num+'/'+id,{cache:'no-store'}).then(function(r){return r.json().then(function(j){return r.ok?j:{error:j.error||('server said '+r.status)}})}).catch(function(){return {error:'server unreachable'}}).then(function(d){rows[1](d)})},[id]);
+      useLayoutEffect(function(){if(!rows[0]||rows[0].error||!box.current)return;var tl=box.current.querySelector('.tl');if(want){tl.scrollTop=want.scroll||0;want=null}},[rows[0]]);
+      var d=rows[0], md=(d&&d.metadata)||{};
+      var hd=!rr?'loading the replays…':rr.error?null:!rr.length?'no guard run yet':!d?'loading…':d.error?null:[md.duration!=null?fmtDur(md.duration):'',md.message_count?md.message_count+' messages':'',id].filter(Boolean).join(' · ');
+      var err=rr&&rr.error?rr.error:d&&d.error?d.error:null;
+      var strip=rr&&Array.isArray(rr)?rr.map(function(run,r){return html`<div class="grun"><span class="gl">${RUN_LABEL[run.name]||run.name}</span><span class="gc">${run.passed+'/'+run.total}</span>${run.replays.map(function(x,k){var on=sel[0]&&sel[0].r===r&&sel[0].k===k;return html`<button class=${'gr '+(x.passed?'ok':'ko')+(on?' on':'')} title=${x.status+(x.why?'\n'+x.why:'')} aria-label=${'Replay '+(k+1)+' '+x.status} aria-pressed=${on?'true':'false'} onClick=${function(){Context.close();sel[1]({r:r,k:k})}}>${k+1}</button>`})}</div>`}):null;
+      return html`<aside class="sess conv guard" role="dialog" aria-label="Guard replays" ref=${box}><header><span class="ttl">${'#'+i.num+' · guard replays'}</span><span class="st"></span><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
+        <div class="gstrip">${strip}</div>${cur_&&cur_.why?html`<div class="gwhy">${cur_.why}</div>`:null}
+        <div class="hd2">${err?html`<span class="err">${err}</span>`:hd}</div><div class="tl"><div class="ia"><div class="part"><div class="body" onClick=${function(ev){var a=ev.target.closest('a.tl');if(!a||!id)return;ev.preventDefault();Context.toggle(i,id,a.dataset.e,true)}} dangerouslySetInnerHTML=${{__html:d&&!d.error?rowsOf(d,{},{}):''}}></div></div></div></div></aside>`;
+    }
+    var guardSel=null;
     function toggle(i,conv,restore){
       var k=i.agent+'/'+i.num+'/'+conv; if(dw.box()&&cur===k){close();return} close(); Session.close(); Context.close(); History.close(); Files.close(); cur=k; want=restore||null;
       dw.open(html`<${Panel} i=${i} conv=${conv}/>`);
     }
-    return {toggle:toggle,close:close,state:state};
+    function guard(i,restore){
+      var k=i.agent+'/'+i.num+'/guard'; if(dw.box()&&cur===k){close();return} close(); Session.close(); Context.close(); History.close(); Files.close(); cur=k; want=restore||null; guardSel=restore&&restore.sel||null;
+      dw.open(html`<${GuardPanel} i=${i} sel=${guardSel}/>`);
+    }
+    return {toggle:toggle,guard:guard,close:close,state:state};
   })();
   // Session drawer: the run's status, its events as a timeline of rows, the answer and stderr. A resolution session's
   // events come from its event stream and are folded in as they arrive; another step's log is read again every 2 s
@@ -761,7 +787,7 @@
   function restoreDrawer(i,d){closeDrawers();if(!d||!d.s)return;
     if(d.kind==='session')Session.toggle(i.agent,i.num,d.s.step,false,d.s);
     else if(d.kind==='history')History.toggle(i.agent,i.num,d.s);
-    else if(d.kind==='transcript'){Transcript.toggle(i,d.s.conv,d.s);if(d.ctx)Context.toggle(i,d.ctx.conv,d.ctx.entry,true,d.ctx)}
+    else if(d.kind==='transcript'){if(d.s.guard)Transcript.guard(i,d.s);else Transcript.toggle(i,d.s.conv,d.s);if(d.ctx)Context.toggle(i,d.ctx.conv,d.ctx.entry,true,d.ctx)}
     else if(d.kind==='context')Context.toggle(i,d.s.conv,d.s.entry,false,d.s)}
   window.Cards={StepToggles:StepToggles,ModelSelect:ModelSelect,MODELS:MODELS,EFFORTS:EFFORTS,chosenSteps:chosenSteps,drawerState:drawerState,closeDrawers:closeDrawers,restoreDrawer:restoreDrawer,
     batchView:batchView,store:Store,useStore:useStore,unmount:unmount,cache:cache,esc:esc,report:report,card:card,norm:norm,badges:badges,load:load,applyFolds:applyFolds,foldToggle:foldToggle,chrome:chrome};

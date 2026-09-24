@@ -8,6 +8,9 @@ strategy's guard-red.json from before the fix, which it leaves alone; a copy goe
 which the card's history event points to. On a simulation's card, a failing replay of the run becomes the card's
 conversation, so the next steps read a failure of the tree as it is. strategy/guard.json holds the run's state while
 it works and its result after; the Sim Strategy is rendered again.
+
+replays() gives the page's guard drawer both runs with their replays, each replay copied into the agent's conversation
+cache so the transcript and context drawers read it like any call.
 """
 import json
 import os
@@ -34,6 +37,28 @@ def write(path, d):
     with open(path + ".tmp", "w", encoding="utf-8") as f:
         json.dump(d, f, indent=1)
     os.replace(path + ".tmp", path)
+
+
+def replays(pages, agent, n):
+    """[{name, run, passed, total, replays: [{id, passed, why}]}] for guard-red, then guard-now, those that ran."""
+    base = paths.agent(pages, agent)
+    setup = json.load(open(paths.status(base, n, "setup"), encoding="utf-8"))
+    agent_dir = os.path.join(setup["worktree"], AGENT_DIR[agent])
+    out = []
+    for name in ("guard-red", "guard-now"):
+        run = paths.guard_red(base, n, name)
+        if not run:
+            continue
+        rows = []
+        for rdir in simcard.results(agent_dir, setup["name"], run):
+            res = json.load(open(os.path.join(rdir, "result.json"), encoding="utf-8"))
+            rid = res.get("id") or os.path.basename(rdir)
+            if not os.path.isdir(paths.conversation(base, rid)):
+                shutil.copytree(rdir, paths.conversation(base, rid))
+            why = simcard.failed(res)
+            rows.append({"id": rid, "passed": res.get("status") == "PASSED", "status": res.get("status"), "why": why})
+        out.append({"name": name, **run, "replays": rows})
+    return out
 
 
 def main(argv):

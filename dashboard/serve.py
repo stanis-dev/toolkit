@@ -11,7 +11,8 @@ changed branch drops the old pair. POST /batchdel/<agent>/<MMDD> starts batch.py
 batch's cards to no batch. Status in agents/<agent>/batches/<MMDD>.status.json. GET /branches lists the repository's local
 branches, each with the worktree that has it checked out. Setup forks the issue's worktree from the batch's branch and
 refuses without it.
-POST /guard/<agent>/<n> runs the card's guard 5× (guard.py); strategy/guard.json holds its state.
+POST /guard/<agent>/<n> runs the card's guard 5× (guard.py); strategy/guard.json holds its state. GET /guard/<agent>/<n>
+is its runs before the fix and now with their replays (guard.replays), downloaded on the first ask.
 POST /setup/<agent>/<n> starts the skill's setup.py: the issue's own worktree under <repo>/.claude/worktrees/ and its own Studio
 workspace, both named <prefix>-<n>; status in agents/<agent>/cards/<n>/setup/status.json. Every step below runs in that worktree and
 refuses (409) until it is there.
@@ -51,7 +52,7 @@ resolution itself, once; the status file's "asked" says whether it went. The oth
 its socket, runs/<n>/sock.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
-"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer)}: the page polls it once
+"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run}} (the card's latest guard run)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
 stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files
@@ -236,10 +237,21 @@ def chain_states(agent):
     return {n: steps.chain_state(agent, n) for n in paths.numbers(paths.agent('', agent), 'chain', 'json')}
 
 
+def guard_states(agent):
+    """{n: {passed, total}} of each card's latest guard run: the 5× run on its tree now, else the one before the fix."""
+    base, out = paths.agent('', agent), {}
+    for n in paths.cards(base):
+        run = paths.guard_red(base, n, 'guard-now') or paths.guard_red(base, n)
+        if run:
+            out[str(n)] = {'passed': run['passed'], 'total': run['total'], 'run': run['run']}
+    return out
+
+
 def steps_view(agent):
     live = live_sessions(agent)
     return {'sig': files_sig(agent), 'steps': step_states(agent), 'batches': batch_states(agent), 'resolve': resolve_view(agent, live),
-            'chains': chain_states(agent), 'cost': cost_states(agent, live), 'stale': steps.stale_states(agent)}
+            'chains': chain_states(agent), 'cost': cost_states(agent, live), 'stale': steps.stale_states(agent),
+            'guard': guard_states(agent)}
 
 
 host_call = steps.host_call
@@ -374,6 +386,14 @@ class H(SimpleHTTPRequestHandler):
                 out.append({'group': group, 'path': paths.rel(base, p), 'size': st.st_size,
                             't': datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
             self.reply(200, out); return
+        gr = GUARD.match(path)
+        if gr:
+            import guard
+            try:
+                self.reply(200, guard.replays(os.getcwd(), *gr.groups()))
+            except Exception as ex:
+                self.reply(500, {'error': f'{type(ex).__name__}: {ex}'[-400:]})
+            return
         cl = CALL.match(path)
         if cl:
             agent, n, conv = cl.groups()

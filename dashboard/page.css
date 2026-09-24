@@ -336,3 +336,18 @@ main{min-width:0}
 .bvt th,.bvt td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--border-soft)}
 .rop pre{white-space:pre-wrap;font-size:12px;max-height:260px;overflow:auto}
 @media (max-width:640px){.bvs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sess.guard .gstrip{padding:6px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.sess.guard .grun{display:flex;align-items:center;gap:6px;font-size:12px}
+.sess.guard .grun .gl{width:92px;color:var(--text-secondary)}
+.sess.guard .grun .gc{width:32px;font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted)}
+.sess.guard .gr{font:inherit;font-family:var(--font-mono);font-size:11.5px;width:24px;height:22px;border-radius:6px;border:1px solid transparent;cursor:pointer}
+.sess.guard .gr.ok{color:var(--text-success, var(--green));background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent))}
+.sess.guard .gr.ko{color:var(--text-danger, var(--destructive));background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent))}
+.sess.guard .gr.on{border-color:currentColor}
+.sess.guard .gwhy{padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px;line-height:1.45;white-space:pre-wrap;color:var(--text-secondary);max-height:9em;overflow:auto}
+.side .it .gsh{grid-column:1;grid-row:2;font-size:12px;line-height:1}
+.side.pick .it .gsh{grid-column:2}
+.side .it .gsh.none{color:var(--text-muted);opacity:.55}
+.side .it .gsh.ok{color:var(--text-success, var(--green))}
+.side .it .gsh.flaky{color:var(--text-warning, var(--orange))}
+.side .it .gsh.ko{color:var(--text-danger, var(--destructive))}

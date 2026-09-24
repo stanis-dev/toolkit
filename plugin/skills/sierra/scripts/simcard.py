@@ -105,14 +105,23 @@ def reproduce(base, n, agent_dir, workspace):
     return red
 
 
+def results(agent_dir, workspace, run):
+    """The result folders of run {run, passed, total}, oldest first, downloaded into the checkout's .composer when
+    fewer than its total are there."""
+    pat = os.path.join(agent_dir, ".composer", "simulations", f"replaytestrunset-{run['run']}", "results", "*", "result.json")
+    if len(glob.glob(pat)) < run["total"]:
+        sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
+        subprocess.run([sierra, "-C", agent_dir, "ghostwriter", "bbva.sierra.ai/" + workspace, "--download-simulations",
+                        "--run-id", run["run"]], stdout=subprocess.DEVNULL, check=True)
+    found = [(json.load(open(f, encoding="utf-8")), os.path.dirname(f)) for f in glob.glob(pat)]
+    return [d for _, d in sorted(found, key=lambda x: x[0].get("creationTime") or "")]
+
+
 def adopt(base, n, agent_dir, workspace, run):
     """Download run {run, passed, total} and make its first failing replay the card's conversation."""
     src = source.load(base, n)
-    sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
-    subprocess.run([sierra, "-C", agent_dir, "ghostwriter", "bbva.sierra.ai/" + workspace, "--download-simulations",
-                    "--run-id", run["run"]], stdout=subprocess.DEVNULL, check=True)
-    for rdir in sorted(glob.glob(os.path.join(agent_dir, ".composer", "simulations", f"replaytestrunset-{run['run']}", "results", "*"))):
-        if os.path.exists(os.path.join(rdir, "result.json")) and failed(json.load(open(os.path.join(rdir, "result.json"), encoding="utf-8"))):
+    for rdir in results(agent_dir, workspace, run):
+        if failed(json.load(open(os.path.join(rdir, "result.json"), encoding="utf-8"))):
             replay(base, n, rdir, src["ref"]["branch"])
             return
     raise RuntimeError(f"run {run['run']} has {run['total'] - run['passed']} failures but no failing replay was downloaded")

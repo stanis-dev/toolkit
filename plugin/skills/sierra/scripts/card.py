@@ -571,7 +571,8 @@ def render_ss(agent, n, strategy, pages, repo):
         tone = "ok" if last["passed"] == last["total"] else "flaky" if last["passed"] else "ko"
         title = f'before the fix · run {red["run"] or ""}' + (f'\nnow · run {now_run["run"] or ""}' if now_run else "")
         text = f'{red["passed"]}/{red["total"]}' + (f' › {now_run["passed"]}/{now_run["total"]}' if now_run else "")
-        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + x5
+        replays = '<button class="rbtn grp" title="The replays of these runs" aria-label="Show the guard replays"><i class="ti ti-player-play" aria-hidden="true"></i></button>'
+        return f'<span class="res {tone}" title="{esc(title)}">{text}</span>' + x5 + replays
 
     if guard and guard not in [x.get("id") for x in strategy.get("sims", [])] and guard in idx:
         name, group, rel = idx[guard]
