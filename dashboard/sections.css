@@ -4,7 +4,9 @@
 .ia svg.ti,.ss svg.ti,.so svg.ti,.si svg.ti,.oc svg.ti{width:1em;height:1em}
 .ia .sr-only,.ss .sr-only,.so .sr-only,.si .sr-only,.oc .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .ia header.top,.ss header.top,.so header.top,.si header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 10px;background:var(--surface-1, var(--muted));border-bottom:1px solid var(--border)}
-.ia .row,.so .row,.si .row,.oc .row,.so .exp{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:2px 0;align-items:start}
+.ia .row,.so .row,.si .row,.oc .row{display:grid;grid-template-columns:44px 1fr;gap:8px;padding:2px 0;align-items:start}
+.oc .row{grid-template-columns:24px 1fr}
+.so .exp{display:grid;grid-template-columns:0 1fr;gap:8px;padding:2px 0;align-items:start}
 .ia .row .n,.so .row .n,.si .row .n,.oc .row .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:12px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px}
 .ia .row .n .ti,.so .row .n .ti,.si .row .n .ti{font-size:14px;line-height:1}
 .ia h4,.so h4,.si h4{margin:0;padding:4px 10px 0;font-size:11.5px;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--text-muted, var(--muted-foreground))}
@@ -48,13 +50,13 @@
 .ss .id .num{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px;color:var(--text-secondary, var(--muted-foreground))}
 .ss .sim{border-bottom:1px solid var(--border-soft, var(--border))}
 .ss .sim:last-child{border-bottom:0}
-.ss .sim>summary,.ss div.sim{display:grid;grid-template-columns:72px 1fr;gap:8px;padding:5px 10px}
+.ss .sim>summary,.ss div.sim{display:grid;grid-template-columns:40px 1fr;gap:8px;padding:5px 10px}
 .ss details.sim>summary{list-style:none;cursor:pointer;user-select:none}
 .ss details.sim>summary::-webkit-details-marker{display:none}
 .ss details.sim>summary:hover .nm{color:var(--text-secondary, var(--muted-foreground))}
 .ss .nm .ti{height:20px;display:flex;align-items:center}
 .ss details.sim[open] .nm .ti{transform:rotate(90deg)}
-.ss .sim .body{padding:0 10px 7px 90px}
+.ss .sim .body{padding:0 10px 7px 58px}
 .ss .sim .n{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:13px;display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px}
 .ss .sim.add .nm,.ss details.sim.add>summary:hover .nm{color:var(--text-success, var(--green))}
 .ss .sim.mod .nm,.ss details.sim.mod>summary:hover .nm{color:var(--text-warning, var(--orange))}
@@ -73,10 +75,10 @@
 .ss .line{display:flex;gap:8px;align-items:baseline;padding:2px 0}
 .ss .k{flex:none;width:70px;font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground));text-align:right}
 .ss .gist{font-size:13.5px}
-.ss .sim>summary .gist{font-size:13px;color:var(--text-secondary, var(--muted-foreground));padding:1px 0 0 22px}
-.ss .body.guard{padding:6px 10px 5px;border-bottom:1px solid var(--border-soft, var(--border))}
-.ss .body.guard b{font-weight:500}
+.ss .sim>summary .gist{font-size:13px;color:var(--text-secondary, var(--muted-foreground));padding:1px 0 0 18px}
 .ss .tags{display:flex;flex-wrap:wrap;gap:3px}
+.ss .sim.reg .sim{border-bottom:0}
+.ss .sim.reg .sim>summary{padding:2px 10px}
 .ss .tag.ins{background:var(--bg-success, color-mix(in srgb, var(--green) 14%, transparent));color:var(--text-success, var(--green));border-color:var(--border-success, var(--green))}
 .ss .tag.rm{background:var(--bg-danger, color-mix(in srgb, var(--destructive) 14%, transparent));color:var(--text-danger, var(--destructive));border-color:var(--border-danger, var(--destructive));text-decoration:line-through}
 @media (max-width:520px){.ss .nmrow{flex-direction:column;align-items:flex-start;gap:2px}.ss .sim .body{padding-left:10px}}
@@ -144,7 +146,7 @@
 .oc .crumb .cur .ti{color:var(--text-primary, var(--foreground))}
 .oc .sec header code{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap}
 .oc .sec .body{padding:3px 10px 4px}
-.oc .row.sub{grid-template-columns:88px 1fr}
+.oc .row.sub{grid-template-columns:48px 1fr}
 .oc .row .n{align-self:start}
 .oc .row.dim{color:var(--text-muted, var(--muted-foreground))}
 .oc .row.gap{color:var(--text-muted, var(--muted-foreground));font-size:12.5px;font-style:italic}
@@ -170,7 +172,7 @@
 .oc .state{font-family:var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);font-size:11.5px;color:var(--text-muted, var(--muted-foreground));white-space:nowrap}
 
 /* Combining sections inside one card: a Replay inside a Sim Strategy row */
-.ss .sim .so h4{padding-left:82px}
+.ss .sim .so h4{padding-left:50px}
 .ss .sim .so details.part{border-bottom:0}
 .oc details.sec>summary{list-style:none;cursor:pointer;user-select:none}
 .oc details.sec>summary::-webkit-details-marker{display:none}

@@ -607,17 +607,18 @@ def render_ss(agent, n, strategy, pages, repo):
         for r in reg["sims"]:
             nm = idx.get(r.get("id") or "", (None,))[0] or r.get("id")
             t = counts.get(nm) or {}
-            res = ""
+            res = '<span class="res"></span>'
             if t.get("total"):
                 known_n += 1
                 full = t.get("passed") == t.get("total")
                 green += full
-                res = f'<span class="res {"ok" if full else "flaky" if t.get("passed") else "ko"}">{t.get("passed")}/{t.get("total")}</span> '
-            rows.append(f'    <div class="line"><span class="k">{res}</span><span class="gist"><b>{esc(nm)}</b> · {esc(r.get("why"))}</span></div>')
+                res = f'<span class="res {"ok" if full else "flaky" if t.get("passed") else "ko"}">{t.get("passed")}/{t.get("total")}</span>'
+            rows.append(head("reg", esc(nm), "", res))
+            rows.append(f'  <div class="body"><div class="gist">{esc(r.get("why"))}</div></div>\n</details>')
         top = f'<span class="res {"ok" if known_n and green == known_n else "flaky"}">{green}/{known_n}</span>' if known_n else '<span class="res"></span>'
-        gist = f'{len(reg["sims"])} simulation{"" if len(reg["sims"]) == 1 else "s"} the change could reach, run 5× before any edit' + (f' · {reg["run"]}' if reg.get("run") else " · not run")
-        out.append(head("reg", "Regression list", "", top, gist))
-        out.append('  <div class="body">\n' + "\n".join(rows) + '\n  </div>\n</details>')
+        out.append(head("reg", "Regression list", "", top))
+        out += rows
+        out.append("</details>")
     for red in strategy.get("expected_reds", []):
         known = idx.get(red.get("id") or "", (None, None, None))
         out.append(head("reg", esc(known[0] or red.get("id")), known[1] or "", '<span class="res"></span>'))
