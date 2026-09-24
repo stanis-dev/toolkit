@@ -40,7 +40,7 @@
   }
   // The store: what the page's poll of GET steps brings (steps, batches, resolve, chains, cost, stale, each per agent). A set
   // re-renders every component that reads it; Preact then touches only what changed.
-  var Store=(function(){var s={steps:{},bst:{},res:{},chains:{},cost:{},stale:{},guard:{}},subs=[];
+  var Store=(function(){var s={steps:{},bst:{},res:{},chains:{},cost:{},stale:{},guard:{},notes:{}},subs=[];
     return {get:function(){return s},set:function(p){Object.keys(p).forEach(function(k){s[k]=p[k]});subs.slice().forEach(function(f){f()})},
       sub:function(f){subs.push(f);return function(){subs=subs.filter(function(g){return g!==f})}}}})();
   function useStore(){var f=useState(0)[1];useEffect(function(){return Store.sub(function(){f(function(x){return x+1})})},[]);return Store.get()}
@@ -53,11 +53,12 @@
   var TITLES={ss:'Sim Strategy',so:'Simulation Replay',si:'Simulation Iteration',oc:'Studio Context',oce:'Studio Context Edit',rs:'Resolution'};
   var TITLE_RE=/^(sim strategy|studio context( edit)?|simulation (replay|iteration)|regressions?)$/i;
   var CHEV='<i class="ti ti-chevron-right" aria-hidden="true"></i>';
-  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt','grp'].forEach(function(c){known[c]=1})});
+  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt','grp','nbtn','nts','rx5'].forEach(function(c){known[c]=1})});
   function el(html){var t=document.createElement('template');t.innerHTML=html;return t.content.firstElementChild}
   // The guard's ×5: runs it on the card's workspace. While strategy/guard.json says working, a pulsing chip counts the
   // time and the old count dims; a failure shows its error; when the run is done the card reloads.
-  function guardButton(b,i){var u=Paths.card(i.agent,i.num)+'strategy/guard.json', sum=b.closest('summary'), row=sum&&sum.querySelector('.nmrow');
+  // The regression list's ×5 is the same button on the regression sims: regressions-run.json, POST regressions/.
+  function guardButton(b,i,reg){var u=Paths.card(i.agent,i.num)+'strategy/'+(reg?'regressions-run.json':'guard.json'), sum=b.closest('summary'), row=sum&&sum.querySelector('.nmrow');
     var bar=el('<span class="runbar"><span class="chip" hidden></span></span>'), chip=bar.firstChild, res=sum&&sum.querySelector('.n .res'), tick=null, since=0;
     var g=sum&&sum.querySelector('.grp'); b.replaceWith(bar); bar.appendChild(b); if(g)bar.appendChild(g); if(row)row.appendChild(bar);
     bar.addEventListener('click',function(e){e.stopPropagation();e.preventDefault()});
@@ -72,12 +73,13 @@
       show(null,null);delete cache[i.agent];window.dispatchEvent(new Event('hashchange'))})}
     getJSON(u).then(function(g){if(g&&g.state==='working')wait()});
     b.addEventListener('click',function(){b.hidden=true;show('working','starting');since=Date.now()-5000;
-      postJSON('guard/'+i.agent+'/'+i.num).then(function(r){if(r.ok){wait();return}return r.json().catch(function(){return {}}).then(function(j){b.hidden=false;show('failed',j.error||('server said '+r.status))})}).catch(function(){b.hidden=false;show('failed','server unreachable')})})}
+      postJSON((reg?'regressions/':'guard/')+i.agent+'/'+i.num).then(function(r){if(r.ok){wait();return}return r.json().catch(function(){return {}}).then(function(j){b.hidden=false;show('failed',j.error||('server said '+r.status))})}).catch(function(){b.hidden=false;show('failed','server unreachable')})})}
   function isEdit(s){return s.classList.contains('edit')||!!s.querySelector('.state, .row .del, .row .ins')}
   function norm(view,i){
     var card=view.querySelector('.card'), odd=[]; if(!card||card.classList.contains('rep')) return;
     card.querySelectorAll('.ss .sim>summary').forEach(function(s){var n=s.querySelector(':scope>.n'),nm=s.querySelector('.nm');if(n&&n.firstChild&&n.firstChild.nodeType===3)n.firstChild.textContent=n.firstChild.textContent.replace(/^\s*[+~\-\u2212]\s*/,'');if(!nm)return;var was=nm.querySelector(':scope>.was'),res=n&&n.querySelector('.res');if(was&&res&&s.parentElement.classList.contains('reg')&&was.href){var b=/(\d+)/.exec(was.textContent);var a=document.createElement('a');a.className='res';a.href=was.href;a.textContent=(b?b[1]+'\u203a':'')+res.textContent.trim();res.replaceWith(a)}nm.querySelectorAll(':scope>.sep, :scope>.was').forEach(function(e){e.remove()})});
     card.querySelectorAll('.ss .gx5').forEach(function(b){guardButton(b,i)});
+    card.querySelectorAll('.ss .rx5').forEach(function(b){guardButton(b,i,true)});
     card.querySelectorAll('.ss .grp').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();e.preventDefault();Transcript.guard(i)})});
     card.querySelectorAll('.ss .sim>summary .crumb code').forEach(function(e){var p=e.previousElementSibling;if(p&&p.classList.contains('sep'))p.remove();e.remove()});
     card.querySelectorAll('.ia .row>span>a.hl:first-child').forEach(function(e){if(!/marcad[oa] por/i.test(e.textContent))return;var b=e.nextSibling;if(b&&b.tagName==='BR')b.remove();e.remove()});
@@ -210,6 +212,16 @@
     }
     return html`<div class="rrn">${fixed?html`<div class="rrh">${'Rerun '+STEP_LABEL[fixed]}</div>`:html`<label class="rrh">Rerun step <select class="rrs" aria-label="Step to rerun" value=${sel[0]} onChange=${function(e){touched.current=true;sel[1](e.target.value)}}>${PREP_STEPS.map(function(k){return html`<option value=${k}>${STEP_LABEL[k]}</option>`})}</select></label>`}<textarea class="rrf" rows="3" placeholder="Feedback for the step: what its answer got wrong" value=${fb[0]} onInput=${function(e){touched.current=true;fb[1](e.target.value)}}></textarea><label class="rrh">Send as <select class="rrs" aria-label="Whose feedback" value=${from} onChange=${function(e){src[1](e.target.value)}}><option value="resolver">the resolver's claim</option><option value="ruling">my ruling</option></select></label><div class="rrb"><button type="button" class="rbtn rrgo" title="Rerun this step with the feedback; the branch goes back to where it started" onClick=${function(){go(false)}}>rerun</button><button type="button" class="rbtn rrall" title="Rerun this step with the feedback, then the steps after it" disabled=${step==='context'} onClick=${function(){go(true)}}>rerun + later steps</button></div>${msg[0]?html`<div class=${'rrm '+msg[0].cls}>${msg[0].text}</div>`:null}</div>`;
   }
+  // Notes: the engineer's standing notes for one step of the card; every run of that step carries them at the end of its
+  // message. Saved on the button, an empty text removes them.
+  function Notes(p){
+    var t=useState(null), msg=useState(null), url='notes/'+p.agent+'/'+p.num+'/'+p.step;
+    useEffect(function(){getJSON(url).then(function(x){t[1]((x&&x.text)||'')}).catch(function(){msg[1]({cls:'failed',text:'server unreachable'})})},[]);
+    function save(){msg[1]({cls:'working',text:'saving'});
+      postJSON(url,{text:t[0]||''}).then(function(r){if(r.ok){msg[1]({cls:'done',text:(t[0]||'').trim()?'saved: the next runs carry them':'removed'});return}
+        return errText(r).then(function(e){msg[1]({cls:'failed',text:e})})}).catch(function(){msg[1]({cls:'failed',text:'server unreachable'})})}
+    return html`<div class="rrn nts"><div class="rrh">${'Notes for every '+STEP_LABEL[p.step]+' run'}</div><textarea class="rrf" rows="5" aria-label=${'Notes for '+STEP_LABEL[p.step]} placeholder="What every run of this step should know or do" disabled=${t[0]===null} value=${t[0]||''} onInput=${function(e){t[1](e.target.value);msg[1](null)}}></textarea><div class="rrb"><button type="button" class="rbtn" disabled=${t[0]===null} onClick=${save}>save</button></div>${msg[0]?html`<div class=${'rrm '+msg[0].cls} role="status">${msg[0].text}</div>`:null}</div>`;
+  }
   // A popover hung on document.body under its anchor: a control typed into inside a fold's summary would toggle the fold.
   function Floating(p){
     var host=useRef(null);
@@ -225,6 +237,7 @@
   function staleOf(S,i,step){return (((S.stale||{})[i.agent]||{})[i.num]||{})[step]||null}
   function RunStrip(p){
     var i=p.i, step=p.step, agent=i.agent, S=useStore(), rr=useState(false), rrRef=useRef(null), stale=staleOf(S,i,step);
+    var nt=useState(false), ntRef=useRef(null), hasNotes=((((S.notes||{})[agent]||{})[i.num])||[]).indexOf(step)>=0;
     var r=useStatus(Paths.status(agent,i.num,step),stepState(S,i,step)), st=r[0];
     var loc=useState(null), local=loc[0], setLocal=loc[1], res=useState(false);
     useEffect(function(){if(local&&!local.sticky)setLocal(null)},[st]);
@@ -246,7 +259,7 @@
     }
     if(local&&local.chip)chip=local.chip;
     var kbHidden=local&&local.busy?false:!working, resume=step==='resolve'&&res[0]&&!working&&!(local&&local.busy);
-    return html`<span class="run">${stale?html`<span class="chip stale" title=${'Out of date: '+stale}>stale</span>`:null}<${Chip} c=${chip}/><button class="rbtn" title=${'Run '+STEP_LABEL[step]} aria-label=${'Run '+STEP_LABEL[step]} disabled=${working||!!(local&&local.busy)} onClick=${function(){start(false)}}><${Icon} n="ti-player-play"/></button>${resume?html`<button class="rbtn rsm" title="Resume the last session: pi picks up its session file where it stopped" aria-label="Resume the session" onClick=${function(){start(true)}}><${Icon} n="ti-player-track-next"/></button>`:null}<button class="rbtn kbtn" title="Stop this run" aria-label="Stop this run" hidden=${kbHidden} disabled=${!!(local&&local.stopping)} onClick=${stop}><${Icon} n="ti-player-stop"/></button><button class="rbtn sbtn2" title="Session details" aria-label="Session details" disabled=${!st} onClick=${function(){Session.toggle(agent,i.num,step)}}><${Icon} n="ti-list-details"/></button>${PREP_STEPS.indexOf(step)>=0?html`<button class=${'rbtn rrb1'+(rr[0]?' on':'')} ref=${rrRef} title="Rerun with feedback" aria-label=${'Rerun '+STEP_LABEL[step]+' with feedback'} aria-expanded=${String(rr[0])} disabled=${working} onClick=${function(){rr[1](!rr[0])}}><${Icon} n="ti-arrow-back-up"/></button>`:null}${rr[0]?html`<${Floating} anchor=${rrRef} onClose=${function(){rr[1](false)}}><${Rerun} agent=${agent} num=${i.num} step=${step}/></${Floating}>`:null}</span>`;
+    return html`<span class="run">${stale?html`<span class="chip stale" title=${'Out of date: '+stale}>stale</span>`:null}<${Chip} c=${chip}/><button class="rbtn" title=${'Run '+STEP_LABEL[step]} aria-label=${'Run '+STEP_LABEL[step]} disabled=${working||!!(local&&local.busy)} onClick=${function(){start(false)}}><${Icon} n="ti-player-play"/></button>${resume?html`<button class="rbtn rsm" title="Resume the last session: pi picks up its session file where it stopped" aria-label="Resume the session" onClick=${function(){start(true)}}><${Icon} n="ti-player-track-next"/></button>`:null}<button class="rbtn kbtn" title="Stop this run" aria-label="Stop this run" hidden=${kbHidden} disabled=${!!(local&&local.stopping)} onClick=${stop}><${Icon} n="ti-player-stop"/></button><button class="rbtn sbtn2" title="Session details" aria-label="Session details" disabled=${!st} onClick=${function(){Session.toggle(agent,i.num,step)}}><${Icon} n="ti-list-details"/></button>${PREP_STEPS.indexOf(step)>=0?html`<button class=${'rbtn rrb1'+(rr[0]?' on':'')} ref=${rrRef} title="Rerun with feedback" aria-label=${'Rerun '+STEP_LABEL[step]+' with feedback'} aria-expanded=${String(rr[0])} disabled=${working} onClick=${function(){rr[1](!rr[0])}}><${Icon} n="ti-arrow-back-up"/></button>`:null}${rr[0]?html`<${Floating} anchor=${rrRef} onClose=${function(){rr[1](false)}}><${Rerun} agent=${agent} num=${i.num} step=${step}/></${Floating}>`:null}${PREP_STEPS.indexOf(step)>=0?html`<button class=${'rbtn nbtn'+(nt[0]?' on':'')+(hasNotes?' has':'')} ref=${ntRef} title=${hasNotes?'Notes for every run of this step (set)':'Notes for every run of this step'} aria-label=${'Notes for '+STEP_LABEL[step]+(hasNotes?', set':'')} aria-expanded=${String(nt[0])} onClick=${function(){nt[1](!nt[0])}}><${Icon} n="ti-notes"/></button>`:null}${nt[0]?html`<${Floating} anchor=${ntRef} onClose=${function(){nt[1](false)}}><${Notes} agent=${agent} num=${i.num} step=${step}/></${Floating}>`:null}</span>`;
   }
   // Lane: the issue's own worktree and Studio workspace (setup.py). Every step runs there, so the four run buttons wait
   // for it.

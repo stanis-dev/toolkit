@@ -96,6 +96,11 @@ def numbers(base, kind, ext="status.json"):
     return sorted(f for f in os.listdir(d) if f.isdigit() and os.path.exists(at(f))) if os.path.isdir(d) else []
 
 
+def notes(base, n, step):
+    """The engineer's notes for the card's step: every run of that step carries them."""
+    return step_file(base, n, step, "notes.md")
+
+
 def runs(base, n, step):
     """The step's working folder for the card: the current run's files, and one folder per ended run."""
     if step == "driver":

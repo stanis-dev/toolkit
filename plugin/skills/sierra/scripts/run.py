@@ -31,6 +31,8 @@ session.<stamp>/. --feedback continues that session (-c) with one message, the f
 without a session it runs fresh with the feedback under a heading at the end of the prompt. feedback.md keeps the text.
 --from says whose it is, engineer by default: a claim the step weighs (the answer's `feedback` field, required non-null
 then), or a ruling, which it applies (every point accepted).
+The engineer's notes for the step (`<step>/notes.md`, written from the card) end the message of every run of it, a
+continued one's too; the run keeps the text it was sent as notes.md.
 """
 import hashlib
 import json
@@ -345,7 +347,7 @@ def keep_run(runs, started, feedback, answer_path=None):
         dest = f"{base}-{k}"
     os.makedirs(dest)
     kept = []
-    for f in ("answer.json", "feedback.md", "prompt.md", "out.jsonl", "err.log"):
+    for f in ("answer.json", "feedback.md", "notes.md", "prompt.md", "out.jsonl", "err.log"):
         src = answer_path if f == "answer.json" else os.path.join(runs, f)
         if src and os.path.exists(src) and (f != "feedback.md" or feedback):
             shutil.copy(src, os.path.join(dest, f))
@@ -517,6 +519,13 @@ def main(argv):
                       "and return only the JSON object schema.json describes.")
         elif feedback:
             prompt += f"\n\n# {head} on the previous run\n\n{feedback}\n\n{where} {weigh.strip()}\n"
+        notes = (open(paths.notes(base, n, step), encoding="utf-8").read().strip()
+                 if os.path.exists(paths.notes(base, n, step)) else "")
+        if notes:
+            prompt += f"\n\n# The engineer's notes for this step\n\nThey hold for every run of this step: follow them.\n\n{notes}\n"
+            open(os.path.join(runs, "notes.md"), "w", encoding="utf-8").write(notes + "\n")
+        elif os.path.exists(os.path.join(runs, "notes.md")):
+            os.remove(os.path.join(runs, "notes.md"))
         open(os.path.join(runs, "prompt.md"), "w", encoding="utf-8").write(prompt)
         system = ("You run one step of an unattended issue workflow. The user message carries the whole task: instructions, "
                   "the output schema and the data.")

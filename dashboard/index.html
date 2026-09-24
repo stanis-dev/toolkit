@@ -311,7 +311,7 @@
   document.getElementById('view').addEventListener('toggle',function(e){var q=route();if(q.i)Cards.foldToggle(cardv,ui.agent,q.i,e.target)},true);
   // Hot reload: every 2 s one GET steps/<agent> brings the step states and a signature of the issue and card files;
   // a moved signature reloads the agent's files, any change updates the store and so the rows and bars that show it.
-  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale'],['guard','guard']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
+  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale'],['guard','guard'],['notes','notes']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
   function poll1(){
     var a=ui.agent;
     return fetch('steps/'+a,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){

@@ -13,7 +13,12 @@ in the batch, which the page lists under Archived. Status in agents/<agent>/batc
 branches, each with the worktree that has it checked out. Setup forks the issue's worktree from the batch's branch and
 refuses without it.
 POST /guard/<agent>/<n> runs the card's guard 5× (guard.py); strategy/guard.json holds its state. GET /guard/<agent>/<n>
-is its runs before the fix and now with their replays (guard.replays), downloaded on the first ask.
+is its runs before the fix and now with their replays (guard.replays), downloaded on the first ask. POST
+/regressions/<agent>/<n> runs the strategy's regression sims 5× the same way (guard.py --regressions); state in
+strategy/regressions-run.json.
+GET /notes/<agent>/<n>/<step> is {"text"}, the engineer's notes for that step of the card (<step>/notes.md), which end the
+message of every run of the step; POST it with {"text"} writes them, an empty text removes the file, and records the change
+in the card's history.
 POST /setup/<agent>/<n> starts the skill's setup.py: the issue's own worktree under <repo>/.claude/worktrees/ and its own Studio
 workspace, both named <prefix>-<n>; status in agents/<agent>/cards/<n>/setup/status.json. Every step below runs in that worktree and
 refuses (409) until it is there.
@@ -53,7 +58,7 @@ resolution itself, once; the status file's "asked" says whether it went. The oth
 its socket, runs/<n>/sock.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
-"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run}} (the card's latest guard run)}: the page polls it once
+"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run}} (the card's latest guard run), "notes": {"<n>": [<step>, …]} (steps with notes)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
 stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files
@@ -95,6 +100,8 @@ KILL = re.compile(r'^/kill/' + A + r'/(\d+)/(analysis|strategy|context|setup)$')
 SETUP = re.compile(r'^/setup/' + A + r'/(\d+)$')
 RESET = re.compile(r'^/reset/' + A + r'/(\d+)$')
 GUARD = re.compile(r'^/guard/' + A + r'/(\d+)$')
+REGRUN = re.compile(r'^/regressions/' + A + r'/(\d+)$')
+NOTES = re.compile(r'^/notes/' + A + r'/(\d+)/(analysis|strategy|context)$')
 STEPSTATE = re.compile(r'^/steps/' + A + '$')
 REQUEST = re.compile(r'^/request/' + A + r'/(\d+)/([\w-]+)(?:/([\w-]+))?$')
 CALL = re.compile(r'^/call/' + A + r'/(\d+)/([\w-]+)$')
@@ -249,11 +256,21 @@ def guard_states(agent):
     return out
 
 
+def note_states(agent):
+    """{n: [step, …]}: the card steps that have notes."""
+    base, out = paths.agent('', agent), {}
+    for n in paths.cards(base):
+        have = [s for s in ('analysis', 'strategy', 'context') if os.path.exists(paths.notes(base, n, s))]
+        if have:
+            out[str(n)] = have
+    return out
+
+
 def steps_view(agent):
     live = live_sessions(agent)
     return {'sig': files_sig(agent), 'steps': step_states(agent), 'batches': batch_states(agent), 'resolve': resolve_view(agent, live),
             'chains': chain_states(agent), 'cost': cost_states(agent, live), 'stale': steps.stale_states(agent),
-            'guard': guard_states(agent)}
+            'guard': guard_states(agent), 'notes': note_states(agent)}
 
 
 host_call = steps.host_call
@@ -388,6 +405,10 @@ class H(SimpleHTTPRequestHandler):
                 out.append({'group': group, 'path': paths.rel(base, p), 'size': st.st_size,
                             't': datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
             self.reply(200, out); return
+        nt = NOTES.match(path)
+        if nt:
+            p = paths.notes(paths.agent('', nt.group(1)), *nt.groups()[1:])
+            self.reply(200, {'text': open(p, encoding='utf-8').read() if os.path.exists(p) else ''}); return
         gr = GUARD.match(path)
         if gr:
             import guard
@@ -561,6 +582,16 @@ class H(SimpleHTTPRequestHandler):
             err = steps.spawn_proc(state, os.path.join(paths.runs(base, n, 'strategy'), 'guard.log'),
                                    [os.path.join(SCRIPTS, 'guard.py'), agent, n, '--pages', os.getcwd()])[0]
             self.reply(409, {'error': err}) if err else self.reply(202); return
+        rg = REGRUN.match(self.path)
+        if rg:
+            agent, n = rg.groups()
+            base = paths.agent('', agent)
+            if not os.path.exists(paths.answer(base, n, 'strategy')):
+                self.reply(409, {'error': 'no sim strategy yet'}); return
+            state = os.path.join(paths.card_dir(base, n), 'strategy', 'regressions-run.json')
+            err = steps.spawn_proc(state, os.path.join(paths.runs(base, n, 'strategy'), 'regressions-run.log'),
+                                   [os.path.join(SCRIPTS, 'guard.py'), agent, n, '--regressions', '--pages', os.getcwd()])[0]
+            self.reply(409, {'error': err}) if err else self.reply(202); return
         su = SETUP.match(self.path)
         if su:
             err = start_step(*su.groups(), 'setup')
@@ -677,6 +708,25 @@ class H(SimpleHTTPRequestHandler):
                 self.send_error(409, 'nothing running'); return
             os.kill(pid, signal.SIGTERM)
             self.reply(202); return
+        nt = NOTES.match(self.path)
+        if nt:
+            agent, n, step = nt.groups()
+            text = str((self.body() or {}).get('text') or '').strip()
+            p = paths.notes(paths.agent('', agent), n, step)
+            old = open(p, encoding='utf-8').read().strip() if os.path.exists(p) else ''
+            if text == old:
+                self.reply(204); return
+            if text:
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p + '.tmp', 'w', encoding='utf-8') as f:
+                    f.write(text + '\n')
+                os.replace(p + '.tmp', p)
+            elif os.path.exists(p):
+                os.remove(p)
+            first = next((l.strip() for l in text.splitlines() if l.strip()), '')[:80]
+            cardlog.add(os.getcwd(), agent, n, 'engineer', f'notes for {step}: «{first}»' if text else f'removed the notes for {step}',
+                        [paths.rel(paths.agent('', agent), p)] if text else [])
+            self.reply(204); return
         r = RUN.match(self.path)
         if r:
             opts = self.body() or {}

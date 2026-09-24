@@ -648,22 +648,29 @@ def render_ss(agent, n, strategy, pages, repo):
         out.append('    </div>\n  </details>\n  </div>\n</details>')
     reg = strategy.get("regressions") or {}
     if reg.get("sims"):  # the simulations the change could break, with their baseline counts when the run file is there
-        base_path = os.path.join(paths.runs(paths.agent(pages, agent), n, "strategy"), "regressions.json")
-        base_file = load_json(base_path) if os.path.exists(base_path) else {}
-        counts = {t.get("name"): t for t in base_file.get("tests") or []}
+        runs_dir = paths.runs(paths.agent(pages, agent), n, "strategy")
+
+        def run_counts(f):
+            p = os.path.join(runs_dir, f)
+            return {t.get("name"): t for t in (load_json(p) if os.path.exists(p) else {}).get("tests") or []}
+        counts, now_counts = run_counts("regressions.json"), run_counts("regressions-now.json")
         rows, green, known_n = [], 0, 0
         for r in reg["sims"]:
             nm = idx.get(r.get("id") or "", (None,))[0] or r.get("id")
-            t = counts.get(nm) or {}
+            t, tn = counts.get(nm) or {}, now_counts.get(nm) or {}
             res = '<span class="res"></span>'
-            if t.get("total"):
+            if t.get("total") or tn.get("total"):
+                last = tn if tn.get("total") else t
                 known_n += 1
-                full = t.get("passed") == t.get("total")
+                full = last.get("passed") == last.get("total")
                 green += full
-                res = f'<span class="res {"ok" if full else "flaky" if t.get("passed") else "ko"}">{t.get("passed")}/{t.get("total")}</span>'
+                text = " › ".join(f'{x.get("passed")}/{x.get("total")}' for x in (t, tn) if x.get("total"))
+                title = ("before the fix" if t.get("total") else "") + (" › " if t.get("total") and tn.get("total") else "") + ("now" if tn.get("total") else "")
+                res = f'<span class="res {"ok" if full else "flaky" if last.get("passed") else "ko"}" title="{title}">{text}</span>'
             rows.append(head("reg", esc(nm), "", res))
             rows.append(f'  <div class="body"><div class="gist">{esc(r.get("why"))}</div></div>\n</details>')
-        top = f'<span class="res {"ok" if known_n and green == known_n else "flaky"}">{green}/{known_n}</span>' if known_n else '<span class="res"></span>'
+        rx5 = '<button class="rbtn rx5" title="Run the regression sims 5× on the card\'s workspace" aria-label="Run the regression sims 5 times">×5</button>'
+        top = (f'<span class="res {"ok" if known_n and green == known_n else "flaky"}">{green}/{known_n}</span>' if known_n else '<span class="res"></span>') + rx5
         out.append(head("reg", "Regression list", "", top))
         out += rows
         out.append("</details>")

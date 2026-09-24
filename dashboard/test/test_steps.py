@@ -156,6 +156,23 @@ class Steps(unittest.TestCase):
         self.assertIn('Stand-in sim-strategy instructions.', call['stdin'])
         self.assertIn('# Feedback from the engineer on the previous run\n\nName the second question.', call['stdin'])
 
+    def test_notes_end_every_run_of_the_step(self):
+        base = paths.agent(self.run_dir, AG)
+        p = paths.notes(base, N, 'strategy')
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, 'w').write('Use the interruption field.\n')
+        self.run_step('strategy')
+        self.run_step('strategy', feedback='Name the second question.')
+        fresh, cont = self.pi_calls()[-2:]
+        for call in (fresh, cont):
+            self.assertIn("# The engineer's notes for this step", call['stdin'])
+            self.assertTrue(call['stdin'].rstrip().endswith('Use the interruption field.'))
+        runs = paths.runs(base, N, 'strategy')
+        self.assertEqual(open(os.path.join(runs, 'notes.md')).read(), 'Use the interruption field.\n')
+        os.remove(p)
+        self.run_step('analysis')
+        self.assertNotIn("engineer's notes", self.pi_calls()[-1]['stdin'])
+
     def test_fresh_run_moves_the_session_aside(self):
         self.run_step('strategy')
         self.run_step('strategy')
