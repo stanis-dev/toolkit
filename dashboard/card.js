@@ -284,7 +284,7 @@
     }
     return html`<button class=${'rbtn lbl rstb'+(st.armed?' arm':'')} title=${st.title||T} aria-label="Reset every step" disabled=${!!st.busy} onClick=${click}>${st.armed?'Click again':'Reset'}</button>`}
   function TopBar(p){var i=p.i;if(!i.agent)return null;
-    return html`<${SetupLane} i=${i}/><${BatchSelect} i=${i}/><span class="vsep"></span><${Models}/><span class="rgt"><${Cost} i=${i}/><span class="vsep"></span><${Chain} i=${i}/><button class="rbtn lbl hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/>History</button><${Reset} i=${i}/></span>`}
+    return html`<${SetupLane} i=${i}/><${BatchSelect} i=${i}/><span class="vsep"></span><${Models}/><span class="rgt"><${Cost} i=${i}/><span class="vsep"></span><${Chain} i=${i}/><button class="rbtn lbl hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/>History</button><button class="rbtn lbl flsb" title="Every file of the card: its issue and calls, its answers, runs and history" aria-label="Card files" onClick=${function(){Files.toggle(i.agent,i.num)}}><${Icon} n="ti-folder"/>Files</button><${Reset} i=${i}/></span>`}
   // Drawers: one aside at a time on the right (the context may sit beside the transcript), each a component in a host
   // element of its own; toggle, close and state as before, state being what the card's view memory keeps.
   function Drawer(){var host=null;return {
@@ -357,7 +357,7 @@
     function toggle(i,conv,entry,fromTranscript,restore){
       var k=i.agent+'/'+i.num+'/'+conv;
       if(dw.box()&&cur===k){if(entry&&data&&data.turn!==entry){api.load(entry);return}close();return}
-      close(); if(!fromTranscript){Transcript.close();Session.close();History.close()} cur=k; beside=!!fromTranscript; want=restore||null;
+      close(); if(!fromTranscript){Transcript.close();Session.close();History.close();Files.close()} cur=k; beside=!!fromTranscript; want=restore||null;
       if(beside)document.body.classList.add('ctx-beside');
       dw.open(html`<${Panel} i=${i} conv=${conv} entry=${entry} q=${restore&&restore.q}/>`);
     }
@@ -403,7 +403,7 @@
         <div class="hd2">${hd===null?html`<span class="err">${d.error}</span>`:hd}</div><div class="tl"><div class="ia"><div class="part"><div class="body" onClick=${function(ev){var a=ev.target.closest('a.tl');if(!a)return;ev.preventDefault();Context.toggle(i,conv,a.dataset.e,true)}} dangerouslySetInnerHTML=${{__html:d&&!d.error?rowsOf(d,s[0].an,call):''}}></div></div></div></div></aside>`;
     }
     function toggle(i,conv,restore){
-      var k=i.agent+'/'+i.num+'/'+conv; if(dw.box()&&cur===k){close();return} close(); Session.close(); Context.close(); History.close(); cur=k; want=restore||null;
+      var k=i.agent+'/'+i.num+'/'+conv; if(dw.box()&&cur===k){close();return} close(); Session.close(); Context.close(); History.close(); Files.close(); cur=k; want=restore||null;
       dw.open(html`<${Panel} i=${i} conv=${conv}/>`);
     }
     return {toggle:toggle,close:close,state:state};
@@ -590,7 +590,7 @@
         ${chat?html`<form class="comp" onSubmit=${function(e){e.preventDefault();send()}}><textarea rows="3" ref=${ta} placeholder="Message the agent · Enter sends, Shift+Enter for a new line" onKeyDown=${function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}></textarea><div class="cbtns"><button type="submit" class="rbtn send" title="Send now; while the agent runs it is delivered before its next model call">send</button><button type="button" class="rbtn later" title="Deliver when the agent finishes" onClick=${function(){send('follow_up')}}>after this</button>${drv?null:html`<button type="button" class="rbtn askb" title="Send the resolution instructions: review the answers, guard red, apply, guard green, report" disabled=${sent||note[0]==='sending'||!(st&&st.state==='working')} onClick=${function(){note[1]('sending');post(agent,num,'ask').then(function(r){if(r.ok)note[1]('sent');else{note[1](null);errText(r).then(function(t){alertRow('server said '+r.status+' '+t)})}}).catch(function(){note[1](null)})}}>${sent||note[0]==='sent'?'resolution sent':'resolution'}</button>`}<span class="sp"></span><button type="button" class="rbtn kbtn abort" title="Interrupt the current turn" onClick=${function(){post(agent,num,'abort',null,step)}}>interrupt</button></div></form>`:null}
         <details class="ans" hidden=${!ans}><summary>Answer</summary><pre>${ans||''}</pre></details><details class="errl" hidden=${!tail}><summary>stderr</summary><pre>${tail}</pre></details></aside>`;
     }
-    function toggle(agent,num,step,keep,restore){step=step||'analysis';var k=agent+'/'+num+'/'+step; if(dw.box()&&cur===k){if(!keep)close();return} close(); History.close(); cur=k; want=restore||null;
+    function toggle(agent,num,step,keep,restore){step=step||'analysis';var k=agent+'/'+num+'/'+step; if(dw.box()&&cur===k){if(!keep)close();return} close(); History.close(); Files.close(); cur=k; want=restore||null;
       dw.open(html`<${Panel} agent=${agent} num=${num} step=${step}/>`)}
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
     return {toggle:toggle,close:close,state:state};
@@ -629,6 +629,45 @@
       dw.open(html`<${Panel} agent=${agent} num=${num}/>`)}
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
     return {toggle:toggle,close:close,state:state};
+  })();
+  // Files drawer: every file of the card (GET files/<agent>/<n>), in paths.card_files' groups, folders folded (a folder
+  // holding one file shows as that file, a folder every file of the group is in is left out); a file opens below the list as text, JSON indented.
+  var Files=(function(){
+    var dw=Drawer(), cur=null, CAP=300000;
+    var GROUP={source:'Source',card:'Card',setup:'Setup',analysis:'Issue Analysis',strategy:'Sim Strategy',context:'Studio Context Edit',resolve:'Resolution'};
+    function close(){dw.close();cur=null}
+    function size(b){return b>=1048576?(b/1048576).toFixed(1)+' MB':b>=1024?Math.round(b/1024)+' KB':b+' B'}
+    function tree(files){var root={dirs:{},files:[]}, top=files[0].path.split('/')[0], cut=files.every(function(f){return f.path.indexOf(top+'/')===0})?1:0;
+      files.forEach(function(f){var parts=f.path.split('/').slice(cut),node=root;
+      parts.slice(0,-1).forEach(function(d){node=node.dirs[d]||(node.dirs[d]={dirs:{},files:[]})});node.files.push({name:parts[parts.length-1],f:f})});return root}
+    function count(node){return node.files.length+Object.keys(node.dirs).reduce(function(m,k){return m+count(node.dirs[k])},0)}
+    function Panel(p){
+      var agent=p.agent, num=p.num, s=useState(null), sel=useState(null), pv=useState(null);
+      useEffect(function(){getJSON('files/'+agent+'/'+num).then(function(x){s[1](x||[])})},[]);
+      useEffect(function(){var f=sel[0], live=true; if(!f){pv[1](null);return}
+        pv[1]({text:'loading…'});
+        fetch('agents/'+agent+'/'+f.path,{cache:'no-store'}).then(function(r){return r.ok?r.text():null}).catch(function(){return null}).then(function(t){if(!live)return;
+          if(t==null){pv[1]({text:'(could not read the file)'});return}
+          var cut=t.length>CAP; if(!cut&&/\.json$/.test(f.path)){try{t=JSON.stringify(JSON.parse(t),null,1)}catch(e){}}
+          pv[1]({text:cut?t.slice(0,CAP):t,cut:cut})});
+        return function(){live=false}},[sel[0]]);
+      function row(label,f){var on=sel[0]&&sel[0].path===f.path;
+        return html`<button class=${'fr'+(on?' on':'')} title=${f.path} onClick=${function(){sel[1](on?null:f)}}><span class="fn">${label}</span><small>${size(f.size)}</small><small>${String(f.t).slice(5,16).replace('T',' ')}</small></button>`}
+      function Node(q){var node=q.node;
+        return html`${node.files.map(function(x){return row(x.name,x.f)})}${Object.keys(node.dirs).sort().map(function(d){var c=node.dirs[d];
+          if(!Object.keys(c.dirs).length&&c.files.length===1)return row(d+'/'+c.files[0].name,c.files[0].f);
+          return html`<details class="fd"><summary><${Icon} n="ti-folder"/>${d}<small>${count(c)}</small></summary><div class="fk"><${Node} node=${c}/></div></details>`})}`}
+      var groups=[]; (s[0]||[]).forEach(function(f){var g=groups[groups.length-1]; if(!g||g.name!==f.group)groups.push(g={name:f.group,files:[]}); g.files.push(f)});
+      var f=sel[0], v=pv[0];
+      return html`<aside class="sess files" role="dialog" aria-label="Card files"><header><span class="ttl">${'#'+num+' · files'}</span><span class="st"></span><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
+        <div class="hd2">${s[0]===null?'loading…':s[0].length+' files · under agents/'+agent+'/'}</div>
+        <div class="fl">${groups.map(function(g){return html`<details class="fg" open><summary>${GROUP[g.name]||g.name}<small>${g.files.length}</small></summary><${Node} node=${tree(g.files)}/></details>`})}</div>
+        ${f?html`<div class="pv"><div class="ph"><span class="p" title=${f.path}>${f.path}</span><small>${size(f.size)}${v&&v.cut?' · first '+size(CAP)+' shown':''}</small><a href=${'agents/'+agent+'/'+f.path} target="_blank" rel="noopener" title="Open the raw file in a new tab"><${Icon} n="ti-external-link"/></a><button class="sbtn" aria-label="Close the file" onClick=${function(){sel[1](null)}}><${Icon} n="ti-x"/></button></div><pre>${v?v.text:''}</pre></div>`:null}</aside>`;
+    }
+    function toggle(agent,num){var k=agent+'/'+num; if(dw.box()&&cur===k){close();return} closeDrawers(); cur=k;
+      dw.open(html`<${Panel} agent=${agent} num=${num}/>`)}
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dw.box())close()});
+    return {toggle:toggle,close:close};
   })();
   // The batch after its cards are done: the driver's stage per step, its session, the main workspace, the cards and the
   // latest combined check against the one before it. GET driver/<agent>/<batch>/check, again every 3 s.
@@ -695,7 +734,7 @@
   }
   // The open drawer of the card on screen, and back: which drawer, its scroll, filter, open parts and unsent draft.
   function drawerState(){var s=Session.state();if(s)return {kind:'session',s:s};var h=History.state();if(h)return {kind:'history',s:h};var t=Transcript.state();if(t)return {kind:'transcript',s:t,ctx:Context.state()};var c=Context.state();return c?{kind:'context',s:c}:null}
-  function closeDrawers(){Session.close();Transcript.close();Context.close();History.close()}
+  function closeDrawers(){Session.close();Transcript.close();Context.close();History.close();Files.close()}
   function restoreDrawer(i,d){closeDrawers();if(!d||!d.s)return;
     if(d.kind==='session')Session.toggle(i.agent,i.num,d.s.step,false,d.s);
     else if(d.kind==='history')History.toggle(i.agent,i.num,d.s);

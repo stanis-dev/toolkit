@@ -209,6 +209,23 @@ try {
     await P.waitFor(`!document.querySelector('aside.sess.hist')`, 3000, 'closed on a second click');
   });
 
+  await check('files drawer: groups, folded folders, preview', async () => {
+    await P.goto(`${BASE}/index.html#a=${A}&i=304`); await card(304);
+    await P.eval(`document.querySelector('.flsb').click()`);
+    await P.waitFor(`document.querySelectorAll('aside.sess.files .fr').length>0`, 5000, 'file rows');
+    const f = await P.eval(`(${function () {
+      const box = document.querySelector('aside.sess.files');
+      return { groups: [...box.querySelectorAll('.fg>summary')].map(s => s.firstChild.textContent),
+        log: [...box.querySelectorAll('.fr')].some(r => r.title === 'log/304.jsonl'),
+        folded: [...box.querySelectorAll('.fd')].every(d => !d.open) };
+    }})()`);
+    eq(f.groups.slice(0, 2), ['Source', 'Card'], 'source and card first'); eq([f.log, f.folded], [true, true], 'the log listed, folders folded');
+    await P.eval(`[...document.querySelectorAll('aside.sess.files .fr')].find(r => r.title === 'log/304.jsonl').click()`);
+    await P.waitFor(`/overpowered/.test((document.querySelector('aside.sess.files .pv pre')||{}).textContent||'')`, 5000, 'preview shows the log');
+    await P.eval(`document.querySelector('.flsb').click()`);
+    await P.waitFor(`!document.querySelector('aside.sess.files')`, 3000, 'closed on a second click');
+  });
+
   await check('no page errors', async () => {
     const errs = P.errors.filter(e => !/status of 404/.test(e) && !/status of 409 .*\/run\/hipotecarios\/297\/context$/.test(e));
     eq(errs, [], 'console errors');

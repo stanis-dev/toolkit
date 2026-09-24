@@ -3,6 +3,7 @@ dashboard build their paths here, so the layout lives in one place. `base` is an
 dashboard, which runs in the pages dir, passes agent('', a). `n` is a card's number, `step` one of setup, analysis,
 strategy, context, resolve; `driver` keys its files by batch the same way."""
 import glob
+import json
 import os
 import re
 
@@ -102,6 +103,40 @@ def chain(base, n, ext="json"):
 
 def chain_log(base, n):
     return os.path.join(base, "chain", "runs", f"{n}.log")
+
+
+STEPS = ("setup", "analysis", "strategy", "context", "resolve")
+
+
+def card_files(base, n):
+    """Every file of the card as (group, path), in reading order: where it came from (the issue and its linked calls),
+    the card itself, then each step's own files, its runs and its history."""
+    out = []
+
+    def add(group, p):
+        if os.path.isfile(p):
+            out.append((group, p))
+        elif os.path.isdir(p):
+            for root, dirs, files in os.walk(p):
+                dirs.sort()
+                out.extend((group, os.path.join(root, f)) for f in sorted(files))
+    add("source", issue(base, n))
+    try:
+        iss = json.load(open(issue(base, n), encoding="utf-8"))
+        iss = json.loads(iss) if isinstance(iss, str) else iss
+    except (OSError, ValueError):
+        iss = {}
+    for link in iss.get("linkedLogs") or []:
+        add("source", conversation(base, link["id"]))
+    for p in (card(base, n), log(base, n), cost(base, n), chain(base, n), chain(base, n, "stop"), chain_log(base, n)):
+        add("card", p)
+    for step in STEPS:
+        for p in sorted(glob.glob(os.path.join(base, step, f"{n}.*"))):
+            add(step, p)
+        add(step, runs(base, n, step))
+        for p in histories(base, n, step):
+            add(step, p)
+    return out
 
 
 def rel(base, path):

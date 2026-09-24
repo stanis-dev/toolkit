@@ -58,6 +58,8 @@ GET /request/<agent>/<conversation>[/<logEntryId>] is the compiled request the a
 agent turn without an id), from the cached trace: system parts, tools, messages, and the call's agent turns to step through.
 GET /call/<agent>/<conversation> is the whole call as card.py reads it (turns, tool calls, cut-off rests, tags) for the
 page's transcript drawer, so the card and the drawer come from one parse.
+GET /files/<agent>/<n> is every file of the card, [{group, path, size, t}] with paths under agents/<agent>/, as
+paths.card_files lists them, for the page's files drawer.
 GET /chat/<agent>/<n>/events is that log as server-sent events: the log so far, then live; each event's id is its
 end offset in the file, so a stream that reconnects (Last-Event-ID) carries on where it broke off.
 POST /chat/<agent>/<n>/send {message, mode?} forwards a prompt; while the agent runs it is queued as a steer unless
@@ -90,6 +92,7 @@ RESET = re.compile(r'^/reset/' + A + r'/(\d+)$')
 STEPSTATE = re.compile(r'^/steps/' + A + '$')
 REQUEST = re.compile(r'^/request/' + A + r'/(audit-[A-Z0-9]+)(?:/(auditentry-[A-Z0-9]+))?$')
 CALL = re.compile(r'^/call/' + A + r'/(audit-[A-Z0-9]+)$')
+FILES = re.compile(r'^/files/' + A + r'/(\d+)$')
 BATCHBASE = re.compile(r'^/batchbase/' + A + r'/(\d{4}(?:-\d)?)$')
 BATCHNEW = re.compile(r'^/batchnew/' + A + '$')
 BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
@@ -350,6 +353,19 @@ class H(SimpleHTTPRequestHandler):
             except Exception as ex:
                 self.reply(500, {'error': str(ex)[-400:]})
             return
+        fl = FILES.match(path)
+        if fl:
+            agent, n = fl.groups()
+            base = paths.agent('', agent)
+            out = []
+            for group, p in paths.card_files(base, n):
+                try:
+                    st = os.stat(p)
+                except OSError:
+                    continue
+                out.append({'group': group, 'path': paths.rel(base, p), 'size': st.st_size,
+                            't': datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
+            self.reply(200, out); return
         cl = CALL.match(path)
         if cl:
             agent, conv = cl.groups()
