@@ -6,7 +6,7 @@ simulation files and returns JSON: the existing guard and its state, the simulat
 expectations and tags, the expected reds, and flags. Save it as `agents/<agent>/cards/<n>/strategy/answer.json` in the pages dir;
 `scripts/run.py <agent> <n> strategy` does the run, the save and the card ([tooling.md](../tooling.md)).
 It may launch one existing simulation, unedited, in the issue's own workspace, to see the shape its conversation takes;
-the brief's last section carries the commands and `guard.run` names the run. Red before the fix and green after are step 3.
+the brief's last section carries the commands. Red before the fix and green after are step 3.
 
 ## The card
 
