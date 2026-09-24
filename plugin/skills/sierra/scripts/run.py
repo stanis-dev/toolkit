@@ -156,6 +156,12 @@ def span_errors(step, answer, agent, repo, base, n):
                 out.append(f"$.failure.{key} {f.get(key)} is not a message of the conversation")
                 break
             kind, k, _ = card.parse_path(f.get("path"))
+            if kind == "new":
+                if f.get("bad"):
+                    out.append("$.failure.bad must be empty for tools[new]: the call was never made")
+                if not (answer.get("good") or {}).get("tools"):
+                    out.append("$.good.tools is empty: tools[new] needs the call the turn should have made")
+                break
             if kind == "text":
                 text = msg.get("text") or ""
                 where = "the failure turn's text"

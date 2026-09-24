@@ -135,7 +135,10 @@ def tool_html(t, spans=(), cls="del", whole_if_none=False):
 
 
 def parse_path(path):
-    """failure.path → (kind, k, arg): ("text", None, None), ("tool", k, None) or ("tool", k, argument)."""
+    """failure.path → (kind, k, arg): ("text", None, None), ("tool", k, None), ("tool", k, argument) or, for a call the
+    turn needed and did not make, ("new", None, None)."""
+    if (path or "").strip() == "tools[new]":
+        return "new", None, None
     m = re.fullmatch(r"tools\[(\d+)\](?:\.([\w.-]+))?", (path or "text").strip())
     if not m:
         return "text", None, None
@@ -367,6 +370,7 @@ def render_ia(agent, n, analysis, pages):
 
     fkind, fk, farg = parse_path(analysis["failure"].get("path"))
     bad = analysis["failure"].get("bad") or []
+    good_tools = analysis["good"].get("tools") or []
 
     def tool_rows(i, failing=False):
         """The calls that follow message i; when failing, the pointed call is red and the good row follows it."""
@@ -375,7 +379,9 @@ def render_ia(agent, n, analysis, pages):
             if failing and k == fk:
                 spans = bad or ([json.dumps(t["args"].get(farg), ensure_ascii=False)] if farg and isinstance(t.get("args"), dict) and farg in t["args"] else [])
                 rows_.append(row("bad tool", None, "ti-tool", tool_html(t, spans, whole_if_none=True)))
-                rows_.append(row("good tool", None, "ti-tool", f'<span class="ins">{esc(analysis["good"]["text"])}</span>'))
+                fix = good_tools[fk] if fk < len(good_tools) else None
+                rows_.append(row("good tool", None, "ti-tool", tool_html(fix, cls="ins", whole_if_none=True) if fix
+                                 else f'<span class="ins">{esc(analysis["good"]["text"])}</span>'))
             else:
                 rows_.append(row("", None, "ti-tool", tool_html(t)))
         return rows_
@@ -402,6 +408,11 @@ def render_ia(agent, n, analysis, pages):
             rows += tool_rows(fi - 1, failing=True)
         rows.append(turn_row(fi))
     else:
+        # the calls the good turn adds to the ones the turn made, drawn right above it
+        made = [tool_text(t) for t in tools.get(fi - 1, [])]
+        for t in good_tools:
+            if tool_text(t) not in made:
+                rows.append(row("good tool", None, "ti-tool", tool_html(t, cls="ins", whole_if_none=True)))
         fm_text, good_text, rest = fm.get("text") or "", analysis["good"]["text"], cuts.get(fi)
         squash = lambda x: re.sub(r"\s+", " ", x or "").strip()
         if rest and squash(good_text) == squash(fm_text + " " + rest):
