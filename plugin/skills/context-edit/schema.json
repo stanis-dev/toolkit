@@ -5,7 +5,7 @@
  "required": [
   "cause",
   "saw",
-  "edit",
+  "edits",
   "alternatives",
   "flags",
   "feedback"
@@ -129,70 +129,84 @@
     }
    }
   },
-  "edit": {
-   "type": "object",
-   "description": "The wording change: an instruction that changes the task definition, not the symptom.",
-   "additionalProperties": false,
-   "required": [
-    "file",
-    "pointer",
-    "path",
-    "old",
-    "new",
-    "scope",
-    "ripple"
-   ],
-   "properties": {
-    "file": {
-     "type": "string",
-     "description": "The block file as the outline's `# <file>` header prints it (`blocks/….json`)."
-    },
-    "pointer": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "JSON pointer of the item edited; null for a new item."
-    },
-    "path": {
-     "type": "string",
-     "description": "Display-name path."
-    },
-    "old": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "The item text as it is, or null for a new item."
-    },
-    "new": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "The item text as it becomes, or null for a removal."
-    },
-    "after": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "Pointer of the item the new one follows, when old is null."
-    },
-    "scope": {
-     "type": "string",
-     "description": "pattern when the instruction covers a class of situations, situation when it covers one.",
-     "enum": [
-      "pattern",
-      "situation"
-     ]
-    },
-    "ripple": {
-     "type": [
-      "string",
-      "null"
-     ],
-     "description": "What the change gives force to or makes redundant, one sentence, or null."
+  "edits": {
+   "type": "array",
+   "minItems": 1,
+   "description": "The wording changes that together make the good turn follow: instructions that change the task definition, not the symptom. One entry per changed text, in the order they read.",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "file",
+     "pointer",
+     "path",
+     "old",
+     "new",
+     "scope",
+     "ripple"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "item",
+       "gate",
+       "tool"
+      ],
+      "description": "item: a block item's text. gate: a condition's predicate text. tool: a tool description in agent code, not applied."
+     },
+     "file": {
+      "type": "string",
+      "description": "item, gate: the block file as the outline's `# <file>` header prints it (`blocks/….json`). tool: path.ts:line of the description."
+     },
+     "pointer": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "item, gate: JSON pointer of the text edited; null for a new item. tool: null."
+     },
+     "path": {
+      "type": "string",
+      "description": "Display-name path; for a tool, its name."
+     },
+     "old": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "The text as it is, or null for a new item."
+     },
+     "new": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "The text as it becomes, or null for a removal."
+     },
+     "after": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "Pointer of the item the new one follows, when old is null."
+     },
+     "scope": {
+      "type": "string",
+      "description": "pattern when the instruction covers a class of situations, situation when it covers one.",
+      "enum": [
+       "pattern",
+       "situation"
+      ]
+     },
+     "ripple": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "What the change gives force to or makes redundant, one sentence, or null."
+     }
     }
    }
   },
@@ -244,7 +258,7 @@
       "string",
       "null"
      ],
-     "description": "The change is in agent code, a tool description or a predicate; name the file and the string."
+     "description": "The change is in agent code beyond a tool description; name the file and the string."
     },
     "sync": {
      "type": [
@@ -265,7 +279,7 @@
       "string",
       "null"
      ],
-     "description": "The edit did not land in the workspace: lint failed, or the diff after the second pull is not empty; what it reported."
+     "description": "An edit did not land in the workspace: lint failed, or the diff after the second pull is not empty; what it reported."
     }
    }
   },

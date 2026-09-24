@@ -77,8 +77,8 @@ def summary(step, answer, base, n):
         k = len((a.get("regressions") or {}).get("sims") or [])
         out += f"; {k} regression sims" if k else ""
     elif step == "context":
-        e = a.get("edit") or {}
-        out = f"{a.get('cause') or '?'}: " + (f"edit {e.get('path') or e.get('pointer') or e.get('file')}" if e else "no edit")
+        es = a.get("edits") or []
+        out = f"{a.get('cause') or '?'}: " + ("; ".join(f"{e.get('kind') or 'item'} {e.get('path') or e.get('pointer') or e.get('file')}" for e in es) if es else "no edit")
         out += f" (+{len(a['also'])} also)" if a.get("also") else ""
     else:
         out = "answered"

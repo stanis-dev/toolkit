@@ -19,7 +19,7 @@ comments. `--out -` prints the section instead.
 counts stay empty; runs fill them later, except the guard's own 5× run before any edit, shown as its count. `oc` renders the Studio Context and the Studio Context Edit sections
 (sections/studio-context.html, studio-context-edit.html) from the context-edit skill's JSON,
 `agents/<agent>/cards/<n>/context/answer.json`: the context is the analysis's two items plus the answer's `also` items and `tool`,
-the edit is its `edit`; item text, numbering and gates come from the block files in the repo, an item the analysis
+the edits are its `edits`; item text, numbering and gates come from the block files in the repo, an item the analysis
 marked with the text that holds its marks: the edit's old text, the tree's, or the commit the context step started from.
 `rs` renders the Resolution section from the issue-resolution skill's report, `agents/<agent>/cards/<n>/resolve/report.md`:
 headings, paragraphs, lists and code blocks, nothing more. `--repo` is the repository root, the working directory by
@@ -887,8 +887,8 @@ def context_of_analysis(analysis):
     return out
 
 
-def before_edit(repo, agent, entry, target, edit, at):
-    """The item's text as the turn had it: the first of the edit's old text (when the edit is on this item), the tree's text
+def before_edit(repo, agent, entry, target, edits, at):
+    """The item's text as the turn had it: the first of an edit's old text (when an edit is on this item), the tree's text
     and the text at commit at that holds every span of the entry; the tree's when none does."""
     spans = [x for x in entry.get("spans") or [] if x]
     if not spans:
@@ -897,9 +897,10 @@ def before_edit(repo, agent, entry, target, edit, at):
         t = " ".join((t or "").split())
         return all(" ".join(x.split()) in t for x in spans)
     texts = []
-    ep = edit.get("pointer") or ""
-    if edit.get("file") == entry["file"] and edit.get("old") and ep and (target[2] == ep or target[2][len(ep):] in (".value", ".item", ".text") and target[2].startswith(ep)):
-        texts.append(edit["old"])
+    for edit in edits:
+        ep = edit.get("pointer") or ""
+        if edit.get("file") == entry["file"] and edit.get("old") and ep and (target[2] == ep or target[2][len(ep):] in (".value", ".item", ".text") and target[2].startswith(ep)):
+            texts.append(edit["old"])
     texts.append(target[3])
     if at:
         try:
@@ -909,19 +910,54 @@ def before_edit(repo, agent, entry, target, edit, at):
     return next((t for t in texts if holds(t)), target[3])
 
 
+def edit_section(repo, agent, edit, label):
+    """One edit of the Studio Context Edit: a block item, a condition's predicate or a tool description."""
+    on = (f'<span class="del">{item_html(edit["old"])}</span>' if edit.get("new") is None else
+          f'<span class="ins">{item_html(edit["new"])}</span>' if edit.get("old") is None else edit_diff(edit["old"], edit["new"]))
+    state = f'<span class="state">{esc(label)}</span>' if label else ""
+    if edit.get("kind") == "tool":
+        code = f'<code>{esc(edit["file"])}</code>' if edit.get("file") else ""
+        return (f'<section class="sec">\n  <header><h3 class="crumb"><span class="cur"><i class="ti ti-tool" aria-hidden="true"></i>{esc(edit.get("path") or "")}</span></h3>{code}{state}</header>\n'
+                f'  <div class="body">\n    <div class="row on"><span class="n"></span><span>{on}</span></div>\n  </div>\n</section>')
+    rows, kind = block_rows(repo, agent, edit["file"])
+    if edit.get("kind") == "gate":
+        row = next((r for r in rows if r[1] and r[1][-1] == "si" and (edit.get("pointer") or "").startswith(r[2])), None)
+        parts = gate_of(rows, row) if row else []
+        old = " ".join((edit.get("old") or "").split())
+        ps = "".join(f'<p><span class="k"><i class="ti ti-eye" aria-hidden="true"></i>{kw}</span><span>{on if " ".join(t.split()) == old else esc(t)}</span></p>' for kw, t in parts)
+        if old not in [" ".join(t.split()) for _, t in parts]:
+            ps += f'<p><span class="k"><i class="ti ti-eye" aria-hidden="true"></i>if</span><span>{on}</span></p>'
+        names = row[0] if row else [edit.get("path") or ""]
+        return (f'<section class="sec">\n  <header>{crumb(names, kind)}{state}</header>\n'
+                f'  <div class="body">\n    <div class="gate">{ps}</div>\n  </div>\n</section>')
+    if edit.get("old") is not None:
+        target = find_row(rows, edit["pointer"])
+        body = section_rows(rows, target, on)
+        gate = gate_html(gate_of(rows, target))
+        names = target[0]
+    else:
+        after = find_row(rows, edit["after"]) if edit.get("after") else None
+        body = [item_row("dim", after, elided(after[3]))] if after else []
+        body.append(f'    <div class="row on"><span class="n">-</span><span>{on}</span></div>')
+        gate = gate_html(gate_of(rows, after)) if after else ""
+        names = after[0] if after else [edit.get("path") or ""]
+    return (f'<section class="sec">\n  <header>{crumb(names, kind)}{state}</header>\n'
+            f'  <div class="body">\n{gate}' + "\n".join(body) + "\n  </div>\n</section>")
+
+
 def render_oc(agent, n, ctx, pages, repo, state="proposed", at=None):
     """(Studio Context html, Studio Context Edit html) from {context: [{file, pointer, role, spans, note}], tool,
-    edit, cause}. The Studio Context's items are the tree's, each on item's text the one before_edit finds. Entries of one list of items share a section; the on item is marked in its role's colour, its
+    edits, cause}. The Studio Context's items are the tree's, each on item's text the one before_edit finds. Entries of one list of items share a section; the on item is marked in its role's colour, its
     neighbours are dim and elided, the rest of the list is a count."""
     sections = []
     groups = []
-    edit0 = ctx.get("edit") or {}
+    edits = ctx.get("edits") or []
     for entry in ctx.get("context", []):
         rows, kind = block_rows(repo, agent, entry["file"])
         target = find_row(rows, entry["pointer"])
         role = (entry.get("role") or "A").lower()
         spans = [(x, role) for x in entry.get("spans") or []]
-        text = before_edit(repo, agent, entry, target, edit0, at)
+        text = before_edit(repo, agent, entry, target, edits, at)
         g = next((g for g in groups if g["file"] == entry["file"] and target in siblings(g["rows"], g["target"])), None)
         if g:
             g["spans"][target[2]] = g["spans"].get(target[2], []) + spans
@@ -944,31 +980,9 @@ def render_oc(agent, n, ctx, pages, repo, state="proposed", at=None):
         sections.append(f'<section class="sec">\n  <header><h3 class="crumb"><span class="cur"><i class="ti ti-tool" aria-hidden="true"></i>{esc(tool["name"])}</span></h3>{code}</header>\n  <div class="body">\n    <div class="row on"><span class="n"></span><span>{esc(text)}</span></div>\n  </div>\n</section>')
     context = '<div class="oc ctx">\n' + "\n".join(sections) + "\n</div>\n"
 
-    edit = ctx.get("edit") or {}
-    edit_html = ""
-    if edit.get("file"):
-        rows, kind = block_rows(repo, agent, edit["file"])
-        if edit.get("old") is not None:
-            target = find_row(rows, edit["pointer"])
-            if edit.get("new") is None:
-                on = f'<span class="del">{item_html(edit["old"])}</span>'
-            else:
-                on = edit_diff(edit["old"], edit["new"])
-            body = section_rows(rows, target, on)
-            gate = gate_html(gate_of(rows, target))
-            names = target[0]
-        else:
-            after = find_row(rows, edit["after"]) if edit.get("after") else None
-            on = f'<span class="ins">{item_html(edit.get("new"))}</span>'
-            body = []
-            if after:
-                body.append(item_row("dim", after, elided(after[3])))
-            body.append(f'    <div class="row on"><span class="n">-</span><span>{on}</span></div>')
-            gate = gate_html(gate_of(rows, after)) if after else ""
-            names = after[0] if after else [edit.get("path") or ""]
-        label = " · ".join(x for x in (ctx.get("cause"), state) if x)  # why the edit, then its state
-        edit_html = (f'<div class="oc edit">\n<section class="sec">\n  <header>{crumb(names, kind)}<span class="state">{esc(label)}</span></header>\n'
-                     f'  <div class="body">\n{gate}' + "\n".join(body) + "\n  </div>\n</section>\n</div>\n")
+    label = " · ".join(x for x in (ctx.get("cause"), state) if x)  # why the edits, then their state
+    secs = [edit_section(repo, agent, e, label if not k else "") for k, e in enumerate(edits)]
+    edit_html = '<div class="oc edit">\n' + "\n".join(secs) + "\n</div>\n" if secs else ""
     return context, edit_html
 
 
@@ -1090,9 +1104,8 @@ def main(argv):
         entries = context_of_analysis(load_json(analysis_path)) if os.path.exists(analysis_path) else []
         entries += [{"file": composer_file(a["file"]), "pointer": a["pointer"], "role": a.get("role") or "A",
                      "spans": [a["span"]] if a.get("span") else []} for a in ctx.get("also") or [] if a.get("file") and a.get("pointer")]
-        e = ctx.get("edit") or {}
-        e = dict(e, file=composer_file(e["file"])) if e.get("file") else e
-        context, edit = render_oc(agent, n, {"context": entries, "tool": ctx.get("tool"), "edit": e, "cause": ctx.get("cause")},
+        edits = [e if e.get("kind") == "tool" else dict(e, file=composer_file(e["file"])) for e in ctx.get("edits") or []]
+        context, edit = render_oc(agent, n, {"context": entries, "tool": ctx.get("tool"), "edits": edits, "cause": ctx.get("cause")},
                                   pages, repo, opts.get("--state") or "proposed", pre_edit(repo, base, n))
         pieces = ([("oc ctx", context)] if entries or (ctx.get("tool") or {}).get("name") else []) + ([("oc edit", edit)] if edit else [])
     write_out(opts.get("--out"), pages, agent, n, pieces)
