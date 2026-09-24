@@ -512,7 +512,7 @@ class H(SimpleHTTPRequestHandler):
             chosen = [x for x in body.get('steps') or [] if x in ORDER]
             if not chosen:
                 self.reply(400, {'error': 'no steps'}); return
-            st, err = steps.start_chain(agent, n, chosen, body.get('model'), body.get('effort'), feedback=str(body.get('feedback') or '').strip() or None,
+            st, err = steps.start_chain(agent, n, chosen, body.get('model'), body.get('effort'), history=body.get('history') is not False, feedback=str(body.get('feedback') or '').strip() or None,
                                         source=body.get('from'))
             if err:
                 self.reply(409, {'error': err}); return
@@ -645,9 +645,10 @@ class H(SimpleHTTPRequestHandler):
             feedback = str(opts.get('feedback') or '').strip()
             if feedback:  # a one-step sequence, so its end reaches the live resolution session as any rerun's does
                 agent, n, step = r.groups()
-                st, err = steps.start_chain(agent, n, [step], opts.get('model'), opts.get('effort'), feedback=feedback, source=opts.get('from'))
+                st, err = steps.start_chain(agent, n, [step], opts.get('model'), opts.get('effort'), feedback=feedback, source=opts.get('from'),
+                                            history=opts.get('history') is not False)
                 self.reply(409, {'error': err}) if err else self.reply(202, st); return
-            err = start_step(*r.groups(), model=opts.get('model'), effort=opts.get('effort'))
+            err = start_step(*r.groups(), model=opts.get('model'), effort=opts.get('effort'), history=opts.get('history') is not False)
             self.reply(409, {'error': err}) if err else self.reply(202); return
         m = GOLDEN.match(self.path)
         if not m:

@@ -204,7 +204,7 @@ def prep_refusal(agent, n, step, repo):
     return None
 
 
-def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False, feedback=None, source=None):
+def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False, feedback=None, source=None, history=True):
     """Start one step of one issue: setup.py, run.py for the three answers, or the resolution's host. None when
     started, else why not."""
     model, effort = str(model or 'gpt-5.6-terra'), str(effort or 'high')
@@ -231,7 +231,8 @@ def start_step(agent, n, step, model=None, effort=None, ask=False, resume=False,
         return why
     return spawn_proc(status_path(agent, n, step), None,
                       [os.path.join(SCRIPTS, 'run.py'), agent, n, step, '--pages', os.getcwd(), '--repo', repo, '--model', model, '--effort', effort]
-                      + (['--feedback', feedback] if feedback else []) + (['--from', source] if feedback and source else []), cwd=repo)[0]
+                      + (['--feedback', feedback] if feedback else []) + (['--from', source] if feedback and source else [])
+                      + ([] if history else ['--history', '0']), cwd=repo)[0]
 
 
 def host_call(agent, n, req, timeout=15, kind='resolve'):
@@ -418,7 +419,7 @@ def chain_state(agent, n):
     return st
 
 
-def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=None):
+def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=None, history=True):
     """Start chain.py for one issue and wait until it has written its state: (state, None) or (None, why not). The
     first step is checked here as run.py would refuse it; feedback goes to that step."""
     if chain_state(agent, n).get('state') == 'working':
@@ -439,6 +440,8 @@ def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=N
         argv += ['--model', str(model)]
     if effort:
         argv += ['--effort', str(effort)]
+    if not history:
+        argv += ['--history', '0']
     if feedback:
         argv += ['--feedback', str(feedback)]
         if source in SOURCES:

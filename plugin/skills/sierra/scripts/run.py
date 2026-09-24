@@ -380,6 +380,7 @@ def main(argv):
     step = rest.pop(0) if rest and not rest[0].startswith("--") else "analysis"
     opts = dict(zip(rest[::2], rest[1::2]))
     feedback = (opts.get("--feedback") or "").strip()
+    with_history = opts.get("--history") != "0"
     if opts.get("--from") not in (None, "resolver", "engineer", "ruling"):
         sys.exit("--from is resolver, engineer or ruling")
     if step not in STEPS:
@@ -402,7 +403,7 @@ def main(argv):
     t0 = time.time()
     status = {"step": step, "state": "working", "started": started, "ended": None, "seconds": None, "commit": None,
               "model": model, "effort": effort, "pid": os.getpid(), "thread": None, "usage": None, "live": None, "error": None,
-              "feedback": bool(feedback), "continued": False}
+              "feedback": bool(feedback), "continued": False, "history": with_history}
     write_json(status_path, status)
     lock = threading.Lock()
     stopped = []
@@ -478,7 +479,7 @@ def main(argv):
             open(os.path.join(runs, "feedback.md"), "w", encoding="utf-8").write(feedback + "\n")
         where = "The checkout holds the card's work so far, uncommitted; HEAD is the branch before it."
         brief = subprocess.run([sys.executable, os.path.join(HERE, "brief.py"), agent, n, "--step", step, "--pages", pages, "--repo", repo]
-                               + ([] if feedback else ["--fresh", "1"]),
+                               + ([] if with_history else ["--history", "0"]),
                                capture_output=True, text=True)
         if brief.returncode != 0:
             fail("brief: " + brief.stderr.strip()[-800:])

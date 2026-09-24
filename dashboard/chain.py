@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A sequence: several steps of one issue, one after another, in a process of its own.
 
-  chain.py <agent> <n> --steps setup,analysis,strategy,context,resolve [--model <id>] [--effort <level>] [--pages <dir>]
+  chain.py <agent> <n> --steps setup,analysis,strategy,context,resolve [--model <id>] [--effort <level>] [--history 0] [--pages <dir>]
            [--feedback <text> [--from resolver|engineer|ruling]]
 
 Steps run in the order setup, analysis, strategy, context, resolve, whatever order --steps names them in; each starts
@@ -34,7 +34,7 @@ def main(argv):
             state.update(state='stopped', error='stopped from the page'); break
         state['at'] = step; write_json(path, state)
         err = steps.start_step(agent, n, step, opts.get('--model'), opts.get('--effort'), ask=True, feedback=None if ran else feedback,
-                               source=opts.get('--from'))
+                               source=opts.get('--from'), history=opts.get('--history') != '0')
         if err:
             state.update(state='failed', error=step + ': ' + err); break
         ran.append(step)

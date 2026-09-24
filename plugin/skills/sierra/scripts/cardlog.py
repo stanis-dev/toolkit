@@ -90,10 +90,9 @@ def stamp(t):
     return (t or "")[5:16].replace("T", " ")
 
 
-def index(pages, agent, n, keep=KEEP, bare=None):
+def index(pages, agent, n, keep=KEEP):
     """The card's history as the briefs print it: the last `keep` events one per line, older ones folded into counts.
-    An answer a later run of the same step replaced is marked superseded; the events of step bare print without their
-    files. Empty when the card has no history."""
+    An answer a later run of the same step replaced is marked superseded. Empty when the card has no history."""
     events = load(pages, agent, n)
     if not events:
         return ""
@@ -113,7 +112,7 @@ def index(pages, agent, n, keep=KEEP, bare=None):
     width = max(len(e.get("who") or "") for e in recent)
     for k, e in enumerate(recent, start):
         old = e.get("who") in STEPS and e.get("answer") and last.get(e["who"]) != k
-        refs = [] if bare and e.get("who") == bare else e.get("refs") or []
+        refs = e.get("refs") or []
         lines.append(f"{stamp(e.get('t'))}  {(e.get('who') or '').ljust(width)}  {e.get('what')}"
                      + (" · superseded" if old else "") + (" → " + ", ".join(refs) if refs else ""))
     return "\n".join(lines) + "\n"

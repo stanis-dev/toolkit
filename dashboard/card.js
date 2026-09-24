@@ -128,7 +128,7 @@
   // again when the page's poll brings a new state for that step and every 2 s while the run works. The bars are
   // components mounted once per card, so a poll updates them in place.
   var STEP_LABEL={analysis:'analysis',strategy:'sim strategy',context:'context edit',resolve:'resolution'};
-  var MODELS=['gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'];
+  var MODELS=['gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'], HISTORY=['history','no history'];
   function fmtK(n){return n>=1000?Math.round(n/1000)+'k':String(n)}
   // in counts every input token the model read, the cached share in brackets; reasoning is part of out.
   function usageLine(u){return (u.context?'context '+fmtK(u.context)+' · ':'')+fmtK((u.in||0)+(u.cached||0))+' in'+(u.cached?' ('+fmtK(u.cached)+' cached)':'')+' · '+fmtK(u.out)+' out'+(u.reasoning?' ('+fmtK(u.reasoning)+' reasoning)':'')+(u.cost?' · $'+u.cost.toFixed(2):'')+' · '+(u.commands||0)+' commands'}
@@ -149,8 +149,8 @@
   function usePref(k,def){useStore();var v=pref(k)||def;return [v,function(x){pref(k,x);Store.set({})}]}
   function ModelSelect(p){var v=usePref(p.k,p.def);
     return html`<select class="rsel" id=${p.id} aria-label=${p.label} title=${p.title} value=${v[0]} onChange=${function(e){v[1](e.target.value)}}>${p.list.map(function(x){return html`<option value=${x}>${x}</option>`})}</select>`}
-  function Models(){return html`<span class="run models"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model" title="Model for the runs started here"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort" title="Reasoning effort for the runs started here"/></span>`}
-  function runOpts(){return {model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high'}}
+  function Models(){return html`<span class="run models"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model" title="Model for the runs started here"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort" title="Reasoning effort for the runs started here"/><${ModelSelect} k="runHistory" def="history" list=${HISTORY} label="Card history" title="Whether the step runs started here read the card's history"/></span>`}
+  function runOpts(){return {model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high',history:pref('runHistory')!=='no history'}}
   function Icon(p){return html`<i class=${'ti '+p.n} aria-hidden="true"></i>`}
   function Chip(p){var c=p.c;return c?html`<span class=${'chip'+(c.cls?' '+c.cls:'')} title=${c.title||''}>${c.text}</span>`:html`<span class="chip" hidden></span>`}
   function dur(s){s=Math.round(s||0);return s<90?s+' s':s<5400?Math.floor(s/60)+' min'+(s%60?' '+s%60+' s':''):Math.floor(s/3600)+' h '+Math.round(s%3600/60)+' min'}
@@ -221,7 +221,7 @@
     if(st){
       var secs=secsOf(st), u=st.usage||{}, lv=st.live||{};
       chip={cls:st.state+(working&&lv.quiet>=20&&!lv.tool?' quiet':''),title:st.state==='failed'?(st.error||''):(st.model||'')+' · '+(st.commit||'')+(u.in||u.cached?' · '+usageLine(u):''),
-        text:working?(step==='resolve'?'live · ':'working · ')+dur(secs)+(lv.quiet>=20?(lv.tool?' · tool running ':' · no data ')+lv.quiet+' s':''):st.state==='done'?'done · '+dur(secs)+' · '+(st.model||'').replace('gpt-5.6-','')+' '+(st.effort||''):/^stopped/.test(st.error||'')?'stopped · '+dur(secs):'failed'};
+        text:working?(step==='resolve'?'live · ':'working · ')+dur(secs)+(lv.quiet>=20?(lv.tool?' · tool running ':' · no data ')+lv.quiet+' s':''):st.state==='done'?'done · '+dur(secs)+' · '+(st.model||'').replace('gpt-5.6-','')+' '+(st.effort||'')+(st.history===false?' · no history':''):/^stopped/.test(st.error||'')?'stopped · '+dur(secs):'failed'};
     }
     if(local&&local.chip)chip=local.chip;
     var kbHidden=local&&local.busy?false:!working, resume=step==='resolve'&&res[0]&&!working&&!(local&&local.busy);
