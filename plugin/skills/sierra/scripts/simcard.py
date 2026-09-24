@@ -8,7 +8,9 @@ replaytestresult-<id>/). The card gets the next number from 10001 up, the tracke
 card folder go a copy of that one replay under conversations/<result>/ (debug.log, result.json, traces/) and
 source.json (see source.py): the simulation's name, what failed (the unmet expectations with the judge's reasoning,
 the tag misses), its definition from the run's test ref, and the branch of the checkout the run was downloaded into:
-setup forks the card's worktree from it, so the simulation is in the card's tree. Prints the card's number. Everything else the card
+setup forks the card's worktree from it, so the simulation is in the card's tree. Setup then runs the simulation 5× on
+the card's workspace (reproduce): that run is the Sim Strategy's red run, and one of its failing replays replaces the
+first one, so every step reads a failure of the card's own tree. Prints the card's number. Everything else the card
 recreates itself: its steps run the simulation again.
 """
 import glob
@@ -63,6 +65,52 @@ def next_number(base):
     return max([FIRST - 1] + [k for k in taken if k >= FIRST]) + 1
 
 
+def replay(base, n, rdir, branch):
+    """The card's source from one failing replay: its copy under conversations/<result>/ replaces any earlier one."""
+    res = json.load(open(os.path.join(rdir, "result.json"), encoding="utf-8"))
+    sims_dir = os.path.dirname(os.path.dirname(os.path.dirname(rdir)))
+    d = definition(sims_dir, res.get("replayTestId") or "")
+    names = json.load(open(os.path.join(sims_dir, "test-names.json"), encoding="utf-8")) if os.path.exists(os.path.join(sims_dir, "test-names.json")) else {}
+    rid = res.get("id") or os.path.basename(rdir)
+    conv = os.path.join(paths.card_dir(base, n), "conversations")
+    if os.path.isdir(conv):
+        shutil.rmtree(conv)
+    os.makedirs(conv)
+    shutil.copytree(rdir, os.path.join(conv, rid))
+    src = {"kind": "sim", "number": int(n), "title": d.get("name") or names.get(res.get("replayTestId")) or res.get("replayTestId") or "",
+           "description": failed(res), "comments": [],
+           "ref": {"test": res.get("replayTestId"), "run": res.get("runSetId"), "result": rid, "status": res.get("status"),
+                   "branch": branch},
+           "definition": d,
+           "conversations": [{"id": rid, "timestamp": res.get("creationTime") or "", "marked": []}]}
+    with open(source.path(base, n), "w", encoding="utf-8") as f:
+        json.dump(src, f, ensure_ascii=False, indent=1)
+
+
+def reproduce(base, n, agent_dir, workspace):
+    """Run the card's simulation 5× on its own workspace as the Sim Strategy's red run, then make a failing replay of
+    that run the card's conversation. Returns the run's {run, passed, total}."""
+    src = source.load(base, n)
+    runs = paths.runs(base, n, "strategy")
+    os.makedirs(runs, exist_ok=True)
+    sierra = os.path.join(agent_dir, "node_modules", ".bin", "sierra")
+    with open(os.path.join(runs, "guard-red.json"), "w") as out:
+        subprocess.run([sierra, "-C", agent_dir, "test", workspace, "--names", src["title"], "--num-runs", "5", "--json", "-y",
+                        "--run-id-file", os.path.join(runs, "guard-red.id")], stdout=out, check=False)
+    red = paths.guard_red(base, n)
+    if not red:
+        raise RuntimeError(f"the run of «{src['title']}» matched no simulation: {os.path.join(runs, 'guard-red.json')}")
+    if red["passed"] == red["total"]:
+        return red
+    subprocess.run([sierra, "-C", agent_dir, "ghostwriter", "bbva.sierra.ai/" + workspace, "--download-simulations",
+                    "--run-id", red["run"]], stdout=subprocess.DEVNULL, check=True)
+    for rdir in sorted(glob.glob(os.path.join(agent_dir, ".composer", "simulations", f"replaytestrunset-{red['run']}", "results", "*"))):
+        if os.path.exists(os.path.join(rdir, "result.json")) and failed(json.load(open(os.path.join(rdir, "result.json"), encoding="utf-8"))):
+            replay(base, n, rdir, src["ref"]["branch"])
+            return red
+    raise RuntimeError(f"run {red['run']} has {red['total'] - red['passed']} failures but no failing replay was downloaded")
+
+
 def main(argv):
     if len(argv) < 2:
         fail(__doc__)
@@ -72,29 +120,13 @@ def main(argv):
     rp = os.path.join(rdir, "result.json")
     if not os.path.exists(rp) or not os.path.exists(os.path.join(rdir, "debug.log")):
         fail(f"{rdir} is not a replay: it needs result.json and debug.log")
-    res = json.load(open(rp, encoding="utf-8"))
-    what = failed(res)
-    if not what:
-        fail(f"{res.get('id')} did not fail: every expectation met, no tag miss")
-    sims_dir = os.path.dirname(os.path.dirname(os.path.dirname(rdir)))
-    d = definition(sims_dir, res.get("replayTestId") or "")
-    names = json.load(open(os.path.join(sims_dir, "test-names.json"), encoding="utf-8")) if os.path.exists(os.path.join(sims_dir, "test-names.json")) else {}
+    if not failed(json.load(open(rp, encoding="utf-8"))):
+        fail(f"{rdir} did not fail: every expectation met, no tag miss")
     git = subprocess.run(["git", "-C", rdir, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True)
     if git.returncode != 0 or git.stdout.strip() in ("", "HEAD"):
         fail(f"{rdir} is not in a checkout on a branch: the card's worktree forks from the run's branch")
     n = str(next_number(base))
-    cd = paths.card_dir(base, n)
-    rid = res.get("id") or os.path.basename(rdir)
-    os.makedirs(os.path.join(cd, "conversations"))
-    shutil.copytree(rdir, os.path.join(cd, "conversations", rid))
-    src = {"kind": "sim", "number": int(n), "title": d.get("name") or names.get(res.get("replayTestId")) or res.get("replayTestId") or "",
-           "description": what, "comments": [],
-           "ref": {"test": res.get("replayTestId"), "run": res.get("runSetId"), "result": rid, "status": res.get("status"),
-                   "branch": git.stdout.strip()},
-           "definition": d,
-           "conversations": [{"id": rid, "timestamp": res.get("creationTime") or "", "marked": []}]}
-    with open(source.path(base, n), "w", encoding="utf-8") as f:
-        json.dump(src, f, ensure_ascii=False, indent=1)
+    replay(base, n, rdir, git.stdout.strip())
     open(paths.card(base, n), "a").close()
     print(n)
 

@@ -201,6 +201,11 @@ class Setup:
     def run(self):
         try:
             self.worktree(); self.share(); self.install(); self.workspace(); self.ghostwriter()
+            if self.sim_base:
+                self.step("reproduce the simulation")
+                import simcard
+                red = simcard.reproduce(paths.agent(self.pages, self.agent), self.n, self.agent_dir, self.name)
+                self.status["reproduced"] = f"{red['passed']}/{red['total']} pass · run {red['run']}"
             self.status.update(state="done")
         except Exception as ex:
             self.status.update(state="failed", error=str(ex)[-600:])
@@ -213,7 +218,8 @@ class Setup:
             st = self.status
             cardlog.add(self.pages, self.agent, self.n, "setup",
                         f"worktree {st.get('worktree')} on {st.get('branch')} off {st.get('base') or 'its existing branch'}, "
-                        f"workspace {st.get('name')}" if st["state"] == "done" else "failed: " + str(st.get("error")),
+                        f"workspace {st.get('name')}" + (f", reproduced {st['reproduced']}" if st.get("reproduced") else "")
+                        if st["state"] == "done" else "failed: " + str(st.get("error")),
                         ["git:" + st["commit"]] if st.get("commit") else [])
         return 0 if self.status["state"] == "done" else 1
 
