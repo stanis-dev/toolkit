@@ -29,21 +29,18 @@ For another turn's request: in `agents/<agent>/conversations/<id>/` under the pa
 
 ## Read
 
-1. The issue. The latest comment states the ask; the description is the reporter's first reading. Reporters are
-   business-minded and often unfamiliar with agent development; their interpretation is a lead, not a finding.
-2. The reporter's highlighted line and its `logEntryId`. This is the point in the call the reporter pointed at.
-3. The calls, whole, before judging any turn. The transcript is Studio's record; the tool calls and observations are the
-   runtime's.
-4. The request. It, not the outline, is what the reported turn was decided on: which items were in front of the model
-   and which tools it could call.
+1. The issue. The latest comment states the ask; the description is the reporter's first reading. Their interpretation
+   is a lead, not a finding.
+2. The reporter's highlighted line.
+3. The calls, whole, before judging any turn.
+4. The request. It, not the outline, is what the reported turn was decided on.
 
 ## Judge
 
 The agent works one turn at a time, with only the history it was shown. Judge every turn from inside it: what a trained
 representative, teleported into that moment with that history, would have understood and said.
 
-1. The highlighted line is the failure turn by default: the reporter saw the failure there, and most of the time that
-   is where it is.
+1. The highlighted line is the failure turn by default.
 2. Move it only when an earlier agent turn had to be different for the ask to be met, so that the highlighted line is
    a consequence of it. Then that earlier turn is the failure turn, and `failure.moved` says in one sentence why.
    Otherwise `failure.moved` is null and `failure.logEntryId` is the highlighted line's.
@@ -55,9 +52,8 @@ representative, teleported into that moment with that history, would have unders
    the rest of the turn as produced. Then follow the consequences: a changed agent turn changes the customer's next
    turns; the good turn must hold up to the end of the call.
 5. Find the instruction meant to produce the good turn, the one item a trained representative would have been following
-   there. Its state is one of the three schema.json defines for `context.wanted.state`: `defined`, `tangential` or
-   `new`. For `defined` and `tangential`, say whether the item was in the request at the failure turn: absent means its
-   block was gated and the predicate did not fire.
+   there, and its `context.wanted.state`. For `defined` and `tangential`, say whether the item was in the request at the
+   failure turn.
 6. Find the instruction that won: the item the bad turn followed, the step it executed, the rule it obeyed, the tool
    description it answered to. Null when the bad turn followed none and the agent inferred on its own.
 
@@ -73,12 +69,9 @@ gives for `verdict`.
 
 ## Output
 
-Return only the JSON object that [schema.json](schema.json) describes, nothing before or after it; the
-schema carries each field's meaning and the card's runner enforces it. Turns are pointed at by their `logEntryId`, never
-copied: the card reads the text, the customer turn before it, the reported line and the tags from the cache. A span,
-`failure.bad`, `context.wanted.span`, `context.won.span`, is an exact substring of the turn or item it marks, copied
-so the card can mark it; the runner checks each one against its source and sends a miss back. The words the good turn
-adds are the diff against the failure turn, computed on the card, so they are not listed.
+Return only the JSON object that [schema.json](schema.json) describes, nothing before or after it. Point at turns by
+their `logEntryId`, never copy them. A span, `failure.bad`, `context.wanted.span`, `context.won.span`, is an exact
+substring of the turn or item it marks. Don't list the words the good turn adds.
 
 When the run carries feedback on your previous answer, weigh it as [feedback.md](../sierra/references/feedback.md) says
 and fill `feedback`.
