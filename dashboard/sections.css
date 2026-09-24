@@ -205,10 +205,10 @@
 .ss .sim.reg .n a.res:hover{text-decoration:underline}
 
 /* Page-owned chrome: one fold per section, the title bar is its summary; the lint chip names markup the page does not know */
-.card>details.secw>summary.sh{list-style:none;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px;padding:5px 10px;font-size:11.5px;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--text-muted);background:var(--surface-1);border-top:1px solid var(--border-strong);border-bottom:1px solid var(--border)}
+.card>details.secw>summary.sh{list-style:none;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px;padding:5px 10px;font-size:11.5px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--text-secondary);background:var(--surface-1);border-top:2px solid var(--border-strong);border-bottom:1px solid var(--border)}
 .card>details.secw>summary.sh::-webkit-details-marker{display:none}
-.card>details.secw>summary.sh .ti{font-size:13px;line-height:1;transition:transform .15s}
-.card>details.secw[open]>summary.sh .ti{transform:rotate(90deg)}
+.card>details.secw>summary.sh>.ti{font-size:13px;line-height:1;transition:transform .15s}
+.card>details.secw[open]>summary.sh>.ti{transform:rotate(90deg)}
 .card>details.secw:not([open])>summary.sh{border-bottom:0}
 .card>details.secw>summary.sh:hover{color:var(--text-secondary)}
 .card>.ia+details.secw>summary.sh{border-top:0}

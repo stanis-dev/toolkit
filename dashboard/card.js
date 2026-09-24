@@ -46,7 +46,7 @@
   var TITLES={ss:'Sim Strategy',so:'Simulation Replay',si:'Simulation Iteration',oc:'Studio Context',oce:'Studio Context Edit',rs:'Resolution'};
   var TITLE_RE=/^(sim strategy|studio context( edit)?|simulation (replay|iteration)|regressions?)$/i;
   var CHEV='<i class="ti ti-chevron-right" aria-hidden="true"></i>';
-  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt'].forEach(function(c){known[c]=1})});
+  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt'].forEach(function(c){known[c]=1})});
   function el(html){var t=document.createElement('template');t.innerHTML=html;return t.content.firstElementChild}
   function isEdit(s){return s.classList.contains('edit')||!!s.querySelector('.state, .row .del, .row .ins')}
   function norm(view,i){
@@ -64,7 +64,8 @@
       var h=el('<header class="top"><div class="id"><span class="num">#'+i.num+'</span></div><div class="meta">'+[(i.owner||'').split(/\s+/)[0],when].filter(Boolean).map(esc).join(' · ')+'</div></header>');
       if(type)h.firstChild.appendChild(type); h.firstChild.appendChild(el('<span>'+esc(i.title)+'</span>'));
       if(old)old.replaceWith(h); else ia.insertBefore(h,ia.querySelector(':scope>.top2')||ia.firstChild);
-      var bar=el('<div class="runbar"></div>'); h.before(bar); mount(bar,html`<${TopBar} i=${i}/>`);
+      var bar=el('<div class="runbar"></div>'); h.after(bar); mount(bar,html`<${TopBar} i=${i}/>`);
+      if(i.agent){var ahd=el('<div class="ahd">Issue analysis<span class="runbar"></span></div>'); bar.after(ahd); mount(ahd.lastChild,html`<${RunStrip} i=${i} step="analysis"/>`)}
     }
     // Every step has its header once the analysis is there, so each run strip has a place: empty sections stand in.
     if(ia&&!card.querySelector('.ss'))card.appendChild(el('<div class="ss"></div>'));
@@ -141,14 +142,15 @@
   function usePref(k,def){useStore();var v=pref(k)||def;return [v,function(x){pref(k,x);Store.set({})}]}
   function ModelSelect(p){var v=usePref(p.k,p.def);
     return html`<select class="rsel" id=${p.id} aria-label=${p.label} title=${p.title} value=${v[0]} onChange=${function(e){v[1](e.target.value)}}>${p.list.map(function(x){return html`<option value=${x}>${x}</option>`})}</select>`}
-  function Models(){return html`<span class="run"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model" title="Model for the runs started here"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort" title="Reasoning effort for the runs started here"/></span>`}
+  function Models(){return html`<span class="run models"><${ModelSelect} k="runModel" def="gpt-5.6-terra" list=${MODELS} label="Model" title="Model for the runs started here"/><${ModelSelect} k="runEffort" def="high" list=${EFFORTS} label="Reasoning effort" title="Reasoning effort for the runs started here"/></span>`}
   function runOpts(){return {model:pref('runModel')||'gpt-5.6-terra',effort:pref('runEffort')||'high'}}
   function Icon(p){return html`<i class=${'ti '+p.n} aria-hidden="true"></i>`}
   function Chip(p){var c=p.c;return c?html`<span class=${'chip'+(c.cls?' '+c.cls:'')} title=${c.title||''}>${c.text}</span>`:html`<span class="chip" hidden></span>`}
+  function dur(s){s=Math.round(s||0);return s<90?s+' s':s<5400?Math.floor(s/60)+' min'+(s%60?' '+s%60+' s':''):Math.floor(s/3600)+' h '+Math.round(s%3600/60)+' min'}
   function secsOf(st){return st.state==='working'?Math.max(0,Math.round((Date.now()-Date.parse(st.started))/1000)):st.seconds}
   function BatchSelect(p){
     var i=fresh(p.i), S=useStore(), d=cache[i.agent]||{}, pend=useState(null), NONE='No batch yet';
-    var batches=(d.list||[]).map(function(x){return x.batch}).concat(Object.keys(d.batches||{})).filter(function(b,k,arr){return b&&arr.indexOf(b)===k}).sort().reverse();
+    var batches=(d.list||[]).map(function(x){return x.batch}).concat(Object.keys(d.batches||{}),[i.batch]).filter(function(b,k,arr){return b&&arr.indexOf(b)===k}).sort().reverse();
     var waiting=pend[0]!==null&&pend[0].v!==(i.batch||'');
     return html`<select class="rsel bsel" aria-label="Batch" title=${pend[0]&&pend[0].err||'Batch of this card'} disabled=${waiting&&!(pend[0]&&pend[0].err)} value=${waiting?pend[0].v:i.batch||''} onChange=${function(e){var v=e.target.value;pend[1]({v:v});
       postJSON('batch/'+i.agent+'/'+i.num,{batch:v}).then(function(r){if(!r.ok)pend[1]({v:v,err:'server said '+r.status})}).catch(function(){pend[1](null)})}}>
@@ -212,7 +214,7 @@
     if(st){
       var secs=secsOf(st), u=st.usage||{}, lv=st.live||{};
       chip={cls:st.state+(working&&lv.quiet>=20&&!lv.tool?' quiet':''),title:st.state==='failed'?(st.error||''):(st.model||'')+' · '+(st.commit||'')+(u.in||u.cached?' · '+usageLine(u):''),
-        text:working?(step==='resolve'?'live · ':'working · ')+secs+' s'+(lv.quiet>=20?(lv.tool?' · tool running ':' · no data ')+lv.quiet+' s':''):st.state==='done'?'done · '+secs+' s · '+(st.model||'').replace('gpt-5.6-','')+' '+(st.effort||''):/^stopped/.test(st.error||'')?'stopped · '+secs+' s':'failed'};
+        text:working?(step==='resolve'?'live · ':'working · ')+dur(secs)+(lv.quiet>=20?(lv.tool?' · tool running ':' · no data ')+lv.quiet+' s':''):st.state==='done'?'done · '+dur(secs)+' · '+(st.model||'').replace('gpt-5.6-','')+' '+(st.effort||''):/^stopped/.test(st.error||'')?'stopped · '+dur(secs):'failed'};
     }
     if(local&&local.chip)chip=local.chip;
     var kbHidden=local&&local.busy?false:!working, resume=step==='resolve'&&res[0]&&!working&&!(local&&local.busy);
@@ -227,12 +229,12 @@
     var bb=((cache[agent]||{}).batches||{})[i.batch]||{}, title="Set up this issue's own worktree and Studio workspace; every step runs there"+(i.batch?(bb.base?'\nBranch off '+bb.base+' (batch '+i.batch+')':'\nBatch '+i.batch+' has no base branch yet: set it in the sidebar'):'\nPut the card in a batch first');
     var chip=null, working=!!(st&&st.state==='working');
     if(st){var secs=secsOf(st);
-      chip=working?{cls:'working',text:'setting up · '+(st.step||'')+' · '+secs+' s'}:st.state==='done'?{cls:'done',text:st.name||'ready',title:[st.worktree,st.branch+(st.base?' off '+st.base:'')+' @ '+(st.commit||''),st.workspace].filter(Boolean).join('\n')}:{cls:st.state,text:/^stopped/.test(st.error||'')?'stopped':'setup failed',title:st.error||''}}
+      chip=working?{cls:'working',text:'setting up · '+(st.step||'')+' · '+dur(secs)}:st.state==='done'?{cls:'done',text:st.name||'ready',title:[st.worktree,st.branch+(st.base?' off '+st.base:'')+' @ '+(st.commit||''),st.workspace].filter(Boolean).join('\n')}:{cls:st.state,text:/^stopped/.test(st.error||'')?'stopped':'setup failed',title:st.error||''}}
     if(local&&local.chip)chip=local.chip;
     function start(){loc[1]({chip:{cls:'working',text:'starting'},busy:true});
       postJSON('setup/'+agent+'/'+i.num).then(function(x){if(!x.ok)return x.json().catch(function(){return {}}).then(function(j){loc[1]({chip:{cls:'failed',text:j.error||('server said '+x.status),title:j.error||''},sticky:true})});setTimeout(r[1],1500)}).catch(function(){loc[1]({chip:{cls:'failed',text:'setup failed',title:'server unreachable'},sticky:true})})}
     function stop(){loc[1]({chip:{cls:'working',text:'stopping'},stopping:true});postJSON('kill/'+agent+'/'+i.num+'/setup').then(function(){setTimeout(r[1],1500)}).catch(function(){loc[1](null)})}
-    return html`<span class="run lane"><${Chip} c=${chip}/><button class="rbtn" title=${title} aria-label="Set up worktree and workspace" hidden=${!!(st&&st.state==='done')} disabled=${working||!!(local&&local.busy)} onClick=${start}><${Icon} n="ti-git-branch"/></button><button class="rbtn kbtn" title="Stop the setup" aria-label="Stop the setup" hidden=${!working} disabled=${!!(local&&local.stopping)} onClick=${stop}><${Icon} n="ti-player-stop"/></button></span>`;
+    return html`<span class="run lane">${st&&st.state==='done'&&!(local&&local.chip)?html`<${Icon} n="ti-git-branch"/>`:null}<${Chip} c=${chip}/><button class="rbtn" title=${title} aria-label="Set up worktree and workspace" hidden=${!!(st&&st.state==='done')} disabled=${working||!!(local&&local.busy)} onClick=${start}><${Icon} n="ti-git-branch"/></button><button class="rbtn kbtn" title="Stop the setup" aria-label="Stop the setup" hidden=${!working} disabled=${!!(local&&local.stopping)} onClick=${stop}><${Icon} n="ti-player-stop"/></button></span>`;
   }
   // Steps to run in order: toggles for setup, analysis, strategy, context and resolution, and one button that runs the
   // chosen ones one after another on the server (POST chain/<agent>/<n>); while it runs, a chip says which step of how
@@ -242,7 +244,7 @@
   function StepToggles(p){var v=usePref('chainSteps','analysis,strategy,context'), on=v[0].split(',');
     return html`<span class="stps" id=${p.id}>${STEP_ORDER.map(function(k){var o=on.indexOf(k)>=0;return html`<button type="button" class=${'stp'+(o?' on':'')} data-s=${k} aria-pressed=${String(o)} onClick=${function(e){e.preventDefault();v[1](STEP_ORDER.filter(function(x){return x===k?!o:on.indexOf(x)>=0}).join(','))}}>${STEP_SHORT[k]}</button>`})}</span>`}
   function Chain(p){
-    var i=p.i, agent=i.agent, S=useStore(), st=((S.chains||{})[agent]||{})[i.num]||null, pop=useState(false), loc=useState(null), local=loc[0];
+    var i=p.i, agent=i.agent, S=useStore(), st=((S.chains||{})[agent]||{})[i.num]||null, pop=useState(false), popRef=useRef(null), loc=useState(null), local=loc[0];
     var fetched=useStatus('agents/'+agent+'/chain/'+i.num+'.json',JSON.stringify(st)+(local?local.k:''))[0];
     if(fetched!==undefined&&(!st||(fetched&&fetched.started>=st.started)))st=fetched;
     useEffect(function(){if(local&&!local.sticky&&st&&st.state==='working')loc[1](null)},[st&&st.state,st&&st.at]);
@@ -252,7 +254,7 @@
     function go(){var steps=chosenSteps();if(!steps.length)return;pop[1](false);loc[1]({chip:{cls:'working',text:'starting'},k:Date.now()});
       postJSON('chain/'+agent+'/'+i.num,Object.assign({steps:steps},runOpts())).then(function(x){return x.json().catch(function(){return {}}).then(function(j){if(!x.ok){loc[1]({chip:{cls:'failed',text:j.error||('server said '+x.status)},sticky:true});return}setTimeout(function(){loc[1]({k:Date.now()})},1000)})}).catch(function(){loc[1]({chip:{cls:'failed',text:'server unreachable'},sticky:true})})}
     function stop(){loc[1]({stopping:true,k:Date.now()});postJSON('chain/'+agent+'/'+i.num+'/stop').then(function(){loc[1]({k:Date.now()})}).catch(function(){loc[1](null)})}
-    return html`<span class="run chain"><${Chip} c=${chip}/><button class="rbtn cho" title="Run several steps in order" aria-label="Run several steps in order" aria-expanded=${String(pop[0])} hidden=${working} onClick=${function(){pop[1](!pop[0])}}><${Icon} n="ti-list-numbers"/></button><button class="rbtn kbtn" title="Stop after the current step" aria-label="Stop the sequence" hidden=${!working} disabled=${!!(local&&local.stopping)} onClick=${stop}><${Icon} n="ti-player-stop"/></button><span class="chpop" hidden=${!pop[0]||working}><${StepToggles}/><button class="rbtn cgo" title="Run the chosen steps one after another" aria-label="Run the chosen steps" onClick=${go}><${Icon} n="ti-player-play"/></button></span></span>`;
+    return html`<span class="run chain"><${Chip} c=${chip}/><button class="rbtn lbl cho" ref=${popRef} title="Run several steps in order" aria-label="Run several steps in order" aria-expanded=${String(pop[0])} hidden=${working} onClick=${function(){pop[1](!pop[0])}}><${Icon} n="ti-player-play"/>Run steps<${Icon} n="ti-chevron-down"/></button><button class="rbtn kbtn" title="Stop after the current step" aria-label="Stop the sequence" hidden=${!working} disabled=${!!(local&&local.stopping)} onClick=${stop}><${Icon} n="ti-player-stop"/></button>${pop[0]&&!working?html`<${Floating} anchor=${popRef} onClose=${function(){pop[1](false)}}><div class="rrn chpop"><div class="rrh">Run these steps in order</div><${StepToggles}/><div class="rrb"><button type="button" class="rbtn cgo" title="Run the chosen steps one after another" aria-label="Run the chosen steps" onClick=${go}>run</button></div></div></${Floating}>`:null}</span>`;
   }
   // What the ticket has cost so far, every model run of every step (the ledger through GET steps); the tooltip splits it.
   function Cost(p){var S=useStore(), t=((S.cost||{})[p.i.agent]||{})[p.i.num]; if(!t||!t.cost)return null;
@@ -271,9 +273,9 @@
         delete cache[i.agent]; window.dispatchEvent(new Event('hashchange'));
       })}).catch(function(){s[1]({title:'server unreachable'})});
     }
-    return html`<button class=${'rbtn rstb'+(st.armed?' arm':'')} title=${st.title||T} aria-label="Reset every step" disabled=${!!st.busy} onClick=${click}><${Icon} n="ti-rotate-clockwise"/></button>`}
+    return html`<button class=${'rbtn lbl rstb'+(st.armed?' arm':'')} title=${st.title||T} aria-label="Reset every step" disabled=${!!st.busy} onClick=${click}>${st.armed?'Click again':'Reset'}</button>`}
   function TopBar(p){var i=p.i;if(!i.agent)return null;
-    return html`<${SetupLane} i=${i}/><${Models}/><${BatchSelect} i=${i}/><${RunStrip} i=${i} step="analysis"/><${Chain} i=${i}/><${Cost} i=${i}/><button class="rbtn hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/></button><${Reset} i=${i}/>`}
+    return html`<${SetupLane} i=${i}/><${BatchSelect} i=${i}/><span class="vsep"></span><${Models}/><span class="rgt"><${Cost} i=${i}/><span class="vsep"></span><${Chain} i=${i}/><button class="rbtn lbl hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/>History</button><${Reset} i=${i}/></span>`}
   // Drawers: one aside at a time on the right (the context may sit beside the transcript), each a component in a host
   // element of its own; toggle, close and state as before, state being what the card's view memory keeps.
   function Drawer(){var host=null;return {
@@ -592,6 +594,8 @@
       sims:'ti-player-play',setup:'ti-settings',pull:'ti-download',batchmerge:'ti-git-merge','batch-driver':'ti-route'};
     function close(){dw.close();cur=null;want=null}
     function state(){var box=dw.box();if(!box)return null;return want||{scroll:box.querySelector('.tl').scrollTop}}
+    var TONE=/\b(misguided|wrong-reason|wrong|contested|does-not-reproduce|failed|found|holds|reproduces|solved|clean|merged|done)\b/;
+    function tone(t){return String(t||'').split(TONE).map(function(w,k){return k%2?html`<span class=${/^(holds|reproduces|solved|clean|merged|done)$/.test(w)?'tok':'tbad'}>${w}</span>`:w})}
     function refNode(agent,r){
       if(/^git:/.test(r))return html`<code title="Commit in the issue's worktree">${r}</code>`;
       var m=/^(.*?)(?:@L(\d+))?$/.exec(r), path=m[1], line=m[2];
@@ -610,7 +614,7 @@
       var rows=ev.map(function(e,k){return {e:e,old:e.answer&&lastAns[e.who]!==k}}).reverse();
       return html`<aside class="sess hist" role="dialog" aria-label="Card history" ref=${box}><header><span class="ttl">${'#'+num+' · history'}</span><span class="st"></span><button class="sbtn" aria-label="Close" onClick=${close}><${Icon} n="ti-x"/></button></header>
         <div class="hd2">${s[0]===null?'loading…':ev.length?ev.length+' events · newest first · what the agents\' briefs index':'no history yet'}</div>
-        <div class="tl">${rows.map(function(x){var e=x.e;return html`<div class=${'ev'+(x.old?' old':'')}><span class="t" title=${e.t}>${String(e.t||'').slice(5,16).replace('T',' ')}</span><i class=${'ti '+(ICON[e.who]||'ti-point')} title=${e.who}></i><div class="b"><b>${e.who}</b> ${e.what}${x.old?html` <small>superseded</small>`:null}${(e.refs||[]).length?html`<div class="refs">${e.refs.map(function(r){return refNode(agent,r)})}</div>`:null}</div></div>`})}</div></aside>`;
+        <div class="tl">${rows.map(function(x){var e=x.e;return html`<div class=${'ev'+(x.old?' old':'')}><span class="t" title=${e.t}>${String(e.t||'').slice(5,16).replace('T',' ')}</span><i class=${'ti '+(ICON[e.who]||'ti-point')} title=${e.who}></i><div class="b"><b>${e.who}</b> ${tone(e.what)}${x.old?html` <small>superseded</small>`:null}${(e.refs||[]).length?html`<div class="refs">${e.refs.map(function(r){return refNode(agent,r)})}</div>`:null}</div></div>`})}</div></aside>`;
     }
     function toggle(agent,num,restore){var k=agent+'/'+num; if(dw.box()&&cur===k){close();return} closeDrawers(); cur=k; want=restore||null;
       dw.open(html`<${Panel} agent=${agent} num=${num}/>`)}

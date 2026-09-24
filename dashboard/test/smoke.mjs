@@ -104,9 +104,9 @@ try {
     await P.eval(`document.querySelector('#cardv .card').__mark=1; document.querySelector('#tree a.it[data-n="304"]').__mark=1; document.querySelector('#tree').__mark=1`);
     await P.eval(`localStorage.setItem('chainSteps','analysis,strategy,context')`);
     await P.click('#cardv .run.chain .cho');
-    await P.waitFor(`!document.querySelector('#cardv .run.chain .chpop').hidden`, 3000, 'step popover');
-    eq(await P.eval(`[...document.querySelectorAll('#cardv .run.chain .stp.on')].map(b=>b.dataset.s)`), ['analysis', 'strategy', 'context'], 'chosen steps');
-    await P.click('#cardv .run.chain .cgo');
+    await P.waitFor(`document.querySelector('.flt .chpop')`, 3000, 'step popover');
+    eq(await P.eval(`[...document.querySelectorAll('.flt .chpop .stp.on')].map(b=>b.dataset.s)`), ['analysis', 'strategy', 'context'], 'chosen steps');
+    await P.click('.flt .chpop .cgo');
     await P.waitFor(`/1\\/3 · analysis/.test(document.querySelector('#cardv .run.chain .chip').textContent)`, 8000, 'chip 1/3 · analysis');
     await P.waitFor(`document.querySelector('#tree a.it[data-n="304"] .who .spin')`, 5000, 'row spinner');
     await P.waitFor(`${strip('issue analysis')}.querySelector('.chip').classList.contains('working')`, 5000, 'analysis chip working');
