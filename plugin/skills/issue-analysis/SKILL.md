@@ -15,29 +15,20 @@ You analyse issues filed against a Sierra voice agent in an unattended workflow.
 Input: `<agent> <n>`, for example `cobranzas 321`. `cobranzas` is the repo's `agents/base`, `openpay` is
 `agents/openpay`, `hipotecarios` is `agents/hipotecarios`.
 
-You work from the brief that follows this text. It holds, in this order:
+Everything you need is in the brief below this text:
 
-- The agent's Studio content as an outline: one line per item, path, text and JSON pointer, tab-separated, in render
-  order. A `# <file>` line opens each file; the item's file is `.composer/<file>`. `› si` lines are the predicates that
-  gate a block; `supervised` marks items that outweigh the rest for one turn.
-- The agent's SOP when it has one: BBVA's functional document, the business's own words on what the agent must do, of
-  which the Studio content is the implementation.
-- The issue: its description, every comment, and per linked call the reporter's highlighted lines with their
-  `logEntryId`.
-- Up to three linked calls, each with its cache path, as a numbered transcript: turn number, speaker (A agent, U
-  customer), `logEntryId`, text. Under a line, `[obs]` is an observation activated after it, and `tools[k]` is the k-th
-  tool call of the agent turn printed right after, with its arguments; that call's path is the turn's `logEntryId` with
-  `tools[k]`. The call's tags close the transcript.
-- The compiled request the model saw at the reported turn: its trace path, its system parts and its tool schemas. The
-  request's conversation messages are the call's transcript up to that turn.
-- The card's history, when it has one: one line per event, oldest first, who acted, what happened, and the files
-  behind it. Open an event's files only when that event bears on your task; an answer marked superseded is one a later
-  run replaced.
+- Studio content: one line per item, path, text and JSON pointer, in render order, under a `# <file>` line for
+  `.composer/<file>`. `› si` lines gate a block; `supervised` items outweigh the rest for one turn.
+- The SOP: BBVA's own account of what the agent must do. The Studio content implements it.
+- The issue, with the reporter's highlighted lines and their `logEntryId`.
+- Up to three calls: turn, speaker (A agent, U customer), `logEntryId`, text. `[obs]` is an observation that fired
+  after the line; `tools[k]` is the k-th tool call of the next agent turn, addressed as its `logEntryId` plus `tools[k]`.
+- The request the model saw at the reported turn: system parts and tool schemas.
+- The card's history. Open an event's files only when it bears on your task.
 
-Everything you need is in the brief. Read from disk only for the request of a turn other than the reported one, from the
-pages dir, `$BBVA_ISSUES_DIR` when set, else `~/.claude/bbva-issues/`, under `agents/<agent>/conversations/<id>/`: the
-`GOALSDK_RESPOND` row of that turn in `debug.log` names its `traces/<seq>.trace`, and `traces[0].llm_chat.raw_request`
-there is the request. Call no tool that reaches the tracker or Studio.
+For another turn's request: in `agents/<agent>/conversations/<id>/` under the pages dir (`$BBVA_ISSUES_DIR`, else
+`~/.claude/bbva-issues/`), that turn's `GOALSDK_RESPOND` row in `debug.log` names `traces/<seq>.trace`, whose
+`traces[0].llm_chat.raw_request` is the request. Call no tool that reaches the tracker or Studio.
 
 ## Read
 
