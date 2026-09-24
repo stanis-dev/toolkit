@@ -6,7 +6,7 @@ Usage:
 
 Static first, so a prompt cache shares the prefix across issues of one agent. For `analysis` (the default):
   1. the agent's Studio content as blocks.py prints it, path, text and JSON pointer per item, render order;
-  2. the agent's SOP (agents/<agent>/sop/sop.md in the pages dir) when it has one;
+  2. the agent's SOP (agents/<agent>/sop/sop.md in the pages dir) when it has one, without its example conversations;
   3. the issue, readable: name, status, description, comments, and per linked call the reporter's highlighted
      lines with their logEntryId;
   3. up to <k> linked calls (3 by default), the one with the highlighted line first, then newest first, each as a
@@ -197,10 +197,14 @@ def transcript(conv_dir, details):
     return "\n".join(out) + "\n"
 
 
+SOP_EXAMPLE = re.compile(r"(?ms)^#+ Ejemplo de conversación.*?(?=^#+ |^\*\*\d)")
+
+
 def sop_text(base):
-    """The agent's SOP as markdown, agents/<agent>/sop/sop.md in the pages dir, when the agent has one."""
+    """The agent's SOP as markdown, agents/<agent>/sop/sop.md in the pages dir, when the agent has one, without its
+    example conversations."""
     p = os.path.join(base, "sop", "sop.md")
-    return open(p, encoding="utf-8").read().strip() + "\n" if os.path.exists(p) else ""
+    return SOP_EXAMPLE.sub("", open(p, encoding="utf-8").read()).strip() + "\n" if os.path.exists(p) else ""
 
 
 def call_order(iss, base, k):
