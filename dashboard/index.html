@@ -145,8 +145,9 @@
     return html`<input class="base-in" ref=${ref} defaultValue=${cur} placeholder="stan/…" spellcheck="false" onKeyDown=${function(ev){if(ev.key==='Enter'){ev.preventDefault();finish(true)}else if(ev.key==='Escape'){finish(false)}}} onBlur=${function(){finish(true)}}/>`;
   }
   // The card's latest guard run: grey before any, red at 0 passes, yellow when some fail, green when all pass.
-  function Shield(p){var g=p.g, cls=!g?'none':g.passed===g.total?'ok':g.passed?'flaky':'ko';
-    return html`<i class=${'ti ti-shield-filled gsh '+cls} title=${g?'Guard '+g.passed+'/'+g.total+' · run '+(g.run||''):'No guard run yet'} aria-label=${g?'guard '+g.passed+' of '+g.total:'no guard run'}></i>`}
+  function Shield(p){var g=p.g, has=g&&g.total, cls=g&&g.running?'none run':!has?'none':g.passed===g.total?'ok':g.passed?'flaky':'ko';
+    var last=has?'guard '+g.passed+'/'+g.total+' · run '+(g.run||''):'no guard run yet';
+    return html`<i class=${'ti ti-shield-filled gsh '+cls} title=${g&&g.running?'Guard running · last '+last:last[0].toUpperCase()+last.slice(1)} aria-label=${g&&g.running?'guard running':has?'guard '+g.passed+' of '+g.total:'no guard run'}></i>`}
   function Row(p){
     var a=p.a, i=p.i, q=p.q, on=!!(ui.sel[a]||{})[i.num], v=ui.views[i.num], t=costOf(a,i.num);
     return html`<a class=${'it'+(i.sev==='MAJOR'?' major':'')+(p.active?' active':'')+(on?' sel':'')+(v.kind==='you'||v.kind==='ready'?' you':'')} data-n=${i.num} title=${t?costTitle(t):undefined} href=${href({a:a,b:q.b,i:i.num})}

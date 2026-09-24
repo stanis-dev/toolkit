@@ -58,7 +58,7 @@ resolution itself, once; the status file's "asked" says whether it went. The oth
 its socket, runs/<n>/sock.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
-"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run}} (the card's latest guard run), "notes": {"<n>": [<step>, …]} (steps with notes)}: the page polls it once
+"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run, running}} (the card's latest guard run, and whether one runs now), "notes": {"<n>": [<step>, …]} (steps with notes)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
 stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files
@@ -247,12 +247,16 @@ def chain_states(agent):
 
 
 def guard_states(agent):
-    """{n: {passed, total}} of each card's latest guard run: the 5× run on its tree now, else the one before the fix."""
+    """{n: {passed, total, run, running}} of each card's latest guard run: the 5× run on its tree now, else the one
+    before the fix; running while the guard's ×5 or the strategy step runs."""
     base, out = paths.agent('', agent), {}
     for n in paths.cards(base):
         run = paths.guard_red(base, n, 'guard-now') or paths.guard_red(base, n)
-        if run:
-            out[str(n)] = {'passed': run['passed'], 'total': run['total'], 'run': run['run']}
+        g = load_json(os.path.join(paths.card_dir(base, n), 'strategy', 'guard.json'), {})
+        s = load_json(paths.status(base, n, 'strategy'), {})
+        running = any(x.get('state') == 'working' and alive(int(x.get('pid') or 0)) for x in (g, s))
+        if run or running:
+            out[str(n)] = dict({'passed': run['passed'], 'total': run['total'], 'run': run['run']} if run else {}, running=running)
     return out
 
 

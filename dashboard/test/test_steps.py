@@ -173,6 +173,18 @@ class Steps(unittest.TestCase):
         self.run_step('analysis')
         self.assertNotIn("engineer's notes", self.pi_calls()[-1]['stdin'])
 
+    def test_progress_lines_reach_the_status(self):
+        for line in ('Reading the call', 'Guard 1×: the cut lands on the goodbye'):
+            subprocess.run([sys.executable, os.path.join(self.scripts, 'progress.py'), AG, N, 'strategy', line, '--pages', self.run_dir],
+                           check=True, capture_output=True)
+        sys.path.insert(0, self.scripts)
+        import run
+        runs = paths.runs(paths.agent(self.run_dir, AG), N, 'strategy')
+        got = run.last_progress(os.path.join(runs, 'progress.jsonl'))
+        self.assertEqual((got['text'], got['count']), ('Guard 1×: the cut lands on the goodbye', 2))
+        self.run_step('strategy')
+        self.assertFalse(os.path.exists(os.path.join(runs, 'progress.jsonl')))
+
     def test_fresh_run_moves_the_session_aside(self):
         self.run_step('strategy')
         self.run_step('strategy')

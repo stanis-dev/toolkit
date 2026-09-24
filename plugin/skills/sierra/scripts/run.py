@@ -32,7 +32,8 @@ without a session it runs fresh with the feedback under a heading at the end of 
 --from says whose it is, engineer by default: a claim the step weighs (the answer's `feedback` field, required non-null
 then), or a ruling, which it applies (every point accepted).
 The engineer's notes for the step (`<step>/notes.md`, written from the card) end the message of every run of it, a
-continued one's too; the run keeps the text it was sent as notes.md.
+continued one's too; the run keeps the text it was sent as notes.md. The lines the step reports with progress.py
+(runs/<n>/progress.jsonl, emptied at each start) reach status.json's "progress" every 5 s, the latest with the count.
 """
 import hashlib
 import json
@@ -78,6 +79,15 @@ def write_json(path, obj):
     os.replace(path + ".tmp", path)
 
 
+def last_progress(path):
+    """The step's latest progress.py line with how many it has reported, or None."""
+    try:
+        lines = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+    except (OSError, ValueError):
+        return None
+    return dict(lines[-1], count=len(lines)) if lines else None
+
+
 def watch(proc, status, status_path, lock, stopped, act):
     """Every 5 s: how long pi's event stream has been silent and whether a tool it started is still running, written to
     status["live"] for the page. Silence for STALL seconds ends the run, unless a tool is running: a simulation run
@@ -88,8 +98,11 @@ def watch(proc, status, status_path, lock, stopped, act):
             break
         quiet = round(time.time() - act["last"])
         live = {"at": now(), "quiet": quiet, "tool": act["tools"] > 0}
+        progress = last_progress(os.path.join(os.path.dirname(status_path), "runs", "progress.jsonl"))
         with lock:
             status["live"] = live
+            if progress:
+                status["progress"] = progress
             write_json(status_path, status)
         if quiet >= STALL and act["tools"] <= 0:
             stopped.append(f"no data from the model for {quiet} s")
@@ -347,7 +360,7 @@ def keep_run(runs, started, feedback, answer_path=None):
         dest = f"{base}-{k}"
     os.makedirs(dest)
     kept = []
-    for f in ("answer.json", "feedback.md", "notes.md", "prompt.md", "out.jsonl", "err.log"):
+    for f in ("answer.json", "feedback.md", "notes.md", "progress.jsonl", "prompt.md", "out.jsonl", "err.log"):
         src = answer_path if f == "answer.json" else os.path.join(runs, f)
         if src and os.path.exists(src) and (f != "feedback.md" or feedback):
             shutil.copy(src, os.path.join(dest, f))
@@ -424,7 +437,7 @@ def main(argv):
     except (OSError, ValueError):
         before = {}
     status = {"step": step, "state": "working", "started": started, "ended": None, "seconds": None, "commit": None,
-              "model": model, "effort": effort, "pid": os.getpid(), "thread": None, "usage": None, "live": None, "error": None,
+              "model": model, "effort": effort, "pid": os.getpid(), "thread": None, "usage": None, "live": None, "progress": None, "error": None,
               "feedback": bool(feedback), "continued": False, "history": with_history,
               "analysis": analysis_hash() if step == "context" else None}
     write_json(status_path, status)
@@ -501,6 +514,8 @@ def main(argv):
         status["continued"] = continued
         if feedback:
             open(os.path.join(runs, "feedback.md"), "w", encoding="utf-8").write(feedback + "\n")
+        if os.path.exists(os.path.join(runs, "progress.jsonl")):
+            os.remove(os.path.join(runs, "progress.jsonl"))
         where = "The checkout holds the card's work so far, uncommitted; HEAD is the branch before it."
         brief = subprocess.run([sys.executable, os.path.join(HERE, "brief.py"), agent, n, "--step", step, "--pages", pages, "--repo", repo]
                                + ([] if with_history else ["--history", "0"]),

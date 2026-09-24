@@ -565,6 +565,8 @@ def run_text(agent, n, base, repo, step):
         f"- `<workspace>`: `{ws}`",
         f"- `<runs>`: `{paths.runs(base, n, step)}`",
         f"- `<scripts>`: `{os.path.dirname(os.path.abspath(__file__))}`",
+        f"- `<progress>`: `python3 {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'progress.py')} {agent} {n} {step}"
+        f" --pages {os.path.dirname(os.path.dirname(base))}` followed by the line, quoted",
     ]) + "\n"
 
 
