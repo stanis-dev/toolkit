@@ -52,12 +52,19 @@ def both_sims(text):
 def merge_main(wt):
     """Steps 1 to 3. (0, what happened) or (3, the conflicting files)."""
     run(["git", "-C", wt, "fetch", "-q", "origin", "main"])
-    if subprocess.run(["git", "-C", wt, "merge-base", "--is-ancestor", "origin/main", "HEAD"]).returncode == 0:
-        return 0, "origin/main is already in the branch"
+    return merge_ref(wt, "origin/main")
+
+
+def merge_ref(wt, ref):
+    """Steps 2 and 3 with ref in place of origin/main. (0, what happened) or (3, the conflicting files)."""
+    if subprocess.run(["git", "-C", wt, "merge-base", "--is-ancestor", ref, "HEAD"]).returncode == 0:
+        return 0, ref + " is already in the branch"
     before = stepgit.git(wt, "rev-parse", "HEAD").strip()
-    code, _ = run(["git", "-C", wt] + stepgit.NO_HOOKS + ["merge", "--no-edit", "origin/main"])
+    code, _ = run(["git", "-C", wt] + stepgit.NO_HOOKS + ["merge", "--no-edit", ref])
     if code:
         files = [f for f in stepgit.git(wt, "diff", "--name-only", "--diff-filter=U").split() if f]
+        if not files:
+            return 3, "the working tree (git refused to start the merge)"
         left = []
         for f in files:
             path = os.path.join(wt, f)
@@ -75,7 +82,7 @@ def merge_main(wt):
     changed = stepgit.git(wt, "diff", "--name-only", before, "HEAD").split()
     if any(os.path.basename(f) in ("pnpm-lock.yaml", "package.json") for f in changed):
         run(["pnpm", "-C", wt, "install", "--frozen-lockfile"])
-    return 0, "merged origin/main at " + stepgit.git(wt, "rev-parse", "--short", "HEAD").strip()
+    return 0, f"merged {ref} at " + stepgit.git(wt, "rev-parse", "--short", "HEAD").strip()
 
 
 def studio(wt, composer_rel):
