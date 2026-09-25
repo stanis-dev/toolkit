@@ -29,6 +29,9 @@ Agents (the `<select>` in index.html): `openpay` = repo `agents/openpay`, MCP `s
     POST /sync /setup /batch /run /kill /reset/<agent>/<n>
     POST /cardsync/<agent>/<n>          cardsync.py: the card's batch branch merged into its worktree under the card's
                                         uncommitted work, its workspace pushed to hold the result
+    POST /mergecard/<agent>/<n>         the card's Merge button: the engineer's go and the issue-resolution skill's
+                                        «Ready to merge» section to the resolution session (live, resumed or fresh),
+                                        which commits the card's work, runs batchmerge.py and stages merge merged
     POST /batchnew/<agent>, /batchbase/<agent>/<MMDD>, /batchdel/<agent>/<MMDD>   batch.py create or delete
     POST /chat/<agent>/<n>/(start|ask|send|abort|stop|ui)   the resolution session; start takes {"resume": true}
     GET  /chat/<agent>/<n>/state        {running, streaming, resumable, status}
