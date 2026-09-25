@@ -56,9 +56,15 @@ once); with resume it starts pi on the last session's file instead. Its events g
 agents/<agent>/resolve/runs/<n>/out.jsonl. POST /chat/<agent>/<n>/ask sends the issue-resolution skill text, the
 resolution itself, once; the status file's "asked" says whether it went. The other chat POSTs go to the host over
 its socket, runs/<n>/sock.
+POST /cardsync/<agent>/<n> starts the skill's cardsync.py: the card's batch branch merged into its worktree under the card's
+uncommitted work, and its workspace made to hold the result; status in cards/<n>/sync/status.json, refused (409) while
+anything works on the card's tree. The server also runs it by itself: every CARDSYNC_SECONDS (60; 0 turns it off) each card
+behind its batch that nothing works on is synced, a failed sync not again until the batch moves on, and a live resolution
+session is told once when its tree took the batch in. Prep steps, the guard and the regressions are refused while a sync runs.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
-"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run, running}} (the card's latest guard run, and whether one runs now), "notes": {"<n>": [<step>, …]} (steps with notes)}: the page polls it once
+"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run, running}} (the card's latest guard run, and whether one runs now), "notes": {"<n>": [<step>, …]} (steps with notes), "behind": {"<n>": {batch, branch, head, count, sync}} (cards whose
+batch branch has commits their worktree lacks, or whose last sync is working or failed)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
 stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
 appends when a `sierra … test` command ends), whose turn it is and since when a sim run is in flight. States come from the status files
@@ -112,6 +118,7 @@ BATCHNEW = re.compile(r'^/batchnew/' + A + '$')
 BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
 BATCHARCHIVE = re.compile(r'^/batcharchive/' + A + r'/(\d{4}(?:-\d)?)$')
 SYNC = re.compile(r'^/sync/' + A + '$')
+CARDSYNC = re.compile(r'^/cardsync/' + A + r'/(\d+)$')
 CHAIN = re.compile(r'^/chain/' + A + r'/(\d+)(/stop)?$')
 RULE = re.compile(r'^/rule/' + A + r'/(\d+)$')
 DRIVER = re.compile(r'^/driver/' + A + r'/(\d{4}(?:-\d)?)/(start|events|send|abort|stop|state|check)$')
@@ -274,10 +281,22 @@ def steps_view(agent):
     live = live_sessions(agent)
     return {'sig': files_sig(agent), 'steps': step_states(agent), 'batches': batch_states(agent), 'resolve': resolve_view(agent, live),
             'chains': chain_states(agent), 'cost': cost_states(agent, live), 'stale': steps.stale_states(agent),
-            'guard': guard_states(agent), 'notes': note_states(agent)}
+            'guard': guard_states(agent), 'notes': note_states(agent), 'behind': steps.behind_states(agent)}
 
 
 host_call = steps.host_call
+
+
+def keep_cards_current():
+    """Every CARDSYNC_SECONDS (60 by default, 0 turns it off), steps.keep_current over every agent: each card behind
+    its batch gets the batch merged in (cardsync.py) once nothing works on it."""
+    every = float(os.environ.get('CARDSYNC_SECONDS') or 60)
+    while every > 0 and not CLOSING[0]:
+        try:
+            steps.keep_current(A[1:-1].split('|'))
+        except Exception as ex:
+            sys.stderr.write(now() + f' keep_current: {type(ex).__name__}: {ex}\n'); sys.stderr.flush()
+        time.sleep(every)
 
 
 # Self-restart: the modules this server runs, their mtimes at start, and the requests in flight.
@@ -571,6 +590,10 @@ class H(SimpleHTTPRequestHandler):
             body = self.body() or {}
             st, err = steps.rule(*ru.groups(), body.get('for'), bool(body.get('gap')))
             self.reply(409, {'error': err}) if err else self.reply(202, st if isinstance(st, dict) else {}); return
+        cs = CARDSYNC.match(self.path)
+        if cs:
+            err = steps.start_sync(*cs.groups())
+            self.reply(409, {'error': err}) if err else self.reply(202); return
         y = SYNC.match(self.path)
         if y:
             agent = y.group(1)
@@ -582,6 +605,8 @@ class H(SimpleHTTPRequestHandler):
             base = paths.agent('', agent)
             if not os.path.exists(paths.answer(base, n, 'strategy')):
                 self.reply(409, {'error': 'no sim strategy yet'}); return
+            if settle(status_path(agent, n, 'sync')).get('state') == 'working':
+                self.reply(409, {'error': 'the batch is being merged into the worktree: wait for it'}); return
             state = os.path.join(paths.card_dir(base, n), 'strategy', 'guard.json')
             err = steps.spawn_proc(state, os.path.join(paths.runs(base, n, 'strategy'), 'guard.log'),
                                    [os.path.join(SCRIPTS, 'guard.py'), agent, n, '--pages', os.getcwd()])[0]
@@ -592,6 +617,8 @@ class H(SimpleHTTPRequestHandler):
             base = paths.agent('', agent)
             if not os.path.exists(paths.answer(base, n, 'strategy')):
                 self.reply(409, {'error': 'no sim strategy yet'}); return
+            if settle(status_path(agent, n, 'sync')).get('state') == 'working':
+                self.reply(409, {'error': 'the batch is being merged into the worktree: wait for it'}); return
             state = os.path.join(paths.card_dir(base, n), 'strategy', 'regressions-run.json')
             err = steps.spawn_proc(state, os.path.join(paths.runs(base, n, 'strategy'), 'regressions-run.log'),
                                    [os.path.join(SCRIPTS, 'guard.py'), agent, n, '--regressions', '--pages', os.getcwd()])[0]
@@ -773,6 +800,7 @@ if __name__ == '__main__':
     SRV.append(srv)
     srv.daemon_threads = True
     threading.Thread(target=watch_self, daemon=True).start()
+    threading.Thread(target=keep_cards_current, daemon=True).start()
     sys.stderr.write(now() + f' serving on {port}\n'); sys.stderr.flush()
     srv.serve_forever()
     threading.Event().wait()  # stopped accepting for a restart: the watcher re-executes this process

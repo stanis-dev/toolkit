@@ -40,7 +40,7 @@
   }
   // The store: what the page's poll of GET steps brings (steps, batches, resolve, chains, cost, stale, each per agent). A set
   // re-renders every component that reads it; Preact then touches only what changed.
-  var Store=(function(){var s={steps:{},bst:{},res:{},chains:{},cost:{},stale:{},guard:{},notes:{}},subs=[];
+  var Store=(function(){var s={steps:{},bst:{},res:{},chains:{},cost:{},stale:{},guard:{},notes:{},behind:{}},subs=[];
     return {get:function(){return s},set:function(p){Object.keys(p).forEach(function(k){s[k]=p[k]});subs.slice().forEach(function(f){f()})},
       sub:function(f){subs.push(f);return function(){subs=subs.filter(function(g){return g!==f})}}}})();
   function useStore(){var f=useState(0)[1];useEffect(function(){return Store.sub(function(){f(function(x){return x+1})})},[]);return Store.get()}

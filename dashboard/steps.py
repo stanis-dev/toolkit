@@ -197,10 +197,13 @@ PREP = ('analysis', 'strategy', 'context')
 
 
 def prep_refusal(agent, n, step, repo):
-    """Why step cannot start now: another of the three answers is running in the same tree. None when it can."""
+    """Why step cannot start now: another of the three answers is running in the same tree, or the batch is being
+    merged into it. None when it can."""
     for other in PREP:
         if other != step and settle(status_path(agent, n, other)).get('state') == 'working':
             return other + ' is running: wait for it or stop it'
+    if settle(status_path(agent, n, 'sync')).get('state') == 'working':
+        return 'the batch is being merged into the worktree: wait for it'
     return None
 
 
@@ -460,3 +463,87 @@ def start_chain(agent, n, steps, model, effort, wait=10, feedback=None, source=N
             return None, f'chain.py exit {p.returncode}'
         time.sleep(0.05)
     return None, 'the sequence did not start in time'
+
+
+def git_out(wt, *args):
+    r = subprocess.run(['git', '-C', wt] + list(args), capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def merged(agent, n):
+    stages = load_json(paths.step_file(paths.agent('', agent), n, 'resolve', 'stage.json'), [])
+    return any(e.get('stage') == 'merge' and e.get('state') == 'merged' for e in stages)
+
+
+def behind_states(agent):
+    """{n: {batch, branch, head, count, sync}} for each card with a worktree, not merged, in a batch not archived, whose batch branch has
+    commits the worktree's HEAD lacks, or whose last cardsync.py is working or failed; sync is that run's status."""
+    out = {}
+    for n in paths.cards(paths.agent('', agent)):
+        wt = repo_of(agent, n)
+        if not wt or merged(agent, n):
+            continue
+        batch = card_batch(agent, n)
+        if (load_batches(agent).get(batch) or {}).get('archived'):
+            continue
+        branch = batch_base(agent, batch) or load_json(status_path(agent, n, 'setup'), {}).get('base') or ''
+        head = git_out(wt, 'rev-parse', '--verify', '-q', branch + '^{commit}') if branch else None
+        count = git_out(wt, 'rev-list', '--count', 'HEAD..' + head) if head else None
+        sync = settle(status_path(agent, n, 'sync'))
+        count = int(count) if count and count.isdigit() else 0
+        if count or sync.get('state') in ('working', 'failed'):
+            out[n] = {'batch': batch, 'branch': branch, 'head': head, 'count': count,
+                      'sync': {k: sync.get(k) for k in ('state', 'error', 'head', 'ended') if sync.get(k)}}
+    return out
+
+
+def busy(agent, n):
+    """What works on the card's tree now, or None: a prep step, a sequence, the guard or the regressions, a sync, or
+    a resolution session in the middle of a turn."""
+    base = paths.agent('', agent)
+    for step in PREP + ('sync',):
+        if settle(status_path(agent, n, step)).get('state') == 'working':
+            return step + ' is running'
+    if chain_state(agent, n).get('state') == 'working':
+        return 'a sequence is running'
+    for f in ('guard.json', 'regressions-run.json'):
+        if settle(os.path.join(paths.card_dir(base, n), 'strategy', f)).get('state') == 'working':
+            return f.split('.')[0].replace('-run', '') + ' is running'
+    if settle(status_path(agent, n, 'resolve')).get('state') == 'working' and host_call(agent, n, {'cmd': 'state'}).get('streaming'):
+        return 'the resolution session is in a turn'
+    return None
+
+
+def start_sync(agent, n):
+    """Start cardsync.py for the card. None when started, else why not."""
+    if not repo_of(agent, n):
+        return 'no worktree: set the issue up first'
+    why = busy(agent, n)
+    if why:
+        return why
+    return spawn_proc(status_path(agent, n, 'sync'), os.path.join(paths.runs(paths.agent('', agent), n, 'sync'), 'run.log'),
+                      [os.path.join(SCRIPTS, 'cardsync.py'), agent, n, '--pages', os.getcwd()])[0]
+
+
+def sync_note(st):
+    return ('The batch branch was merged into your worktree and workspace while you were idle: ' + (st.get('what') or '') +
+            '. Files you read before may have changed; re-read what you rely on before your next edit or run.')
+
+
+def keep_current(agents):
+    """One pass of the server's loop: start cardsync.py for each card behind its batch that nothing works on, unless
+    its last sync failed at the same batch head; tell a live resolution session once when a sync merged the batch."""
+    for agent in agents:
+        for n, v in behind_states(agent).items():
+            s = v['sync']
+            if v['count'] and s.get('state') != 'working' and not (s.get('state') == 'failed' and s.get('head') == v['head']):
+                start_sync(agent, n)
+        for n in paths.numbers(paths.agent('', agent), 'sync'):
+            path = status_path(agent, n, 'sync')
+            st = load_json(path, {})
+            if st.get('state') == 'done' and st.get('merged') and not st.get('told'):
+                if settle(status_path(agent, n, 'resolve')).get('state') == 'working':
+                    if 'error' in host_call(agent, n, {'cmd': 'send', 'message': sync_note(st), 'mode': 'follow_up', 'by': 'cardsync'}):
+                        continue
+                st['told'] = now()
+                write_json(path, st)

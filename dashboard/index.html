@@ -148,10 +148,17 @@
   function Shield(p){var g=p.g, has=g&&g.total, cls=g&&g.running?'none run':!has?'none':g.passed===g.total?'ok':g.passed?'flaky':'ko';
     var last=has?'guard '+g.passed+'/'+g.total+' · run '+(g.run||''):'no guard run yet';
     return html`<i class=${'ti ti-shield-filled gsh '+cls} title=${g&&g.running?'Guard running · last '+last:last[0].toUpperCase()+last.slice(1)} aria-label=${g&&g.running?'guard running':has?'guard '+g.passed+' of '+g.total:'no guard run'}></i>`}
+  // The card against its batch branch: nothing when current; orange with the count while behind (the server merges it
+  // in once nothing works on the card), pulsing while that runs, red when it failed. A click runs it now.
+  function Behind(p){var a=p.a,n=p.n,v=((Store.get().behind||{})[a]||{})[n];if(!v)return null;var s=v.sync||{};
+    var cls=s.state==='working'?'run':s.state==='failed'?'ko':'lag';
+    var t=s.state==='working'?'Merging batch '+v.batch+' into the worktree':(v.count?v.count+' commit'+(v.count>1?'s':'')+' behind batch '+v.batch+' ('+v.branch+')':'Batch '+v.batch)+
+      (s.state==='failed'?' · last sync failed: '+(s.error||'')+' · click to retry':' · click to merge it in now');
+    return html`<i class=${'ti ti-refresh bhd '+cls} title=${t} aria-label=${t} onClick=${function(e){e.preventDefault();e.stopPropagation();if(s.state==='working')return;post('cardsync/'+a+'/'+n).then(function(err){if(err)alert(err);poll1()})}}></i>`}
   function Row(p){
     var a=p.a, i=p.i, q=p.q, on=!!(ui.sel[a]||{})[i.num], v=ui.views[i.num], t=costOf(a,i.num);
     return html`<a class=${'it'+(i.sev==='MAJOR'?' major':'')+(p.active?' active':'')+(on?' sel':'')+(v.kind==='you'||v.kind==='ready'?' you':'')} data-n=${i.num} title=${t?costTitle(t):undefined} href=${href({a:a,b:q.b,i:i.num})}
-      onClick=${function(e){if(!ui.pick)return;e.preventDefault();var sel=ui.sel[a]=ui.sel[a]||{};if(sel[i.num])delete sel[i.num];else sel[i.num]=true;draw()}}><i class=${'ti pk '+(on?'ti-square-check-filled':'ti-square')} aria-hidden="true"></i><span class="num">${'#'+i.num}</span><span class="t" title=${i.title}>${i.title}</span><span class="who">${v.who}</span><${Shield} g=${((Store.get().guard||{})[a]||{})[i.num]}/>${v.l2}</a>`;
+      onClick=${function(e){if(!ui.pick)return;e.preventDefault();var sel=ui.sel[a]=ui.sel[a]||{};if(sel[i.num])delete sel[i.num];else sel[i.num]=true;draw()}}><i class=${'ti pk '+(on?'ti-square-check-filled':'ti-square')} aria-hidden="true"></i><span class="num">${'#'+i.num}</span><span class="t" title=${i.title}>${i.title}</span><span class="who">${v.who}</span><${Shield} g=${((Store.get().guard||{})[a]||{})[i.num]}/><${Behind} a=${a} n=${i.num}/>${v.l2}</a>`;
   }
   function Group(p){
     var a=p.a, x=p.x, q=p.q, open=ui.open[a]||{}, d=ui.data;
@@ -312,7 +319,7 @@
   document.getElementById('view').addEventListener('toggle',function(e){var q=route();if(q.i)Cards.foldToggle(cardv,ui.agent,q.i,e.target)},true);
   // Hot reload: every 2 s one GET steps/<agent> brings the step states and a signature of the issue and card files;
   // a moved signature reloads the agent's files, any change updates the store and so the rows and bars that show it.
-  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale'],['guard','guard'],['notes','notes']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
+  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale'],['guard','guard'],['notes','notes'],['behind','behind']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
   function poll1(){
     var a=ui.agent;
     return fetch('steps/'+a,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){

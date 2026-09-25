@@ -44,7 +44,7 @@ def make(run):
         open(os.path.join(d, 'SKILL.md'), 'w').write(f'Stand-in {skill} instructions.\n')
         json.dump({'type': 'object', 'required': ['ok'], 'properties': {'ok': {'type': 'boolean'}}}, open(os.path.join(d, 'schema.json'), 'w'))
     return dict(os.environ, SIERRA_SCRIPTS=scripts, BBVA_REPO=repo, SIERRA_PI=os.path.join(HERE, 'standins', 'pi'),
-                STANDIN_LOG=os.path.join(run, 'standin.log'), CHAIN_POLL='0.2', GIT_CEILING_DIRECTORIES=run, PYTHONDONTWRITEBYTECODE='1',
+                STANDIN_LOG=os.path.join(run, 'standin.log'), CHAIN_POLL='0.2', CARDSYNC_SECONDS='0', GIT_CEILING_DIRECTORIES=run, PYTHONDONTWRITEBYTECODE='1',
                 SIERRA_PLUGIN=os.path.join(run, 'plugin'), **GIT_ENV)
 
 

@@ -365,7 +365,12 @@ main{min-width:0}
 .side .it .gsh.ko{color:var(--text-danger, var(--destructive))}
 .side .it .gsh.run{animation:gshpulse 1.4s ease-in-out infinite}
 @keyframes gshpulse{0%,100%{opacity:.25}50%{opacity:.8}}
-@media (prefers-reduced-motion:reduce){.side .it .gsh.run{animation:none;opacity:.8}}
+.side .it .bhd{grid-column:1;grid-row:2;justify-self:end;font-size:12px;line-height:1;cursor:pointer}
+.side.pick .it .bhd{grid-column:2}
+.side .it .bhd.lag{color:var(--text-warning, var(--orange))}
+.side .it .bhd.ko{color:var(--text-danger, var(--destructive))}
+.side .it .bhd.run{color:var(--text-accent);animation:gshpulse 1.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.side .it .gsh.run,.side .it .bhd.run{animation:none;opacity:.8}}
 .side .grp>.row .base .barch{margin-left:auto;width:20px;height:18px;font-size:12px;visibility:hidden}
 .side .grp>.row .base .barch+.bdel{margin-left:0}
 .side .grp>.row:hover .base .barch{visibility:visible}

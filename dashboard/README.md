@@ -27,12 +27,21 @@ Agents (the `<select>` in index.html): `openpay` = repo `agents/openpay`, MCP `s
     GET  /request/<agent>/<audit-id>/…  the compiled request of one turn
     GET  /branches                      local branches, newest first, each with the worktree that has it checked out
     POST /sync /setup /batch /run /kill /reset/<agent>/<n>
+    POST /cardsync/<agent>/<n>          cardsync.py: the card's batch branch merged into its worktree under the card's
+                                        uncommitted work, its workspace pushed to hold the result
     POST /batchnew/<agent>, /batchbase/<agent>/<MMDD>, /batchdel/<agent>/<MMDD>   batch.py create or delete
     POST /chat/<agent>/<n>/(start|ask|send|abort|stop|ui)   the resolution session; start takes {"resume": true}
     GET  /chat/<agent>/<n>/state        {running, streaming, resumable, status}
     GET  /chat/<agent>/<n>/events       out.jsonl as SSE; each id is a byte offset, so a reconnect with
                                         Last-Event-ID resumes where it stopped
     POST /chain/<agent>/<n> {steps}, /chain/<agent>/<n>/stop   a sequence of steps; stop ends it after the current one
+
+Cards stay current with their batch: every CARDSYNC_SECONDS (60; 0 turns it off) the server runs cardsync.py for each
+card, in a batch not archived and not merged, whose batch branch has commits its worktree lacks, once nothing works on it
+(prep steps, a sequence, the guard, the regressions, a resolution session mid-turn). A failed sync is not retried until
+the batch moves on; a live resolution session is told once when its tree took the batch in. `/steps` carries `behind`,
+the sidebar's refresh mark next to the shield: orange while behind, pulsing while it merges, red when it failed; a click
+runs it now. Prep steps, the guard and the regressions are refused while a sync runs.
 
 A run is refused with 409 while the same step of the same issue is working; the card's chip shows the server's text.
 A status file whose pid is gone is written back as failed on read.
@@ -77,6 +86,8 @@ resume button; pi starts again with `--continue` on that session and the timelin
                                       sock (while it runs), host.log, start.err (why the last start failed).
     agents/<agent>/chain/<n>.json     the last sequence: steps, the one at, state, pid; <n>.stop asks it to stop.
     agents/<agent>/setup/<n>.status.json    the issue's worktree and Studio workspace once setup ran.
+    agents/<agent>/cards/<n>/sync/status.json   the last cardsync.py: state, head (the batch commit), merged, what, error,
+                                      told (when the live session heard of it); its output in sync/runs/run.log.
     agents/<agent>/batches.json       per batch: its branch (base), its Studio workspace and its worktree, both named after
                                       the branch with / as -; batch.py writes it when a create ends.
     agents/<agent>/batches/<MMDD>.status.json, runs/<MMDD>/run.log   the last batch.py create or delete.

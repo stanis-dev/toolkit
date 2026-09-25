@@ -500,5 +500,49 @@ class SelfRestart(Lab):
         until(lambda: self._boot_changed(boot), timeout=15)
 
 
+class BatchSync(Lab):
+    """Card 301 (batch 0922, not merged) against a batch branch one commit ahead of its worktree."""
+    name = 'batchsync'
+
+    def setUp(self):
+        self.wt = self.path('repo', '.claude', 'worktrees', 'hip-301')
+        g = lambda *a: subprocess.run(['git', '-C', self.wt] + list(a), check=True, capture_output=True, env=self.env)
+        g('checkout', '-q', '-B', 'stan/hip-issues-0922')
+        open(os.path.join(self.wt, 'batch.txt'), 'w').write('another card\n')
+        g('add', '-A'); g('commit', '-q', '-m', 'another card merged into the batch')
+        g('checkout', '-q', 'stan/hip-301')
+        g('reset', '-q', '--hard', 'stan/hip-issues-0922~1')
+
+    def behind(self):
+        return get('/steps/' + AG)['behind']
+
+    def test_behind_route_and_refusal(self):
+        v = self.behind()
+        self.assertEqual(list(v), ['301'])
+        self.assertEqual((v['301']['batch'], v['301']['branch'], v['301']['count']), ('0922', 'stan/hip-issues-0922', 1))
+        a = f'agents/{AG}'
+        self.write(paths.step_file(a, '301', 'strategy', 'status.json'), {'state': 'working', 'pid': os.getpid()})
+        code, j = post('/cardsync/' + AG + '/301')
+        self.assertEqual((code, j['error']), (409, 'strategy is running'))
+        os.remove(self.path(paths.step_file(a, '301', 'strategy', 'status.json')))
+        self.assertEqual(post('/cardsync/' + AG + '/301')[0], 202)
+        until(lambda: not self.behind())
+        self.assertEqual([r['n'] for r in self.standin_log('cardsync.py')], ['301'])
+
+
+class BatchSyncLoop(BatchSync):
+    """The server's own loop takes the batch in without being asked, once the card is idle."""
+    name, extra = 'batchsyncloop', {'CARDSYNC_SECONDS': '0.3'}
+
+    def test_behind_route_and_refusal(self):
+        pass
+
+    def test_loop_syncs_an_idle_card(self):
+        until(lambda: not self.behind(), timeout=10)
+        self.assertEqual([r['n'] for r in self.standin_log('cardsync.py')], ['301'])
+        time.sleep(1)
+        self.assertEqual(len(self.standin_log('cardsync.py')), 1)
+
+
 if __name__ == '__main__':
     unittest.main()
