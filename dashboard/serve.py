@@ -67,7 +67,7 @@ or to a fresh one; the session commits the card's work per concern, runs batchme
 (409) when the card is merged, has no batch or worktree, its batch is archived, or a sync runs.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
-"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run, running}} (the card's latest guard run, and whether one runs now), "notes": {"<n>": [<step>, …]} (steps with notes), "behind": {"<n>": {batch, branch, head, count, sync}} (cards whose
+"stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run, running}} (the card's latest guard run, and whether one runs now), "notes": {"<n>": [<step>, …]} (steps with notes), "progress": {"<n>": {step, text, t}} (the latest progress.py line of a working step), "behind": {"<n>": {batch, branch, head, count, sync}} (cards whose
 batch branch has commits their worktree lacks, or whose last sync is working or failed)}: the page polls it once
 every 2 s and re-renders on a change. "resolve" is the sidebar's row state: the last stage.py entry and the last state per
 stage (cards/<n>/resolve/stage.json), the last three pass counts per stage (cards/<n>/resolve/runs.json, which the session's reader
@@ -168,6 +168,18 @@ def step_states(agent):
         if step != 'setup':
             for n in set(paths.numbers(base, step, 'json')) | set(paths.numbers(base, step, 'md')):
                 out.setdefault(n, {}).setdefault(step, 'done')
+    return out
+
+
+def progress_states(agent):
+    """{n: {step, text, t}}: the latest progress.py line of each card step that is working now."""
+    out, base = {}, paths.agent('', agent)
+    for step in ('analysis', 'strategy', 'context'):
+        for n in paths.numbers(base, step):
+            st = settle(paths.status(base, n, step))
+            p = st.get('progress') or {}
+            if st.get('state') == 'working' and p.get('text'):
+                out[str(n)] = {'step': step, 'text': p['text'], 't': p.get('t')}
     return out
 
 
@@ -286,7 +298,8 @@ def steps_view(agent):
     live = live_sessions(agent)
     return {'sig': files_sig(agent), 'steps': step_states(agent), 'batches': batch_states(agent), 'resolve': resolve_view(agent, live),
             'chains': chain_states(agent), 'cost': cost_states(agent, live), 'stale': steps.stale_states(agent),
-            'guard': guard_states(agent), 'notes': note_states(agent), 'behind': steps.behind_states(agent)}
+            'guard': guard_states(agent), 'notes': note_states(agent), 'behind': steps.behind_states(agent),
+            'progress': progress_states(agent)}
 
 
 host_call = steps.host_call

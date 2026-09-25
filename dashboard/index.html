@@ -51,11 +51,11 @@
   // Before the resolution starts: one dot each for analysis, strategy, context and resolution (done, running, failed,
   // hollow when stale: an earlier answer is newer), and what comes next.
   var DOTS=['analysis','strategy','context','resolve'], DOTNAME={analysis:'Analysis',strategy:'Sim strategy',context:'Context edit',resolve:'Resolution'};
-  function prepLine(s,run,bad,queued,stale){queued=queued||[];stale=stale||{};
+  function prepLine(s,run,bad,queued,stale,prog){queued=queued||[];stale=stale||{};prog=run&&prog&&prog.step===run?prog:null;
     var next=PK.filter(function(k){return s[k]!=='done'})[0];
-    var label=run?PREP[run]+' running':bad?PREP[bad]+' failed':s.resolve==='failed'?'Session failed':s.resolve==='stopped'?'Session stopped':next?(PK.some(function(k){return s[k]})?PREP[next]+' next':''):'Ready to resolve';
+    var label=prog?prog.text:run?PREP[run]+' running':bad?PREP[bad]+' failed':s.resolve==='failed'?'Session failed':s.resolve==='stopped'?'Session stopped':next?(PK.some(function(k){return s[k]})?PREP[next]+' next':''):'Ready to resolve';
     var marks=DOTS.map(function(k){var q=queued.indexOf(k)>=0&&s[k]!=='working';return html`<i class=${(q?'q':PH[s[k]]||'')+(stale[k]&&!q?' stale':'')} title=${DOTNAME[k]+': '+(q?'queued':s[k]||'not run')+(stale[k]?' · stale: '+stale[k]:'')}></i>`});
-    return html`<span class="l2"><span class="bar prep">${marks}</span>${label?html`<span class=${'stg'+((bad||s.resolve==='failed')&&!run?' bad':next||s.resolve?'':' ok')}>${label}</span>`:null}</span>`;
+    return html`<span class="l2"><span class="bar prep">${marks}</span>${label?html`<span class=${'stg'+((bad||s.resolve==='failed')&&!run?' bad':next||s.resolve?'':' ok')} role=${prog?'status':undefined} title=${prog?PREP[run]+' · '+prog.text:undefined}>${label}</span>`:null}</span>`;
   }
   function rowView(a,i){
     var S=Store.get(), s=(S.steps[a]||{})[i.num]||{}, v=(S.res[a]||{})[i.num]||{}, st=v.stage, r={who:null,l2:null,kind:''}, stale=((S.stale||{})[a]||{})[i.num]||{};
@@ -68,7 +68,7 @@
     else if(st&&st.state==='merged')r.kind='';
     else if(v.turn==='you'||(st&&!v.turn&&WAIT[st.state]))r.kind=st&&st.state==='ready'?'ready':'you';
     r.who=r.kind==='working'?html`<i class="ti ti-loader-2 spin" title="The agent is working"></i>`:r.kind==='bad'?html`<i class="ti ti-alert-circle bad" title=${crashed?'The resolution session ended with an error':PREP[prepBad]+' failed'}></i>`:(r.kind==='you'||r.kind==='ready')?html`<span class="dot" title="Your turn"></span>`:null;
-    if(prepRun||(!st&&!v.turn)){r.l2=prepLine(s,prepRun,prepBad,queued,stale);return r}
+    if(prepRun||(!st&&!v.turn)){r.l2=prepLine(s,prepRun,prepBad,queued,stale,((S.prog||{})[a]||{})[i.num]);return r}
     var bar=v.bar||{}, cur=st?st.stage:'', bars=STAGES.map(function(k){var h=bar[k]?HEALTH[bar[k]]:'';if(h==='now'&&k!==cur)h='ok';if(k===cur&&v.live)h='now';return html`<i class=${h} title=${k+(bar[k]?': '+bar[k]:'')}></i>`});
     var label, icon, cls='', rate=null;
     if(v.live){label=RUNNING[cur]||'Running sims';icon=ICON[cur]||'ti-player-play';rate=Math.max(0,Math.round((Date.now()-Date.parse(v.live))/60000))+' min'}
@@ -319,7 +319,7 @@
   document.getElementById('view').addEventListener('toggle',function(e){var q=route();if(q.i)Cards.foldToggle(cardv,ui.agent,q.i,e.target)},true);
   // Hot reload: every 2 s one GET steps/<agent> brings the step states and a signature of the issue and card files;
   // a moved signature reloads the agent's files, any change updates the store and so the rows and bars that show it.
-  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale'],['guard','guard'],['notes','notes'],['behind','behind']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
+  function apply(a,j){var S=Store.get(),patch={};[['steps','steps'],['bst','batches'],['res','resolve'],['chains','chains'],['cost','cost'],['stale','stale'],['guard','guard'],['notes','notes'],['behind','behind'],['prog','progress']].forEach(function(k){var m=Object.assign({},S[k[0]]);m[a]=j[k[1]]||{};patch[k[0]]=m});Store.set(patch)}
   function poll1(){
     var a=ui.agent;
     return fetch('steps/'+a,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){

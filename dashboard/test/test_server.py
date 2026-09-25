@@ -109,6 +109,15 @@ class StepStates(Lab):
         self.assertEqual((st['state'], st['error']), ('failed', 'process gone'))
         self.assertEqual(s['304']['setup'], 'done')
 
+    def test_progress_of_a_working_step(self):
+        a = f'agents/{AG}'
+        line = {'t': '2026-09-25T10:00:00Z', 'text': 'Run the guard x1', 'count': 3}
+        self.write(paths.step_file(a, '902', 'strategy', 'status.json'), {'state': 'working', 'pid': os.getpid(), 'progress': line})
+        self.write(paths.step_file(a, '903', 'strategy', 'status.json'), {'state': 'done', 'pid': 0, 'progress': line})
+        p = get('/steps/' + AG)['progress']
+        self.assertEqual(p['902'], {'step': 'strategy', 'text': 'Run the guard x1', 't': '2026-09-25T10:00:00Z'})
+        self.assertNotIn('903', p)
+
 
 class SimCards(Lab):
     """A card opened from one failing replay reads as an issue card does: listed with the issues, its replay served as
