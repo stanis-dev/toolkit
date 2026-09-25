@@ -150,7 +150,7 @@
   // again when the page's poll brings a new state for that step and every 2 s while the run works. The bars are
   // components mounted once per card, so a poll updates them in place.
   var STEP_LABEL={analysis:'analysis',strategy:'sim strategy',context:'context edit',resolve:'resolution'};
-  var MODELS=['gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'], HISTORY=['history','no history'];
+  var MODELS=['gpt-6-sol','gpt-5.6-sol','gpt-5.6-terra'], EFFORTS=['low','medium','high','xhigh'], HISTORY=['history','no history'];
   function fmtK(n){return n>=1000?Math.round(n/1000)+'k':String(n)}
   // in counts every input token the model read, the cached share in brackets; reasoning is part of out.
   function whenText(t){var d=new Date(t);return isNaN(d)?'':d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}
