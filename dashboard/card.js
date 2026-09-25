@@ -53,7 +53,7 @@
   var TITLES={ss:'Sim Strategy',so:'Simulation Replay',si:'Simulation Iteration',oc:'Studio Context',oce:'Studio Context Edit',rs:'Resolution'};
   var TITLE_RE=/^(sim strategy|studio context( edit)?|simulation (replay|iteration)|regressions?)$/i;
   var CHEV='<i class="ti ti-chevron-right" aria-hidden="true"></i>';
-  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt','grp','nbtn','nts','rx5','prog'].forEach(function(c){known[c]=1})});
+  var known=null; fetch('sections.css').then(function(r){return r.text()}).then(function(css){known={};(css.match(/\.[a-zA-Z_][\w-]*/g)||[]).forEach(function(c){known[c.slice(1)]=1});['card','rep','secw','sh','lint','ti','sr-only','open','ok','ko','flaky','none','draft','ready','merged','other','default','released','runbar','ahd','run','chip','rbtn','rsel','bsel','sbtn2','kbtn','quiet','working','done','failed','ctx','edit','bug','improvement','rs','lane','chain','cho','chpop','stps','stp','cgo','cost','ctxb','trb','tcall','arm','rstb','mrgb','rsm','prm','pp','pl','stale','rrb1','rrn','rrh','rrs','rrf','rrb','rrgo','rrall','rrm','rrw','rrt','flt','grp','nbtn','nts','rx5','prog'].forEach(function(c){known[c]=1})});
   function el(html){var t=document.createElement('template');t.innerHTML=html;return t.content.firstElementChild}
   // The guard's ×5: runs it on the card's workspace. While strategy/guard.json says working, a pulsing chip counts the
   // time and the old count dims; a failure shows its error; when the run is done the card reloads.
@@ -316,8 +316,23 @@
       })}).catch(function(){s[1]({title:'server unreachable'})});
     }
     return html`<button class=${'rbtn lbl rstb'+(st.armed?' arm':'')} title=${st.title||T} aria-label="Reset every step" disabled=${!!st.busy} onClick=${click}>${st.armed?'Click again':'Reset'}</button>`}
+  // Merge: the engineer's go, handed to the card's resolution session (live, resumed or fresh), which commits the card's
+  // work, runs batchmerge.py and stages merge merged. Two clicks, as Reset; the session panel opens on the second.
+  function Merge(p){var i=p.i, S=useStore(), s=useState({}), st=s[0], timer=useRef(null);
+    var res=((S.res||{})[i.agent]||{})[i.num]||{}, done=(res.bar||{}).merge==='merged', T='Merge the card into its batch: the resolution session commits its work and runs batchmerge';
+    useEffect(function(){return function(){if(timer.current)clearTimeout(timer.current)}},[]);
+    function arm(title){if(timer.current)clearTimeout(timer.current);s[1]({armed:true,title:title});timer.current=setTimeout(function(){timer.current=null;s[1]({})},4000)}
+    function click(){
+      if(!st.armed){arm('Click again to merge into the batch');return}
+      if(timer.current)clearTimeout(timer.current);timer.current=null;s[1]({busy:true,title:'Handing the merge to the resolution session…'});
+      postJSON('mergecard/'+i.agent+'/'+i.num,runOpts()).then(function(r){return r.json().catch(function(){return {}}).then(function(j){
+        if(!r.ok){s[1]({failed:true,title:'Not merged: '+(j.error||('server said '+r.status))});return}
+        s[1]({title:'The resolution session has the go to merge'});Session.toggle(i.agent,i.num,'resolve',true);
+      })}).catch(function(){s[1]({failed:true,title:'server unreachable'})});
+    }
+    return html`<button class=${'rbtn lbl mrgb'+(st.armed?' arm':'')+(st.failed?' ko':'')} title=${done?'Merged into the batch':st.title||T} aria-label="Merge into the batch" disabled=${done||!!st.busy} onClick=${click}><${Icon} n="ti-git-merge"/>${done?'Merged':st.armed?'Click again':'Merge'}</button>`}
   function TopBar(p){var i=p.i;if(!i.agent)return null;
-    return html`<${SetupLane} i=${i}/><${BatchSelect} i=${i}/><span class="vsep"></span><${Models}/><span class="rgt"><${Cost} i=${i}/><span class="vsep"></span><${Chain} i=${i}/><button class="rbtn lbl hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/>History</button><button class="rbtn lbl flsb" title="Every file of the card: its issue and calls, its answers, runs and history" aria-label="Card files" onClick=${function(){Files.toggle(i.agent,i.num)}}><${Icon} n="ti-folder"/>Files</button><${Reset} i=${i}/></span>`}
+    return html`<${SetupLane} i=${i}/><${BatchSelect} i=${i}/><span class="vsep"></span><${Models}/><span class="rgt"><${Cost} i=${i}/><span class="vsep"></span><${Chain} i=${i}/><button class="rbtn lbl hstb" title="The card's history: every event the agents' briefs index" aria-label="Card history" onClick=${function(){History.toggle(i.agent,i.num)}}><${Icon} n="ti-history"/>History</button><button class="rbtn lbl flsb" title="Every file of the card: its issue and calls, its answers, runs and history" aria-label="Card files" onClick=${function(){Files.toggle(i.agent,i.num)}}><${Icon} n="ti-folder"/>Files</button><${Merge} i=${i}/><${Reset} i=${i}/></span>`}
   // Drawers: one aside at a time on the right (the context may sit beside the transcript), each a component in a host
   // element of its own; toggle, close and state as before, state being what the card's view memory keeps.
   function Drawer(){var host=null;return {

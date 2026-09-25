@@ -61,6 +61,10 @@ uncommitted work, and its workspace made to hold the result; status in cards/<n>
 anything works on the card's tree. The server also runs it by itself: every CARDSYNC_SECONDS (60; 0 turns it off) each card
 behind its batch that nothing works on is synced, a failed sync not again until the batch moves on, and a live resolution
 session is told once when its tree took the batch in. Prep steps, the guard and the regressions are refused while a sync runs.
+POST /mergecard/<agent>/<n> {model, effort} hands the card's merge to its resolution session: the engineer's go, with the
+issue-resolution skill's «Ready to merge» section, goes to the live session after its turn, or to the last session resumed,
+or to a fresh one; the session commits the card's work per concern, runs batchmerge.py and stages merge merged. Refused
+(409) when the card is merged, has no batch or worktree, its batch is archived, or a sync runs.
 GET /steps/<agent> is {"sig": <hash of the issue and card files' names, sizes and mtimes>, "steps": {"<n>": {"setup": "done",
 "analysis": "working", …}}, "batches": {…}, "cost": {"<n>": {cost, runs, steps}} (the ticket's ledger, agents/<agent>/cost/<n>.json), "resolve": {"<n>": {stage, bar, rates, turn, live}},
 "stale": {"<n>": {"<step>": why}} (answers whose input answer is newer), "guard": {"<n>": {passed, total, run, running}} (the card's latest guard run, and whether one runs now), "notes": {"<n>": [<step>, …]} (steps with notes), "behind": {"<n>": {batch, branch, head, count, sync}} (cards whose
@@ -119,6 +123,7 @@ BATCHDEL = re.compile(r'^/batchdel/' + A + r'/(\d{4}(?:-\d)?)$')
 BATCHARCHIVE = re.compile(r'^/batcharchive/' + A + r'/(\d{4}(?:-\d)?)$')
 SYNC = re.compile(r'^/sync/' + A + '$')
 CARDSYNC = re.compile(r'^/cardsync/' + A + r'/(\d+)$')
+MERGECARD = re.compile(r'^/mergecard/' + A + r'/(\d+)$')
 CHAIN = re.compile(r'^/chain/' + A + r'/(\d+)(/stop)?$')
 RULE = re.compile(r'^/rule/' + A + r'/(\d+)$')
 DRIVER = re.compile(r'^/driver/' + A + r'/(\d{4}(?:-\d)?)/(start|events|send|abort|stop|state|check)$')
@@ -590,6 +595,11 @@ class H(SimpleHTTPRequestHandler):
             body = self.body() or {}
             st, err = steps.rule(*ru.groups(), body.get('for'), bool(body.get('gap')))
             self.reply(409, {'error': err}) if err else self.reply(202, st if isinstance(st, dict) else {}); return
+        mc = MERGECARD.match(self.path)
+        if mc:
+            body = self.body() or {}
+            err = steps.request_merge(*mc.groups(), model=body.get('model'), effort=body.get('effort'))
+            self.reply(409, {'error': err}) if err else self.reply(202); return
         cs = CARDSYNC.match(self.path)
         if cs:
             err = steps.start_sync(*cs.groups())

@@ -547,3 +547,42 @@ def keep_current(agents):
                         continue
                 st['told'] = now()
                 write_json(path, st)
+
+
+def resolution_section(title):
+    """One section of the issue-resolution skill, heading to the next heading, as the skill file has it now."""
+    text = open(os.path.join(SCRIPTS, '..', '..', 'issue-resolution', 'SKILL.md'), encoding='utf-8').read()
+    m = re.search(r'^## ' + re.escape(title) + r'\n.*?(?=^## |\Z)', text, re.S | re.M)
+    return m.group(0).strip() if m else ''
+
+
+def merge_note(agent, n):
+    """The engineer's go to merge, with the skill's section on merging, so a session that never got the skill text
+    has it too."""
+    batch = card_batch(agent, n)
+    return ('The engineer gives the go to merge this card into batch ' + batch + ' now, from the card\'s Merge button: it covers '
+            'every step of your skill\'s section below. When batchmerge.py exits 0, run `python3 <scripts>/stage.py <agent> <n> merge merged`.\n\n' + resolution_section('5. Ready to merge'))
+
+
+def request_merge(agent, n, model=None, effort=None):
+    """Hand the merge to the card's resolution session: the go message to a live one (after its current turn), else
+    the last session resumed or a fresh one started, then the message. None when sent, else why not."""
+    if merged(agent, n):
+        return 'already merged'
+    if not card_batch(agent, n):
+        return 'no batch: put the card in a batch first'
+    if (load_batches(agent).get(card_batch(agent, n)) or {}).get('archived'):
+        return 'the card\'s batch is archived'
+    if not repo_of(agent, n):
+        return 'no worktree: set the issue up first'
+    if settle(status_path(agent, n, 'sync')).get('state') == 'working':
+        return 'the batch is being merged into the worktree: wait for it'
+    if settle(status_path(agent, n, 'resolve')).get('state') != 'working':
+        err = start_step(agent, n, 'resolve', model=model, effort=effort, resume=resumable(agent, n))
+        if err:
+            return err
+    st = host_call(agent, n, {'cmd': 'state'})
+    if 'error' in st:
+        return st['error']
+    out = host_call(agent, n, {'cmd': 'send', 'message': merge_note(agent, n), 'mode': 'follow_up' if st.get('streaming') else 'prompt'})
+    return out.get('error')

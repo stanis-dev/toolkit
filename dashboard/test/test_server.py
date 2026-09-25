@@ -544,5 +544,24 @@ class BatchSyncLoop(BatchSync):
         self.assertEqual(len(self.standin_log('cardsync.py')), 1)
 
 
+class MergeButton(Lab):
+    """POST /mergecard hands the go to the card's resolution session, starting one when none is live."""
+    name = 'mergecard'
+
+    def test_go_reaches_a_fresh_session(self):
+        with open(self.path('skills', 'issue-resolution', 'SKILL.md'), 'a') as f:
+            f.write('\n## 5. Ready to merge\n\nCommit, then batchmerge.\n\n## 6. After\n\nnot this\n')
+        self.assertEqual(post(f'/mergecard/{AG}/296'), (409, {'error': 'already merged'}))
+        self.assertEqual(post(f'/mergecard/{AG}/301', {'model': 'gpt-5.6-terra', 'effort': 'low'})[0], 202)
+        out = self.path(paths.runs(B, '301', 'resolve'), 'out.jsonl')
+        sent = until(lambda: [e for e in (json.loads(l) for l in open(out)) if e['type'] == 'sent'] if os.path.exists(out) else None)
+        msg = sent[-1]['text']
+        self.assertIn('go to merge this card into batch 0922', msg)
+        self.assertIn('## 5. Ready to merge\n\nCommit, then batchmerge.', msg)
+        self.assertNotIn('not this', msg)
+        post(f'/chat/{AG}/301/stop')
+        until(lambda: not get(f'/chat/{AG}/301/state')['running'])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -272,6 +272,10 @@ main{min-width:0}
 .pickbar .note .pskip a{color:var(--text-secondary)}
 .pickbar .note:empty{display:none}
 .runbar .rstb{margin-left:14px;color:var(--text-muted)}
+.runbar .mrgb{margin-left:14px}
+.runbar .mrgb.arm{color:var(--text-accent);border-color:color-mix(in srgb,var(--text-accent) 50%,transparent)}
+.runbar .mrgb.ko{color:var(--text-danger)}
+.runbar .mrgb:disabled{color:var(--purple);opacity:1}
 .runbar .rstb.arm{color:var(--text-danger);border-color:color-mix(in srgb,var(--text-danger) 50%,transparent)}
 
 /* Batches: the branch line's setup state, delete with its inline confirm, and the new-batch form. */
