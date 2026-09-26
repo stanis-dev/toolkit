@@ -20,7 +20,3 @@ jobhunt-data/
 # Python bytecode
 __pycache__/
 
-# Dashboard tests: the fixture is a copy of live issue data, the run-* dirs throwaway labs
-dashboard/test/fixture/
-dashboard/test/run-*/
-dashboard/test/*.out
